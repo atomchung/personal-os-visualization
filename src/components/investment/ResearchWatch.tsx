@@ -5,7 +5,7 @@ import { ReadingText, InlineText } from "./ReadingText"
 import { SourceQuestion } from "./InvestmentWork"
 
 export function ResearchLibrary({data}: {data: InvestmentWatch}) {
-  return <details className="flex flex-col gap-2"><summary className="cursor-pointer text-body font-medium text-ink">研究資料與上次留下的問題</summary><div className="flex flex-col gap-2 pt-3">
+  return <details className="flex flex-col gap-2"><summary className="cursor-pointer text-body font-medium text-ink">正在研究與待釐清的問題</summary><div className="flex flex-col gap-2 pt-3">
     {data.research.map(r=><Card key={r.id} className="flex flex-col gap-2 p-3"><details><summary className="cursor-pointer text-body font-medium">{r.topic} · {r.title}</summary><div className="flex flex-col gap-3 pt-3"><ReadingText text={r.excerpt}/><p className="text-caption text-ink-3">來源：{r.source.path}{r.source.updated?` · ${r.source.updated}`:""}</p><SourceQuestion source={r}/></div></details></Card>)}
     {data.session_followups.map(r=><Card key={r.id} className="flex flex-col gap-2 p-3"><p className="text-body font-medium">{r.title}</p><ReadingText text={r.next_action}/><p className="text-caption text-ink-3">紀錄日期：{r.last_session}</p></Card>)}
   </div></details>
@@ -18,8 +18,8 @@ export function ResearchWatch({data,brief}: {data: InvestmentWatch; brief?:Inves
   const events=buildTimeline(data,brief,today,end)
   const months=data.catalysts.filter(e=>e.date_precision==="month"&&e.date!==null&&e.date>=today.slice(0,7)&&e.date<=end.slice(0,7))
   return <section className="flex flex-col gap-3" aria-label="什麼時候要看什麼">
-    <SectionHeading>什麼時候要看什麼</SectionHeading><p className="text-body text-ink-3">未來 30 天（{today} 至 {end}）會考驗判斷的事：研究筆記登記的日期，加上簡報點名的近期事件；同一天同一檔只列一次。</p>
-    {events.length===0?<p className="text-body text-ink-3">目前筆記與簡報都沒有這段期間的確切日期；不代表市場沒有事件。</p>:null}
+    <SectionHeading>什麼時候要看什麼</SectionHeading><p className="text-body text-ink-3">未來 30 天（{today} 至 {end}）需要留意的事件：研究筆記記下的日期，以及簡報提到的近期事件；同一天同一檔只列一次。</p>
+    {events.length===0?<p className="text-body text-ink-3">目前筆記與簡報沒有記下這段期間的確切日期；資料缺日期，不代表這段期間沒有事件。</p>:null}
     <ul className="divide-y divide-line-soft">{events.map(e=><li key={e.key} className="flex items-start gap-3 py-3"><span className="shrink-0 text-label tabular-nums text-ink-3">{e.date.slice(5)}{e.estimated?" 約":""}</span><div className="flex min-w-0 flex-col gap-1"><span className="text-body font-medium"><InlineText text={e.title}/></span>{e.verify?<p className="text-body leading-relaxed text-ink-2">要看什麼：<InlineText text={e.verify}/></p>:null}<details><summary className="cursor-pointer text-caption text-ink-3">原文與來源</summary><div className="pt-2"><ReadingText text={e.raw}/></div><p className="break-words text-caption text-ink-3">{e.sources.join("；")}</p></details></div></li>)}</ul>
     {months.length>0?<details><summary className="cursor-pointer text-caption text-ink-3">只知道月份的近期事件（{months.length}）</summary><div className="flex flex-col gap-2 pt-2">{months.map(e=><p key={e.id} className="text-body">{e.topic} · <InlineText text={e.raw}/></p>)}</div></details>:null}
   </section>

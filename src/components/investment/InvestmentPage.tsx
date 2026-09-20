@@ -44,7 +44,7 @@ function TodayBrief({b}: {b: InvestmentBrief}) {
       {b.events.map((e,i)=><Card key={`${b.date}:${i}`} className="flex flex-col gap-2 p-3">
         <div className="flex flex-wrap items-start justify-between gap-2"><p className="min-w-0 text-body font-medium leading-relaxed"><InlineText text={e.event}/></p><Chip tone={actionTone(e.today)}>{e.today}</Chip></div>
         <div className="text-body leading-relaxed text-ink-2"><span className="font-medium">對持倉：</span><InlineText text={e.impact}/></div>
-        {b.thesis_changes.filter(x=>x.event_index===i).map((x,j)=><div key={`t${j}`} className="text-body leading-relaxed text-ink-2"><span className="font-medium">打到的判斷：</span><InlineText text={x.thesis}/> {x.change}<span className="text-ink-3"> — <InlineText text={x.reason}/></span></div>)}
+        {b.thesis_changes.filter(x=>x.event_index===i).map((x,j)=><div key={`t${j}`} className="text-body leading-relaxed text-ink-2"><span className="font-medium">受影響的判斷：</span><InlineText text={x.thesis}/> {x.change}<span className="text-ink-3"> — <InlineText text={x.reason}/></span></div>)}
         {b.risks.filter(x=>x.event_index===i).map((x,j)=><div key={`r${j}`} className="text-body leading-relaxed text-warn"><span className="font-medium">風險：</span><InlineText text={x.risk}/><span> — <InlineText text={x.status}/></span></div>)}
         <details><summary className="cursor-pointer text-caption text-ink-3">市場反應與解讀</summary><div className="flex flex-col gap-2 pt-2 text-body text-ink-2"><p><span className="font-medium">市場反應：</span><InlineText text={e.market_reaction}/></p><p><span className="font-medium">市場可能在定價：</span><InlineText text={e.interpretation}/></p></div></details>
       </Card>)}
@@ -75,15 +75,15 @@ export function InvestmentPage() {
       const [brief,research,market,universe,,pending]=await Promise.all([
         run("簡報",["investment"],()=>getInvestment()),run("研究",["investment-watch"],()=>getInvestmentWatch()),
         run("市場行情",["investment-market"],()=>getInvestmentMarket(undefined,true)),run("股票清單",["investment-momentum-universe"],()=>getMomentumUniverse()),
-        run("我自己記的事項",["investment-work"],()=>getInvestmentWork()),
-        run("待處理掃描",["investment-pending"],()=>getInvestmentPending()),
+        run("我的投資事項",["investment-work"],()=>getInvestmentWork()),
+        run("系統提醒",["investment-pending"],()=>getInvestmentPending()),
       ])
       if (brief?.brief.state==="invalid"||brief?.brief.state==="missing") failures.push("簡報內容")
       if (research?.coverage.errors.length) failures.push("部分研究來源")
       if (brief?.brief.source?.limitations.length) failures.push("簡報部分段落")
       if (market?.state==="unavailable"||market?.state==="partial") failures.push("部分市場報價")
       // 三個來源各自有狀態；只報哪一個讀不到，不把整塊說成失敗。
-      if (pending) failures.push(...([["對帳掃描",pending.revisit],["pending 閘門",pending.gate],["每週觀察",pending.weekly]] as const).filter(([,b])=>b.state==="unavailable").map(([label])=>label))
+      if (pending) failures.push(...([["舊判斷回看",pending.revisit],["待確認事項",pending.gate],["每週觀察",pending.weekly]] as const).filter(([,b])=>b.state==="unavailable").map(([label])=>label))
       if (universe?.state==="unavailable") failures.push("股票清單")
       if (universe?.state==="ready") {
         const results=await Promise.all(universe.symbols.map(s=>run(s,["investment-momentum",s],()=>getStockMomentum(s,undefined,true))))
@@ -98,7 +98,7 @@ export function InvestmentPage() {
     } finally {setRefreshing(false)}
   }
   return <div className="flex min-w-0 flex-col gap-4">
-    <header className="flex items-start justify-between gap-3"><div className="flex flex-col gap-1"><h1 className="text-display font-bold text-ink">投資</h1><p className="text-caption text-ink-3">看今天的判斷，答到期的對帳，知道什麼時候要看什麼。{DEMO_MODE ? "此處展示固定的虛構案例。" : "行情開著就自動更新。"}</p></div><Button disabled={refreshing||fetching>0} onClick={()=>void refresh()}>{refreshing?"更新全部中…":fetching>0?"資料載入中…":"更新全部"}</Button></header>
+    <header className="flex items-start justify-between gap-3"><div className="flex flex-col gap-1"><h1 className="text-display font-bold text-ink">投資</h1><p className="text-caption text-ink-3">看今天的判斷，回看已到期的舊判斷，掌握近期要留意的事件。{DEMO_MODE ? "此處展示固定的虛構案例。" : "行情開著就自動更新。"}</p></div><Button disabled={refreshing||fetching>0} onClick={()=>void refresh()}>{refreshing?"更新全部中…":fetching>0?"資料載入中…":"更新全部"}</Button></header>
     {notice?<p role="status" aria-live="polite" className="text-caption text-ink-3">{notice}</p>:null}
     <nav aria-label="投資內容" className="flex flex-wrap gap-2">{([['today','今天'],['work','待處理'],['month','什麼時候看什麼']] as const).map(([key,label])=><Button key={key} aria-pressed={view===key} variant={view===key?"selected":"ghost"} onClick={()=>setView(key)}>{label}</Button>)}</nav>
     <div hidden={view!=="today"} className={view==="today"?"flex min-w-0 flex-col gap-5":"hidden"}>
@@ -109,8 +109,8 @@ export function InvestmentPage() {
     </div>
     <div hidden={view!=="work"} className={view==="work"?"flex min-w-0 flex-col gap-5":"hidden"}>
       <PendingBoard/>
-      <section className="flex min-w-0 flex-col gap-3" aria-label="我自己記的投資事項">
-        <div className="flex flex-col gap-1"><SectionHeading>我自己記的</SectionHeading><p className="text-caption text-ink-3">你在看板上手記的問題與結論，只存在本機，跟上面系統掃出來的是兩回事。</p></div>
+      <section className="flex min-w-0 flex-col gap-3" aria-label="我留下的問題與研究">
+        <div className="flex flex-col gap-1"><SectionHeading>我留下的問題與研究</SectionHeading><p className="text-caption text-ink-3">你在看板上留下的問題、研究與結論，只存在本機；系統整理的提醒另列在上方。</p></div>
         <InvestmentWorkPanel research={watch.data?.research??[]}/>
       </section>
       {watch.data?<ResearchLibrary data={watch.data}/>:null}
@@ -119,8 +119,8 @@ export function InvestmentPage() {
     {watch.isError?<p role="alert" className="text-body text-warn">研究與重要日期本次讀取失敗。{watch.data?"仍顯示上次內容。":""}</p>:null}
     <details className="border-t border-line-soft pt-3"><summary className="cursor-pointer text-caption text-ink-3">資料來源與讀取狀況{watch.data?.coverage.errors.length?` · ${watch.data.coverage.errors.length} 項異常`:""}</summary><div className="flex flex-col gap-2 pt-2 text-caption text-ink-3">
       <p>{DEMO_MODE ? "簡報、研究、日期與行情全由合成資料提供。更新全部只重讀範例，不連接帳戶或外部資料。" : "簡報、研究和日期讀取本機 investment_note；行情向 Yahoo Finance 查詢，分頁開著時自動更新。更新全部不會同步 Git 或重跑 AI 簡報。"}</p>
-      <p>每週觀察：{query.data?.weekly_watch.date??"本機未找到"}。目前僅提供日期；不代表已做本週對帳。</p>
-      <p>判準核對尚未接入；没有顯示警報不代表投資論點通過檢查。</p>
+      <p>每週觀察：{query.data?.weekly_watch.date??"本機未找到"}。目前只提供日期，無法據此確認本週回顧是否完成。</p>
+      <p>投資論點的檢查功能尚未提供；這裡沒有提醒，不代表論點已通過檢查。</p>
       {watch.data?<><p>已讀 {watch.data.coverage.scanned_files} 份相關來源；{watch.data.coverage.missing_catalysts.length} 份未填下次事件日期。未填日期不算讀取故障。</p>{watch.data.coverage.errors.map((e,i)=><p key={i}>{e.path}：{e.message}</p>)}{watch.data.coverage.omissions.length?<p>另有 {watch.data.coverage.omissions.length} 份相關來源未納入：{watch.data.coverage.omissions.slice(0,5).map(e=>`${e.path}（${e.reason}）`).join("、")}</p>:null}</>:null}
     </div></details>
   </div>
