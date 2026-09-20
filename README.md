@@ -4,6 +4,10 @@ This is a standalone frontend demonstration, not the complete Personal OS engine
 All records are hand-authored fiction. No personal vault, Python backend, account,
 health database, session log, credential, or original Git history is included.
 
+Start with [project context and issue map](PROJECT_CONTEXT.md) for the user goals,
+completed baseline, remaining work and local/cloud handoff. GitHub issues are the
+current progress record; this README is not a claim that every feature is done.
+
 Install with `npm ci`, run `npm test`, and build with `npm run build`.
 Serve `dist/` with any static host. The data adapter is always synthetic, even
 when the default build command is used. Unsupported routes fail closed.

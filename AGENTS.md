@@ -1,5 +1,12 @@
 # Visualization collaboration
 
+Read `PROJECT_CONTEXT.md` before planning work. It records the product intent,
+decisions, issue map and evidence limits. GitHub issues own current work status;
+update the corresponding issue when scope, blockers or verified progress change.
+Classify user feedback yourself as ui/data/integration after tracing the cause.
+Do not ask the user to perform technical triage. Claim work on the issue before
+editing and link the PR. Mock UI completion does not close local integration work.
+
 This repository contains shared UI code and fictional fixtures. It has no access
 to the local application's personal data or backend. Do not add credentials,
 real records, live API fallbacks, analytics, or external data connections.

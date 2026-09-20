@@ -5,8 +5,9 @@
   "files": {
     ".github/workflows/check.yml": "c65913170bcabb9260f6212269f5fc95778e0444c0ad15a09c6157635c2bce61",
     ".gitignore": "1d0519324b2dc1f0cdf7b321f6b3182e28682e85b9c7824a3728430fd3002e34",
-    "AGENTS.md": "eda57b2471bf8a35f2fe9b26816a4fdfedc4cc5c94c6a6aeafc2efc1e88b9cea",
-    "README.md": "f2ff7255b2a1e172ed33e851bf272f86138e88adccaadc49de00167cee8e4053",
+    "AGENTS.md": "30ed9d3fb671c8ed0c244f8bd5fafe724e431c989d0fb8677e8ed7ea8e743f2f",
+    "PROJECT_CONTEXT.md": "81119c28ee4ce92be4c8111dc5a7a915fe1ca5936aceec32f7f4ae8ad8b3c919",
+    "README.md": "e5eefcb04eee6f2884685a9092216002d7c6320dd9aa59554cd7776cdaa62638",
     "index.html": "2631d6e1c023ea351772f59e703eb2592087da23f762eb6c96177be7450bec1c",
     "package-lock.json": "b62a62719539452bef37728897a310728e177254ea2aefd39e4659ae7e9a3cb3",
     "package.json": "46dcf41a19a9a2c998eff710c80c68484b881d821ce4f0e35820e11d21679f4e",
