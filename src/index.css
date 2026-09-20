@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Tokens come from core/styles.py via scripts/build_web_tokens.py — this file
+ * adds only what a page needs to exist, never a colour or a size of its own. */
+html {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang TC",
+    "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
