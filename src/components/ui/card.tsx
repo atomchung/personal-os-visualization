@@ -31,3 +31,8 @@ export function SectionHeading({
     </div>
   )
 }
+
+/** A stable child heading; it is intentionally lighter than SectionHeading. */
+export function SubsectionHeading({ children }: { children: React.ReactNode }) {
+  return <h3 className="text-section font-semibold tracking-tight text-ink">{children}</h3>
+}

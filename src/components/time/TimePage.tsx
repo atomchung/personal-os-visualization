@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Chip } from "@/components/ui/chip"
 import { DayStack } from "@/components/time/DayStack"
 import { WeeklyTrend } from "@/components/time/WeeklyTrend"
+import { PageHeader } from "@/components/ui/page-header"
+import { humanizeSystemLabel } from "@/lib/informationArchitecture"
 
 const CATEGORY_TOKEN: Record<string, string> = {
   投資: "--color-cat-1",
@@ -60,13 +62,13 @@ export function TimePage() {
   })
 
   if (timeQuery.isPending) {
-    return <p className="p-6 text-body text-ink-3">讀取 AI Agent 使用資料中…</p>
+    return <p className="p-6 text-body text-ink-3">讀取 AI 使用資料中…</p>
   }
 
   if (timeQuery.isError) {
     return (
       <p className="p-6 text-body text-bad">
-        讀不到 AI Agent 使用資料：{(timeQuery.error as Error).message}
+        讀不到 AI 使用資料：{(timeQuery.error as Error).message}
       </p>
     )
   }
@@ -79,39 +81,39 @@ export function TimePage() {
     <div className="flex flex-col gap-6">
       {/* Header & period switch */}
       <section className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-display font-bold tracking-tight text-ink">
-              AI Agent 使用
-            </h1>
+        <PageHeader
+          page="time"
+          action={
+            <div className="flex items-center gap-1 rounded-md bg-bg-2 p-0.5">
+              {PERIODS.map((p) => (
+                <Button
+                  key={p.key}
+                  variant={period === p.key ? "selected" : "ghost"}
+                  size="sm"
+                  onClick={() => setPeriod(p.key)}
+                >
+                  {p.label}
+                </Button>
+              ))}
+            </div>
+          }
+        />
+        <div className="flex flex-col gap-1">
             <p className="text-caption text-ink-3">{data.cycle_caption}</p>
             {data.as_of_note && (
               <p className="text-micro text-warn">{data.as_of_note}</p>
             )}
             <p className="text-micro text-ink-4">
               {data.snapshot.missing
-                ? "usage 快照尚未建立 — 跑 scripts/refresh_usage_cache.py"
-                : `usage 快照 ${data.snapshot.age_label}${data.snapshot.is_stale ? "（已過時，跑 scripts/refresh_usage_cache.py）" : ""}`}
+                ? "使用紀錄尚未建立；目前數字不代表沒有使用。"
+                : `使用紀錄更新於 ${data.snapshot.age_label}${data.snapshot.is_stale ? "（資料較舊，請先更新再比較）" : ""}`}
             </p>
-          </div>
-          <div className="flex items-center gap-1 rounded-md bg-bg-2 p-0.5">
-            {PERIODS.map((p) => (
-              <Button
-                key={p.key}
-                variant={period === p.key ? "selected" : "ghost"}
-                size="sm"
-                onClick={() => setPeriod(p.key)}
-              >
-                {p.label}
-              </Button>
-            ))}
-          </div>
         </div>
 
         {/* 4 KPI cards — 配額那格 2026-08-25 拿掉，恢復步驟寫在 web/time_tab.py 檔頭 */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Card className="flex flex-col gap-2 p-3">
-            <div className="text-caption text-ink-3">{kpis.output.label}</div>
+            <div className="text-caption text-ink-3">{humanizeSystemLabel(kpis.output.label)}</div>
             <div className="text-hero font-bold leading-display tabular-nums text-ink">
               {kpis.output.value}
             </div>
@@ -134,7 +136,7 @@ export function TimePage() {
           </Card>
 
           <Card className="flex flex-col gap-2 p-3">
-            <div className="text-caption text-ink-3">{kpis.sessions.label}</div>
+            <div className="text-caption text-ink-3">{humanizeSystemLabel(kpis.sessions.label)}</div>
             <div className="text-hero font-bold leading-display tabular-nums text-ink">
               {kpis.sessions.value}
             </div>
@@ -162,7 +164,7 @@ export function TimePage() {
             ) : null
           }
         >
-          每週 output token（自然週）
+          每週文字產出（自然週）
         </SectionHeading>
         {trend.available ? (
           <WeeklyTrend
@@ -182,11 +184,11 @@ export function TimePage() {
           <table className="w-full text-left text-label">
             <thead className="border-b-[0.5px] border-line-soft bg-bg-3 text-caption font-semibold text-ink-3">
               <tr>
-                <th className="px-3.5 py-2">Agent</th>
+                <th className="px-3.5 py-2">工具</th>
                 <th className="px-3.5 py-2">月訂閱費</th>
-                <th className="px-3.5 py-2">月 API 等價</th>
+                <th className="px-3.5 py-2">每月外部成本估算</th>
                 <th className="px-3.5 py-2">槓桿</th>
-                <th className="px-3.5 py-2">平均每週 output</th>
+                <th className="px-3.5 py-2">平均每週文字產出</th>
                 <th className="px-3.5 py-2">樣本</th>
               </tr>
             </thead>
@@ -231,9 +233,8 @@ export function TimePage() {
           </table>
         </Card>
         <p className="text-micro text-ink-4">
-          月 API 等價 = 該 agent 自己有完整資料的完整週平均 × 4.33（樣本欄是週數，
-          少於 3 週就不推月成本）。{kpis.cost.caveat}。訂閱費在
-          core/data/subscription.json 的 agents 欄位。
+          外部成本估算 = 該工具自己有完整資料的完整週平均 × 4.33（樣本欄是週數，
+          少於 3 週就不推月成本）。{kpis.cost.caveat}。訂閱費仍以本機設定為準。
         </p>
       </section>
 
@@ -274,7 +275,7 @@ export function TimePage() {
                   {b.category}
                 </span>
                 <span className="text-caption text-ink-3">
-                  {b.hours}h · {b.session_count} sessions
+                  {b.hours}h · {b.session_count} 段工作紀錄
                 </span>
               </div>
               {b.sub_breakdown && (
@@ -300,23 +301,23 @@ export function TimePage() {
 
       {/* 各 agent 分工 */}
       <section className="flex flex-col gap-2">
-        <SectionHeading>各 Agent 做了多少</SectionHeading>
+        <SectionHeading>各工具的工作量</SectionHeading>
         <Card className="overflow-hidden p-0">
           <table className="w-full text-left text-label">
             <thead className="border-b-[0.5px] border-line-soft bg-bg-3 text-caption font-semibold text-ink-3">
               <tr>
-                <th className="px-3.5 py-2">Agent</th>
-                <th className="px-3.5 py-2">Sessions</th>
+                <th className="px-3.5 py-2">工具</th>
+                <th className="px-3.5 py-2">工作紀錄</th>
                 <th className="px-3.5 py-2">中位長度</th>
                 <th className="px-3.5 py-2">時數合計（未去重）</th>
-                <th className="px-3.5 py-2">Output</th>
+                <th className="px-3.5 py-2">文字產出</th>
                 <th className="px-3.5 py-2">最長的一場</th>
               </tr>
             </thead>
             <tbody className="divide-y-[0.5px] divide-line-soft text-ink-2">
               {data.agent_rows.map((r) => (
                 <tr key={r.agent} className="hover:bg-bg-3/50">
-                  <td className="px-3.5 py-2 font-medium text-ink">{r.agent_label}</td>
+                  <td className="px-3.5 py-2 font-medium text-ink">{humanizeSystemLabel(r.agent_label)}</td>
                   <td className="px-3.5 py-2 tabular-nums">{r.session_count}</td>
                   <td className="px-3.5 py-2 tabular-nums">{r.median_min}m</td>
                   <td className="px-3.5 py-2 tabular-nums">{r.active_hhmm}</td>
@@ -332,14 +333,14 @@ export function TimePage() {
           </table>
         </Card>
         <p className="text-micro text-ink-4">
-          時數合計未去重（同一段時間平行開兩個 agent 會各算一次），所以三列加起來會多於
-          上面的主動時數；中位長度是解釋下面那張榜單為什麼幾乎全是 Claude 的欄位。
+          時數合計未去重（同一段時間平行使用兩個工具會各算一次），所以三列加起來會多於
+          上面的主動時數；中位長度是解釋下面那張榜單的閱讀方式。
         </p>
       </section>
 
       {/* 按類別 */}
       <section className="flex flex-col gap-2">
-        <SectionHeading>按類別（時間 / 本地 commits / 雲端）</SectionHeading>
+        <SectionHeading>按類別（投入時間／本地變更／雲端）</SectionHeading>
         <Card className="overflow-hidden p-0">
           <table className="w-full text-left text-label">
             <thead className="border-b-[0.5px] border-line-soft bg-bg-3 text-caption font-semibold text-ink-3">
@@ -347,9 +348,9 @@ export function TimePage() {
                 <th className="px-3.5 py-2">分類</th>
                 <th className="px-3.5 py-2">本地時間</th>
                 <th className="px-3.5 py-2">佔比</th>
-                <th className="px-3.5 py-2">本地 Commits</th>
-                <th className="px-3.5 py-2">雲端 Sessions</th>
-                <th className="px-3.5 py-2">雲端 Commits</th>
+                <th className="px-3.5 py-2">本地變更</th>
+                <th className="px-3.5 py-2">雲端工作紀錄</th>
+                <th className="px-3.5 py-2">雲端變更</th>
               </tr>
             </thead>
             <tbody className="divide-y-[0.5px] divide-line-soft text-ink-2">
@@ -392,8 +393,8 @@ export function TimePage() {
             unit=" 分"
           />
           <DayStack
-            title="每日產出（M output tokens）"
-            caption="顏色 = 模型 · 日曆日切分"
+            title="每日文字產出"
+            caption="顏色 = 工具 · 日曆日切分"
             rows={data.daily_models.map((d) => ({
               date: d.date,
               key: d.model,
@@ -406,19 +407,19 @@ export function TimePage() {
         </div>
       )}
 
-      {/* 最花時間的 Sessions */}
+      {/* 最花時間的工作紀錄 */}
       <section className="flex flex-col gap-2">
-        <SectionHeading>最花時間的 Sessions</SectionHeading>
+        <SectionHeading>最花時間的工作紀錄</SectionHeading>
         <Card className="overflow-hidden p-0">
           <table className="w-full text-left text-label">
             <thead className="border-b-[0.5px] border-line-soft bg-bg-3 text-caption font-semibold text-ink-3">
               <tr>
                 <th className="px-3.5 py-2">日期</th>
-                <th className="px-3.5 py-2">Agent</th>
+                <th className="px-3.5 py-2">工具</th>
                 <th className="px-3.5 py-2">類別</th>
                 <th className="px-3.5 py-2">活躍</th>
                 <th className="px-3.5 py-2">主題</th>
-                <th className="px-3.5 py-2">Session ID</th>
+                <th className="px-3.5 py-2">紀錄識別碼</th>
               </tr>
             </thead>
             <tbody className="divide-y-[0.5px] divide-line-soft text-ink-2">
@@ -427,7 +428,7 @@ export function TimePage() {
                   <td className="whitespace-nowrap px-3.5 py-2 tabular-nums text-ink-3">
                     {s.date}
                   </td>
-                  <td className="px-3.5 py-2 font-medium text-ink">{s.agent}</td>
+                  <td className="px-3.5 py-2 font-medium text-ink">{humanizeSystemLabel(s.agent)}</td>
                   <td className="px-3.5 py-2 font-medium">{s.category}</td>
                   <td className="px-3.5 py-2 tabular-nums">{s.active_hhmm}</td>
                   <td className="max-w-xs truncate px-3.5 py-2 text-ink-2" title={s.topic}>

@@ -3,6 +3,7 @@ import { getHealth } from "@/lib/api"
 import { Card, SectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { Disclosure } from "@/components/ui/disclosure"
+import { PageHeader } from "@/components/ui/page-header"
 
 const GOAL_GRADIENTS: Record<string, string> = {
   annual: "linear-gradient(90deg, var(--color-sys-indigo) 0%, var(--color-sys-purple) 100%)",
@@ -39,15 +40,7 @@ export function HealthPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-display font-bold tracking-tight text-ink">
-          運動 × 體態
-        </h1>
-        <p className="text-caption text-ink-3">
-          Garmin 每天自動同步；重訓重量靠 /log-strength 手動記
-        </p>
-      </div>
+      <PageHeader page="health" />
 
       {/* 1. 🎯 目標狀態 (4 Gradient Progress Bars) */}
       <section className="flex flex-col gap-2">

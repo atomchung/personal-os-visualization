@@ -8,6 +8,7 @@ import { TodoPeek } from "@/components/TodoPeek"
 import { CategoryBars } from "@/components/CategoryBars"
 import { InboxPanel } from "@/components/InboxPanel"
 import { SectionHeading } from "@/components/ui/card"
+import { InvestmentContinuation } from "@/components/InvestmentContinuation"
 
 export function TodayPage() {
   const qc = useQueryClient()
@@ -44,9 +45,9 @@ export function TodayPage() {
       <Hero hero={data.hero} />
 
       <section className="flex flex-col gap-2">
-        <SectionHeading>本週駕駛艙 · {cockpit.week_id}</SectionHeading>
+        <SectionHeading>本週選擇 · {cockpit.week_id}</SectionHeading>
         <p className="-mt-1 text-caption text-ink-3">
-          唯讀 shadow brief · 建議不等於本週承諾
+          這裡是整理後的建議；是否列入本週承諾由你決定
         </p>
         {verdict.isError && (
           <p className="text-caption text-bad">
@@ -72,6 +73,8 @@ export function TodayPage() {
       </section>
 
       <PillarGrid pillars={data.pillars} />
+
+      <InvestmentContinuation />
 
       <ThreadInventory threads={data.threads} />
 

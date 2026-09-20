@@ -62,6 +62,52 @@ export type InvestmentSourceText = {
   text: string
 }
 
+export type InvestmentHistoryItem = {
+  id: string
+  title: string
+  heading: string
+  date: string | null
+  kind: string
+  excerpt: string
+  excerpt_truncated: boolean
+  result_state: "known" | "unknown"
+  result: string
+  detail_state: "available" | "truncated"
+  source: {
+    id: string
+    path: string
+    section: string
+    line_start: number
+    line_end: number
+  }
+}
+
+export type InvestmentHistory = {
+  state: "ready" | "partial" | "unavailable"
+  coverage: {
+    allowed_sources: { id: string; path: string; kind: string }[]
+    available_sources: { id: string; path: string; kind: string; bytes: number; items?: number }[]
+    missing_sources: string[]
+    items: number
+    errors: { source_id: string; path: string; code: string; message: string }[]
+  }
+  items: InvestmentHistoryItem[]
+}
+
+export type InvestmentHistorySource = InvestmentHistoryItem & { text: string }
+
+export type InvestmentContext = {
+  schema_version: number
+  read_only: true
+  task: { slug: string; path: string }
+  scope: { mode: string; max_files: number; files_read: string[]; excluded: string[] }
+  current_state: Record<string, string | { section: string; line_start: number; line_end: number; text: string; truncated: boolean }>
+  requirements: { section: string; line_start: number; line_end: number; text: string; truncated: boolean; source: { path: string; root: string; line_start: number; line_end: number } }[]
+  decisions: { kind: "approved" | "rejected" | "pending"; section: string; line_start: number; line_end: number; text: string; truncated: boolean; source: { path: string; root: string; line_start: number; line_end: number } }[]
+  evidence: { kind?: string; section: string; line_start: number; line_end: number; text: string; truncated: boolean; source: { path: string; root: string; line_start: number; line_end: number } }[]
+  warnings: string[]
+}
+
 export type QuoteSession = "pre" | "regular" | "post" | "closed" | "futures"
 export const SESSION_LABELS: Record<QuoteSession, string> = { pre: "盤前", regular: "盤中", post: "盤後", closed: "收盤", futures: "期貨" }
 export const BRIEF_SESSION_LABELS: Record<string, string> = { "tw-open-prep": "台股開盤前版", "us-open-prep": "美股開盤前版" }
@@ -123,6 +169,30 @@ export type MomentumUniverse = {
   excluded_count: number
 }
 
+export type MomentumLeader = {
+  symbol: string
+  rank: number
+  state: "ready" | "partial" | "unavailable"
+  as_of: string | null
+  last_close: number | null
+  return_20d_pct: number | null
+  vs_5ma_pct: number | null
+  vs_20ma_pct: number | null
+  vs_50ma_pct: number | null
+  rsi14: number | null
+  macd: "bullish_cross" | "bearish_cross" | "bullish" | "bearish" | "flat" | null
+  notes: string[]
+}
+
+export type MomentumLeaders = {
+  state: "ready" | "partial" | "unavailable"
+  as_of: string | null
+  leaders: MomentumLeader[]
+  universe: MomentumUniverse
+  coverage: { candidate_count: number; scored_count: number; unavailable_count: number }
+  note: string
+}
+
 export type StockMomentumData = {
   symbol: string
   fetched_at: string
@@ -134,6 +204,9 @@ export type StockMomentumData = {
     last_close: number | null
     rsi14: number | null
     macd: "bullish_cross" | "bearish_cross" | "bullish" | "bearish" | "flat" | null
+    return_20d_pct: number | null
+    vs_5ma_pct: number | null
+    vs_20ma_pct: number | null
     vs_50ma_pct: number | null
     range_252_low: number | null
     range_252_high: number | null
@@ -270,6 +343,9 @@ export const getInvestmentMarket = (signal?: AbortSignal, refresh = false) =>
 export const getMomentumUniverse = (signal?: AbortSignal) =>
   readInvestment<MomentumUniverse>("/api/investment/momentum/universe", signal)
 
+export const getMomentumLeaders = (signal?: AbortSignal, refresh = false) =>
+  readInvestment<MomentumLeaders>(`/api/investment/momentum/leaders?refresh=${refresh}`, signal, 60_000)
+
 export async function getStockMomentum(symbol: string, signal?: AbortSignal, refresh = false): Promise<StockMomentumData> {
   const release = await acquireMomentumSlot(signal)
   try {
@@ -300,6 +376,18 @@ export const getInvestmentSource = (id: string, signal?: AbortSignal) =>
     `/api/investment/source?id=${encodeURIComponent(id)}`,
     signal,
   )
+
+export const getInvestmentHistory = (signal?: AbortSignal) =>
+  readInvestment<InvestmentHistory>("/api/investment/history", signal)
+
+export const getInvestmentHistorySource = (id: string, signal?: AbortSignal) =>
+  readInvestment<InvestmentHistorySource>(
+    `/api/investment/history/source?id=${encodeURIComponent(id)}`,
+    signal,
+  )
+
+export const getInvestmentContext = (signal?: AbortSignal) =>
+  readInvestment<InvestmentContext>("/api/investment/context", signal)
 
 /** 待處理的三個來源全部來自 investment_note 既有工具，看板只顯示、不寫回。
  * 每一塊自己帶狀態：一個工具讀不到時只有那一塊說話，另外兩塊照常。 */

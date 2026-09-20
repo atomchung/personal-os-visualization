@@ -45,7 +45,7 @@ export function OverallNarrative({ overall }: { overall: OverallPeek }) {
       <section className="flex flex-col gap-1.5">
         <SectionHeading>🧭 本週總覽</SectionHeading>
         <p className="text-caption text-ink-3">
-          💤 本週總覽：還沒有資料（跑 scripts/refresh_ccstory.py week 產一份）
+          💤 本週總覽：還沒有可用資料；這裡不把缺資料當成沒有活動。
         </p>
       </section>
     )
@@ -58,7 +58,7 @@ export function OverallNarrative({ overall }: { overall: OverallPeek }) {
       <SectionHeading
         aside={
           <span className="text-caption text-ink-4">
-            ccstory · {overall.n_threads} threads
+            {overall.n_threads} 段工作紀錄
           </span>
         }
       >

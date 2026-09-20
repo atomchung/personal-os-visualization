@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import type { WeeklyUsageRow } from "@/lib/api"
+import { humanizeSystemLabel } from "@/lib/informationArchitecture"
 
 /* 每週 output token 趨勢：一根 = 一個自然週，堆疊 = 三個 agent。
  *
@@ -37,7 +38,7 @@ export function WeeklyTrend({
   const tableRows = expanded ? newestFirst : newestFirst.slice(0, TABLE_ROWS_COLLAPSED)
   const hidden = newestFirst.length - tableRows.length
   // The payload carries agent keys; everything the reader sees is the label.
-  const nameOf = (key: string) => agents.find((a) => a.key === key)?.label ?? key
+  const nameOf = (key: string) => humanizeSystemLabel(agents.find((a) => a.key === key)?.label ?? key)
   const blindLabels = (r: WeeklyUsageRow) => r.truncated_agents.map(nameOf).join("/")
 
   return (
@@ -49,7 +50,7 @@ export function WeeklyTrend({
               className="size-2 rounded-full"
               style={{ background: `var(${AGENT_COLOR[a.key] ?? "--color-sys-gray"})` }}
             />
-            {a.label}
+            {humanizeSystemLabel(a.label)}
           </span>
         ))}
       </div>
@@ -59,8 +60,8 @@ export function WeeklyTrend({
           {rows.map((r) => {
             const total = r.output_tokens ?? 0
             const tip = [
-              `${r.label} · ${M(r.output_tokens)} output · ${USD(r.cost_usd)}`,
-              ...agents.map((a) => `${a.label} ${M(r.agents[a.key]?.output_tokens ?? null)}`),
+              `${r.label} · ${M(r.output_tokens)} 文字產出 · ${USD(r.cost_usd)}`,
+              ...agents.map((a) => `${humanizeSystemLabel(a.label)} ${M(r.agents[a.key]?.output_tokens ?? null)}`),
               r.truncated_agents.length
                 ? `⚠ ${blindLabels(r)} 的逐字稿已不涵蓋這週`
                 : "",
@@ -123,14 +124,14 @@ export function WeeklyTrend({
           <thead className="border-b-[0.5px] border-line-soft text-caption font-semibold text-ink-3">
             <tr>
               <th className="py-2 pr-3">週</th>
-              <th className="py-2 pr-3">Output 合計</th>
+              <th className="py-2 pr-3">文字產出合計</th>
               {agents.map((a) => (
                 <th key={a.key} className="py-2 pr-3">
-                  {a.label}
+                  {humanizeSystemLabel(a.label)}
                 </th>
               ))}
               <th className="py-2 pr-3">主動時數</th>
-              <th className="py-2">API 等價</th>
+              <th className="py-2">外部成本估算</th>
             </tr>
           </thead>
           <tbody className="divide-y-[0.5px] divide-line-soft text-ink-2">

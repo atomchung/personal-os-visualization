@@ -39,7 +39,7 @@ export function ThreadInventory({ threads }: { threads: Home["threads"] }) {
           ) : undefined
         }
       >
-        活線庫存
+        進行中事項
       </SectionHeading>
 
       {problem && (
@@ -50,14 +50,14 @@ export function ThreadInventory({ threads }: { threads: Home["threads"] }) {
 
       {threads.total === 0 ? (
         <p className="text-body text-ink-3">
-          14 天內沒有活躍的線 — /session-board 看全部任務
+          14 天內沒有進行中的事項
         </p>
       ) : (
         // A handful of threads costs less to show than to hide. Folding is
         // for the case this exists to prevent: a wall of 70 cards.
         <Disclosure
           open={threads.total <= 5 || threads.pending_nominations > 0}
-          summary={`全部活線（${threads.total} 條）${threads.total <= 5 ? "" : " · 需要時再展開"}`}
+          summary={`全部進行中事項（${threads.total} 條）${threads.total <= 5 ? "" : " · 需要時再展開"}`}
         >
           <ul className="flex flex-col gap-2.5">
             {threads.items.map((t) => (

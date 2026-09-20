@@ -11,10 +11,15 @@ This repository contains shared UI code and fictional fixtures. It has no access
 to the local application's personal data or backend. Do not add credentials,
 real records, live API fallbacks, analytics, or external data connections.
 
-Edit components under `src/components/`, shared data types under `src/lib/`, and
-hand-authored fixtures under `src/demo/`. Preserve the existing design tokens.
+`personal-os-visualization` is the canonical source for components, design tokens,
+and contracts. Edit shared UI there; this exported repository receives reviewed
+changes through the local three-way sync. Synthetic scenario output under
+`src/demo/generated/` comes from the private generator; do not hand-copy private
+records into it. Preserve the existing design tokens.
 Keep the default Today page and distinguish missing/stale data from no events.
-Investment history quotes existing records; never invent a person's conclusions.
+Investment history quotes existing records; never invent a person's conclusions. The
+public history/context screen uses only the reviewed synthetic scenario; the private
+Context service and source-detail reader are never exported.
 
 `src/lib/transport.ts`, `vite.config.ts`, `index.html`, `package.json`, README,
 and the export receipt are generated isolation boundaries. Do not replace them

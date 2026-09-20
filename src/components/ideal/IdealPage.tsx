@@ -5,6 +5,7 @@ import { Card, SectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { Disclosure } from "@/components/ui/disclosure"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/ui/page-header"
 
 const STATUS_TONE: Record<string, "ok" | "warn" | "info" | "accent" | "mute"> = {
   exploring: "accent",
@@ -46,15 +47,7 @@ export function IdealPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-display font-bold tracking-tight text-ink">
-          Ideal Backlog · 問題池
-        </h1>
-        <p className="text-caption text-ink-3">
-          這裡收的是反覆出現的問題，不是功能清單。每張卡都要能落到一個最小執行單位。
-        </p>
-      </div>
+      <PageHeader page="ideal" />
 
       {/* 4 KPI Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
