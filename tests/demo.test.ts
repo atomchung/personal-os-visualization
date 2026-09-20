@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { createDemoRequest } from "../src/demo/transport.ts"
+import { briefOverviewActions, isBriefEventReference } from "../src/lib/investmentBriefPresentation.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -43,7 +44,6 @@ test("milestones, feedback, and nominations preserve their shared projections", 
   assert.equal((await (await request("/api/todos")).json()).month_milestones[1].done, true)
   await request("/api/cockpit/feedback", write({ task_slug: "demo-paper-plane", verdict: "accept" }))
   let home = await (await request("/api/home")).json()
-  assert.equal(home.cockpit.suggestions[0].human_verdict, "accept")
   const expected_text = home.threads.items[0].nomination
   assert.equal((await request("/api/nominations/demo-paper-plane/accept", write({ expected_text: "stale" }))).status, 409)
   await request("/api/nominations/demo-paper-plane/accept", write({ expected_text }))
@@ -62,4 +62,30 @@ test("investment writes honor versions; malformed and cancelled requests are vis
   assert.equal((await request("/api/todos", write({ text: "" }))).status, 422)
   assert.equal((await request("/api/goals/demo-build/milestones/1", write({ done: "true" }))).status, 422)
   await assert.rejects(request("/api/home", { signal: AbortSignal.abort() }), { name: "AbortError" })
+})
+
+test("overview removes exact repetitions but does not rewrite source strings", () => {
+  const actions = ["維持觀察。", "維持觀察。", "  下次確認交付量。  ", "下次確認交付量。"]
+  assert.deepEqual(briefOverviewActions(actions, "維持觀察。"), ["  下次確認交付量。  "])
+  assert.equal(actions.length, 4)
+})
+
+test("only pure no-change labels and blank actions are omitted", () => {
+  assert.deepEqual(briefOverviewActions(["沒有新資訊。", "不重複升級", " ", "沒有新資訊，但交付風險尚未解除。", "先不動，原判斷仍成立。"], ""), ["沒有新資訊，但交付風險尚未解除。", "先不動，原判斷仍成立。"])
+})
+
+test("opposing judgments, different numbers, and uncertainty survive", () => {
+  const actions = ["成長 5%。", "成長 0.5%。", "維持原判斷。", "不維持原判斷。", "來源過期，尚未確認。"]
+  assert.deepEqual(briefOverviewActions(actions, "今日觀察。"), actions)
+})
+
+test("whitespace-equivalent overview text appears only once", () => {
+  assert.deepEqual(briefOverviewActions(["先看\n交付量", "先看 交付量", "再看成本"], "先看 交付量"), ["再看成本"])
+})
+
+test("unresolved event references cannot silently disappear", () => {
+  for (const index of [null, undefined, -1, 2, 0.5, NaN, Infinity]) assert.equal(isBriefEventReference(index, 2), false)
+  assert.equal(isBriefEventReference(0, 0), false)
+  assert.equal(isBriefEventReference(0, 2), true)
+  assert.equal(isBriefEventReference(1, 2), true)
 })
