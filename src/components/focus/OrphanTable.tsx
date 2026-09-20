@@ -17,7 +17,7 @@ export function OrphanTable({ items }: { items: OrphanTime[] }) {
               <th className="px-3.5 py-2">分類</th>
               <th className="px-3.5 py-2">時間</th>
               <th className="px-3.5 py-2">% 總時</th>
-              <th className="px-3.5 py-2">Sessions</th>
+              <th className="px-3.5 py-2">工作紀錄</th>
             </tr>
           </thead>
           <tbody className="divide-y-[0.5px] divide-line-soft text-ink-2">

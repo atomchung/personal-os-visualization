@@ -25,18 +25,34 @@ PersonalOS 是使用者自己的注意力入口，讓分散在不同 AI 對話�
 | Issue | 範圍 | 整理時狀態 |
 |---|---|---|
 | [#1](../../issues/1) | 獨立前端、合成資料、本機往返同步 | 已交付基礎，非全部功能完成 |
-| [#2](../../issues/2) | 今日／研究閱讀順序、文案與事件版面 | 局部完成；命名、窄畫面及使用驗收仍待處理 |
-| [#3](../../issues/3) | 歷史復盤入口 | 本機僅 reader checkpoint；無 API／頁面，尚不可使用 |
-| [#4](../../issues/4) | 無法理解的 Memory 事件提醒 | 待本機追查 producer，不能只隱藏標題或日期 |
+| [#2](../../issues/2) | 今日／研究閱讀順序、文案與事件版面 | 今日 bridge、閱讀順序與窄畫面版面已整合；仍待 owner 評價 |
+| [#3](../../issues/3) | 歷史復盤入口 | 私人 reader、API、歷史頁與合成案例已接通；來源完整度與 owner 驗收仍分開 |
+| [#4](../../issues/4) | 無法理解的 Memory 事件提醒 | 本機已確認合法來源與 producer；timeline 改用來源事件名稱，遠端 issue 仍待 owner 讀回 |
 | [#5](../../issues/5) | 多週期趨勢、近期強勢族群 | 尚未開工；計算與比較語意待定義 |
 | [#6](../../issues/6) | 較早的投資判斷驗證看板提案 | 暫緩；先與 #3 去重，不沿用舊工具／數量聲稱 |
-| [#7](../../issues/7) | 既有展示網站版本對齊 | 最新 GitHub 修改未部署至既有網站 |
+| [#7](../../issues/7) | 既有展示網站版本對齊 | 本機／canonical 已更新；既有網站 revision 尚待讀回確認，未擅自重部署 |
+| [#9](../../issues/9) | 公開合成展示、私人 Context 與共用 UI 整合 | 核心程式與本機驗證完成；MCP 目標 client、部署 revision 與 owner 使用驗收分開追蹤 |
 
 #2 的已完成部分包括：行動併入今日簡報 bullet、研究在提醒前、研究預設展開、局部機械用語修正、事件來源改成次要展開。沒有完成歷史新頁面、多週期／族群新功能，也沒有完整使用者驗收。
+
+2026-09-20 續作把 #9 的修正擴成全站收斂：導航現在由 `src/lib/informationArchitecture.ts`
+維護常用／推進／回看三個父層，今日仍是預設且投資仍是常用入口；各頁共用
+`PageHeader`、`SectionHeading`、`SubsectionHeading`，今日只放跨頁摘要。新增「介面規範」
+頁展示 IA、共用元件與視覺化／資料整合／上游來源三類問題。`ReadingText` 保留 Markdown
+標題與巢狀清單層級，主要閱讀路徑改用自然文案；來源缺日期、結果或使用快照的問題仍
+顯示為資料限制，沒有用文案掩蓋。完整前後對照與剩餘來源清單見
+`docs/personal-os-visualization-convergence.md`。這是本機整合已完成的描述；canonical
+repo／網站 revision／owner 使用驗收仍是分開證據。
 
 前一個已驗證的程式基線為 `839b3a216d40203a1a5a32173b934af799151c56`；其 CI 與本機檢查證據見 #1。這是日期化交付證據，不是此文件永遠代表最新 HEAD 的保證。
 
 ## 雲端與本機各負責什麼
+
+`personal-os-visualization` 是共用元件、設計 token 與資料契約的 canonical source。
+本機 `web/ui` 是 private integration checkout，不應另行長期演化一套 UI；本機只
+注入 FastAPI/private adapter，展示端只注入 generator 產出的 synthetic scenario。
+情境 brief 與生成過程留在 PersonalOS，只有通過 allowlist 與人工 review 的產物進入
+這個 repo。
 
 | 層 | 雲端 repo | 本機私人專案 |
 |---|---|---|
@@ -45,6 +61,11 @@ PersonalOS 是使用者自己的注意力入口，讓分散在不同 AI 對話�
 | 資料 | `src/demo/fixtures.ts`、`src/demo/transport.ts`，完全虛構 | canonical 來源讀取、解析、計算與合法寫入 |
 | Runtime | 固定 synthetic transport，無資料網路連線 | 本機 transport 接私人 API |
 | 驗收 | mock 操作、空值／失敗、建置與瀏覽器 | 真資料接入、來源正確性、使用者實際入口讀回 |
+
+本輪投資研究合成案例由私人端 deterministic scenario generator 生成，同一案例
+驅動今日問題、研究卡、待查證據、歷史回看與時間事件；這不等於把任何真實紀錄
+匿名化後公開。私人 task Context 只按 task scope 讀取需求、狀態、明確決定與來源
+證據；公開 repo 不含 Context service、private adapter、brief 或原文。
 
 投資研究／交易正本留在 `investment_note`；PersonalOS 做整理與呈現。本 repo 沒有 Python backend、本機 vault、健康 DB、帳號或憑證，也不包含私人 Git 歷史。雲端 agent 不應猜測讀不到的本機資料，應在 issue 留明確的契約需求，由本機維護者回報去除私人內容的結果。
 

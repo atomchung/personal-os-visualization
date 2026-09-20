@@ -44,13 +44,13 @@ export function splitCatalyst(raw: string): { event: string; verify: string } {
   return { event: head.split(/[（(;；]/)[0].trim().slice(0,120), verify: tail.trim().slice(0,160) }
 }
 
-type TimelineItem = { key: string; date: string; estimated: boolean; title: string; verify: string; raw: string; sources: string[] }
+type TimelineItem = { key: string; date: string; estimated: boolean; topic: string; title: string; verify: string; raw: string; sources: string[] }
 
 /** One list: registered events from the wiki and the brief's next-7-days rows, same day + same ticker folded into one line. */
 export function buildTimeline(data: InvestmentWatch, brief: InvestmentBrief | undefined, today: string, end: string): TimelineItem[] {
   const items: TimelineItem[] = data.catalysts
     .filter(e=>e.date_precision==="day"&&e.date!==null&&e.date>=today&&e.date<=end)
-    .map(e=>{const parts=splitCatalyst(e.raw); return {key:e.id,date:e.date!,estimated:e.estimated,title:e.topic,verify:parts.verify||parts.event,raw:e.raw,sources:[`${e.source.path}${e.source.updated?` · ${e.source.updated}`:""}`]}})
+    .map(e=>{const parts=splitCatalyst(e.raw); return {key:e.id,date:e.date!,estimated:e.estimated,topic:e.topic,title:parts.event||e.topic,verify:parts.verify||parts.event,raw:e.raw,sources:[`${e.source.path}${e.source.updated?` · ${e.source.updated}`:""}`]}})
   if (brief?.date) {
     for (const [i,e] of brief.upcoming.entries()) {
       const range=briefEventRange(e.date_label,brief.date)
@@ -60,9 +60,8 @@ export function buildTimeline(data: InvestmentWatch, brief: InvestmentBrief | un
       const text=`${e.event} ${e.check}`.toUpperCase()
       const match=items.find(item=>item.date===shown&&item.sources.length===1&&mentionsTicker(text,item.title))
       if (match) { match.verify=match.verify?`${match.verify}；簡報：${e.check}`:e.check; match.sources.push(`簡報 ${brief.date}`); continue }
-      items.push({key:`brief:${i}`,date:shown,estimated:false,title:e.event,verify:e.check,raw:`${e.date_label} ${e.event}`,sources:[`簡報 ${brief.date}`]})
+      items.push({key:`brief:${i}`,date:shown,estimated:false,topic:e.event,title:e.event,verify:e.check,raw:`${e.date_label} ${e.event}`,sources:[`簡報 ${brief.date}`]})
     }
   }
   return items.sort((a,b)=>a.date.localeCompare(b.date)||a.title.localeCompare(b.title))
 }
-

@@ -16,7 +16,7 @@ export function FocusRowCard({ row }: { row: FocusRow }) {
         </span>
         <Chip tone="ok">{row.share_pct} 佔比</Chip>
         <span className="text-caption text-ink-3">
-          {row.session_count} sessions · 目標 {row.goals_updated}/
+          {row.session_count} 段工作紀錄 · 目標 {row.goals_updated}/
           {row.goals_total} 有更新
         </span>
       </div>
@@ -48,7 +48,7 @@ export function FocusRowCard({ row }: { row: FocusRow }) {
       {/* Top session preview */}
       {row.top_session_text && (
         <p className="text-caption text-ink-3">
-          💬 最長 session 開頭（{row.top_session_category}）：
+          💬 最長工作紀錄開頭（{row.top_session_category}）：
           <span className="text-ink-2">{row.top_session_text}</span>
         </p>
       )}

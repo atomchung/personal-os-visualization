@@ -12,20 +12,20 @@ export function InboxPanel({ inbox }: { inbox: Home["inbox"] }) {
       <SectionHeading
         aside={
           <span className="flex flex-wrap items-center gap-1.5">
-            <Chip tone="mute">{inbox.pending} 待 triage</Chip>
-            {inbox.stale > 0 && <Chip tone="warn">stale {inbox.stale}</Chip>}
-            <Chip tone={inbox.health_tone}>hook {inbox.health_label}</Chip>
+            <Chip tone="mute">{inbox.pending} 待整理</Chip>
+            {inbox.stale > 0 && <Chip tone="warn">{inbox.stale} 筆較舊</Chip>}
+            <Chip tone={inbox.health_tone}>入口 {inbox.health_label}</Chip>
           </span>
         }
       >
-        Inbox
+        待整理
       </SectionHeading>
 
       {empty ? (
-        <p className="text-body text-ok">Inbox 已清空 ✓</p>
+        <p className="text-body text-ok">待整理已清空 ✓</p>
       ) : (
         <Disclosure
-          summary={`最近 session（顯示 ${inbox.rows.length} / ${inbox.pending} 條 · 完整 triage 走 /session-board）`}
+          summary={`最近工作紀錄（顯示 ${inbox.rows.length} / ${inbox.pending} 條 · 完整整理另有入口）`}
         >
           <ul className="flex flex-col">
             {inbox.rows.map((row, i) => (
@@ -48,7 +48,7 @@ export function InboxPanel({ inbox }: { inbox: Home["inbox"] }) {
           </ul>
           {inbox.hidden > 0 && (
             <p className="mt-2 text-caption text-ink-4">
-              還有 {inbox.hidden} 條未顯示 · 批次處理用 /session-board
+              還有 {inbox.hidden} 條未顯示 · 批次整理請回到工作紀錄入口
             </p>
           )}
         </Disclosure>

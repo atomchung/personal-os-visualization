@@ -12,6 +12,7 @@ import { Card, SectionHeading } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Disclosure } from "@/components/ui/disclosure"
+import { PageHeader } from "@/components/ui/page-header"
 
 export function TodosPage() {
   const todosQuery = useQuery({ queryKey: ["todos"], queryFn: getTodos })
@@ -70,14 +71,7 @@ export function TodosPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-display font-bold tracking-tight text-ink">
-          本週 Todo
-        </h1>
-        <p className="text-caption text-ink-3">
-          輕量隨手待辦收件箱 · 想規劃本週可跑 /record-todo
-        </p>
-      </div>
+      <PageHeader page="todos" />
 
       {problem && (
         <p className="text-caption text-bad" role="status">
@@ -85,13 +79,13 @@ export function TodosPage() {
         </p>
       )}
 
-      {/* 本月 Milestone 唯讀鏡像 */}
+      {/* 本月里程碑唯讀摘要 */}
       {data.month_milestones.length > 0 && (
         <section className="flex flex-col gap-2">
-          <SectionHeading>本月 Milestone 鏡像</SectionHeading>
+          <SectionHeading>本月里程碑摘要</SectionHeading>
           <Card className="flex flex-col gap-2 p-4">
             <p className="text-caption text-ink-3">
-              唯讀鏡子 · 編輯在目標 tab · ⚡ 自動判定 · ✅ 已完成 · ⬜ 進行中
+              這裡只供快速查看；編輯與完整內容在目標頁。⚡ 自動判定 · ✅ 已完成 · ⬜ 進行中
             </p>
             <ul className="flex flex-col gap-1.5 text-label text-ink-2">
               {data.month_milestones.map((m, idx) => (
@@ -112,7 +106,7 @@ export function TodosPage() {
 
       {/* 新增 */}
       <section className="flex flex-col gap-2">
-        <SectionHeading>隨手 Todo</SectionHeading>
+        <SectionHeading>快速新增待辦</SectionHeading>
         <Card className="p-3">
           <form onSubmit={submit} className="flex flex-wrap items-center gap-2">
             <select
@@ -131,7 +125,7 @@ export function TodosPage() {
               aria-label="待辦內容"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="新 todo…"
+              placeholder="新增一件待辦…"
               className="h-7 min-w-0 flex-1 rounded-sm border-[0.5px] border-line bg-paper px-2 text-label text-ink placeholder:text-ink-4"
             />
             <input

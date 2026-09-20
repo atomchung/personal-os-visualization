@@ -21,7 +21,7 @@ export function CategoryBars({
   const max = Math.max(...rows.map((r) => r.hours), 0.1)
   return (
     <section className="flex flex-col gap-2">
-      <SectionHeading>本週時間 × Commits（按類別）</SectionHeading>
+      <SectionHeading>本週投入與產出（按類別）</SectionHeading>
       {rows.length === 0 ? (
         <p className="text-body text-ink-3">過去 7 天無活躍紀錄</p>
       ) : (
@@ -47,7 +47,7 @@ export function CategoryBars({
               </span>
               <span className="w-16 shrink-0 text-right text-micro font-medium tabular-nums">
                 {r.cloud_sessions
-                  ? `☁${r.cloud_sessions}s/${r.cloud_commits}c`
+                  ? `☁${r.cloud_sessions} 段／${r.cloud_commits} 次變更`
                   : ""}
               </span>
             </div>
@@ -55,7 +55,7 @@ export function CategoryBars({
         </Card>
       )}
       <p className="text-caption text-ink-4">
-        時數=本地 jsonl · c=本地 commits · ☁s/c=雲端 sessions/commits
+        投入時間來自本地紀錄 · 變更數為本地與雲端摘要
         {note && ` · ${note}`}
       </p>
     </section>

@@ -70,10 +70,10 @@ export function CockpitCard({
               />
             )}
             {item.current_milestone && (
-              <Row label="Milestone" value={item.current_milestone} />
+              <Row label="目前里程碑" value={item.current_milestone} />
             )}
             {item.proposed_milestone && (
-              <Row label="AI 下一 Milestone 草案" value={item.proposed_milestone} />
+              <Row label="下一個里程碑草案" value={item.proposed_milestone} />
             )}
             {item.benefit_defined && (
               <Row label="完成收益" value={item.expected_benefit} />

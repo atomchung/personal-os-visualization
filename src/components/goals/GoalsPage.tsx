@@ -5,6 +5,7 @@ import { Card, SectionHeading } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Chip } from "@/components/ui/chip"
 import { Disclosure } from "@/components/ui/disclosure"
+import { PageHeader } from "@/components/ui/page-header"
 
 type MilestoneWrite = ReturnType<
   typeof useWrite<{ goalId: string; index: number; done: boolean }, unknown>
@@ -159,14 +160,7 @@ export function GoalsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-display font-bold tracking-tight text-ink">
-          目標總覽 · {data.quarter_label}
-        </h1>
-        <p className="text-caption text-ink-3">
-          共 {data.total_active_goals} 個活躍目標 · 先看上方 AI 活動證據，再看下方目標卡的里程碑、現狀與 Todo
-        </p>
-      </div>
+      <PageHeader page="goals" action={<Chip tone="mute">{data.quarter_label}</Chip>} />
 
       {writeErrorText(tick.error) && (
         <p className="text-caption text-bad" role="status">
@@ -174,11 +168,11 @@ export function GoalsPage() {
         </p>
       )}
 
-      {/* 🧭 AI 活動證據 (ccstory) */}
+      {/* 🧭 AI 工作紀錄 */}
       {data.ai_evidence && (
         <section className="flex flex-col gap-2">
           <SectionHeading>
-            🧭 AI 活動證據
+            🧭 AI 工作紀錄
             <span className="text-caption text-ink-3 font-normal">
               {" "}· 窗口：{data.ai_evidence.window}
             </span>
@@ -217,7 +211,7 @@ export function GoalsPage() {
                   <thead className="border-b-[0.5px] border-line-soft bg-bg-3 text-caption font-semibold text-ink-3">
                     <tr>
                       <th className="px-3 py-1.5">目標</th>
-                      <th className="px-3 py-1.5">AI 活動</th>
+                      <th className="px-3 py-1.5">AI 工作紀錄</th>
                       <th className="px-3 py-1.5">單獨歸屬</th>
                       <th className="px-3 py-1.5">共享活動</th>
                       <th className="px-3 py-1.5">涉及專案</th>
@@ -243,11 +237,11 @@ export function GoalsPage() {
         </section>
       )}
 
-      {/* 🔍 線 → 目標 → 效果 */}
+      {/* 🔍 工作線 → 目標 → 效果 */}
       {data.effect_lens && (
         <section className="flex flex-col gap-2">
           <SectionHeading>
-            🔍 線 → 目標 → 效果
+            🔍 工作線 → 目標 → 效果
             <span className="text-caption text-ink-3 font-normal">
               {" "}· {data.effect_lens.linked_tasks}/{data.effect_lens.total_tasks} 條線掛了目標（{data.effect_lens.pct_linked}%）
             </span>
@@ -263,7 +257,7 @@ export function GoalsPage() {
                       <th className="py-1">目標</th>
                       <th className="py-1">線數</th>
                       <th className="py-1">活躍</th>
-                      <th className="py-1">殭屍</th>
+                      <th className="py-1">停滯</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y-[0.5px] divide-line-soft text-ink-2 tabular-nums">
@@ -281,15 +275,15 @@ export function GoalsPage() {
             </Card>
 
             <Card className="flex flex-col gap-2 p-3">
-              <span className="text-caption font-semibold text-ink-3">按專案聚落</span>
+              <span className="text-caption font-semibold text-ink-3">按專案群組</span>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-label">
                   <thead className="border-b-[0.5px] border-line-soft text-caption text-ink-3">
                     <tr>
-                      <th className="py-1">聚落</th>
+                      <th className="py-1">專案群組</th>
                       <th className="py-1">線數</th>
-                      <th className="py-1">掛目標%</th>
-                      <th className="py-1">已 ship</th>
+                      <th className="py-1">已連結目標%</th>
+                      <th className="py-1">已交付</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y-[0.5px] divide-line-soft text-ink-2 tabular-nums">
@@ -309,10 +303,10 @@ export function GoalsPage() {
         </section>
       )}
 
-      {/* 未來三個月 Roadmap */}
+      {/* 未來三個月路線圖 */}
       {data.roadmap_months.length > 0 && (
         <section className="flex flex-col gap-2">
-          <SectionHeading>未來三個月 Roadmap</SectionHeading>
+          <SectionHeading>未來三個月路線圖</SectionHeading>
           <div className="grid gap-3 sm:grid-cols-3">
             {data.roadmap_months.map((m) => (
               <Card key={m.ym} className="flex flex-col gap-2 p-3">
@@ -321,13 +315,13 @@ export function GoalsPage() {
                   <Chip tone="mute">{m.label}</Chip>
                 </div>
                 {m.groups.length === 0 ? (
-                  <span className="text-caption text-ink-4">尚無 milestone</span>
+                  <span className="text-caption text-ink-4">尚無里程碑</span>
                 ) : (
                   <div className="flex flex-col gap-2">
                     {m.groups.map((grp) => (
                       <div key={grp.parent_id} className="flex flex-col gap-1">
                         <span className="text-micro font-semibold text-ink-3">
-                          `{grp.parent_id}` {grp.parent_title}
+                          {grp.parent_title}
                         </span>
                         <ul className="flex flex-col gap-1 pl-1 text-label text-ink-2">
                           {grp.items.map((it, idx) => (
@@ -362,7 +356,7 @@ export function GoalsPage() {
               </span>
             }
           >
-            {group.parent_id} · {group.title}
+            {group.title}
           </SectionHeading>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -376,12 +370,12 @@ export function GoalsPage() {
       {/* Paused Groups */}
       {data.paused_groups.length > 0 && (
         <section className="flex flex-col gap-2">
-          <Disclosure summary={`⏸ Paused (${data.paused_groups.map((p) => p.parent_id).join(", ")})`}>
+          <Disclosure summary={`⏸ 暫緩的目標（${data.paused_groups.length} 組）`}>
             <div className="flex flex-col gap-4 py-2">
               <span className="text-caption text-ink-3">累積彈藥，等觸發條件</span>
               {data.paused_groups.map((pg) => (
                 <div key={pg.parent_id} className="flex flex-col gap-2">
-                  <span className="font-semibold text-ink">{pg.parent_id} · {pg.title}</span>
+                  <span className="font-semibold text-ink">{pg.title}</span>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {pg.goals.map((g) => (
                       <GoalCard key={g.id} g={g} tick={tick} />

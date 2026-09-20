@@ -27,8 +27,7 @@ export function Hero({ hero }: { hero: Home["hero"] }) {
         </p>
         {hero.usage_missing && (
           <p className="text-caption text-warn">
-            AI usage 快照尚未建立，上面的數字是 0 而不是「沒用」 —— 跑
-            scripts/refresh_usage_cache.py 重建。
+            AI 使用紀錄尚未建立，上面的數字是 0，不代表沒有使用。
           </p>
         )}
       </div>

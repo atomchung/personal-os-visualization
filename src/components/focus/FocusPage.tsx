@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { getFocus } from "@/lib/api"
 import { SectionHeading } from "@/components/ui/card"
+import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
 import { OverallNarrative } from "./OverallNarrative"
 import { FocusKpis } from "./FocusKpis"
@@ -37,16 +38,10 @@ export function FocusPage() {
 
       {/* Header & Period switch */}
       <section className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-display font-bold tracking-tight text-ink">
-              焦點：目標 × 時間
-            </h1>
-            <p className="text-caption text-ink-3">
-              檢查時間是不是真的花在你說的目標上。
-            </p>
-          </div>
-          <div className="flex items-center gap-1 rounded-md bg-bg-2 p-0.5">
+        <PageHeader
+          page="focus"
+          action={
+            <div className="flex items-center gap-1 rounded-md bg-bg-2 p-0.5">
             <Button
               variant={days === 7 ? "selected" : "ghost"}
               size="sm"
@@ -61,8 +56,9 @@ export function FocusPage() {
             >
               30 天
             </Button>
-          </div>
-        </div>
+            </div>
+          }
+        />
 
         {/* Headline KPIs */}
         <FocusKpis kpis={data.kpis} />

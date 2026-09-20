@@ -8,7 +8,7 @@ export function StaleGoalsTable({ goals }: { goals: StaleGoal[] }) {
     <section className="flex flex-col gap-2">
       <SectionHeading>休眠目標（此區間沒投入）</SectionHeading>
       <p className="-mt-1 text-caption text-ink-3">
-        這些手動目標在此區間沒有對應的 AI Agent 時間。可能是線下推進中、也可能是被忽略。
+        這些目標在此區間沒有對應的 AI 工作紀錄；可能是線下推進，也可能真的沒有投入。
       </p>
       <Card className="overflow-hidden p-0">
         <table className="w-full text-left text-label">

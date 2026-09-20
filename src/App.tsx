@@ -1,5 +1,8 @@
 import { DEMO_MODE } from "@/lib/transport"
 import { useState } from "react"
+import { AppNav } from "@/components/AppNav"
+import { DesignGuidePage } from "@/components/DesignGuidePage"
+import { isTabKey, type TabKey } from "@/lib/informationArchitecture"
 import { TodayPage } from "@/components/today/TodayPage"
 import { FocusPage } from "@/components/focus/FocusPage"
 import { TimePage } from "@/components/time/TimePage"
@@ -10,24 +13,10 @@ import { TodosPage } from "@/components/todos/TodosPage"
 import { InvestmentPage } from "@/components/investment/InvestmentPage"
 import { Button } from "@/components/ui/button"
 
-type TabKey = "today" | "investment" | "focus" | "time" | "goals" | "ideal" | "health" | "todos"
-
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "today", label: "今日" },
-  { key: "investment", label: "投資" },
-  { key: "focus", label: "焦點" },
-  { key: "time", label: "AI 使用" },
-  { key: "goals", label: "目標" },
-  { key: "ideal", label: "理想池" },
-  { key: "health", label: "運動" },
-  { key: "todos", label: "本週 Todo" },
-]
-
 export default function App() {
   const [tab, setTab] = useState<TabKey>(() => {
-    const p = new URLSearchParams(location.search).get("tab") as TabKey
-    const valid = TABS.some((t) => t.key === p)
-    return valid ? p : "today"
+    const p = new URLSearchParams(location.search).get("tab")
+    return isTabKey(p) ? p : "today"
   })
 
   const handleTabChange = (nextTab: TabKey) => {
@@ -43,25 +32,7 @@ export default function App() {
 
   return (
     <main className="mx-auto flex max-w-[1080px] flex-col gap-6 p-6">
-      {/* Navigation Bar */}
-      <nav aria-label="Personal OS 分頁" className="flex flex-wrap items-center justify-between gap-3 border-b-[0.5px] border-line-soft pb-3">
-        <span className="text-section font-bold tracking-tight text-ink">
-          Personal OS
-        </span>
-        <div className="flex flex-wrap items-center gap-1 rounded-md bg-bg-2 p-0.5">
-          {TABS.map((t) => (
-            <Button
-              key={t.key}
-              aria-current={tab === t.key ? "page" : undefined}
-              variant={tab === t.key ? "selected" : "ghost"}
-              size="sm"
-              onClick={() => handleTabChange(t.key)}
-            >
-              {t.label}
-            </Button>
-          ))}
-        </div>
-      </nav>
+      <AppNav tab={tab} onChange={handleTabChange} />
 
       {DEMO_MODE && (
         <aside aria-label="展示版說明" className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-bg-2 p-3 text-caption text-ink-2">
@@ -79,6 +50,7 @@ export default function App() {
       {tab === "ideal" && <IdealPage />}
       {tab === "health" && <HealthPage />}
       {tab === "todos" && <TodosPage />}
+      {tab === "guide" && <DesignGuidePage />}
     </main>
   )
 }

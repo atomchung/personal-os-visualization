@@ -1,7 +1,8 @@
 # Personal OS synthetic showcase
 
 This is a standalone frontend demonstration, not the complete Personal OS engine.
-All records are hand-authored fiction. No personal vault, Python backend, account,
+All records are fictional synthetic output; the investment case is regenerated
+from a reviewed scenario brief in the private application. No personal vault, Python backend, account,
 health database, session log, credential, or original Git history is included.
 
 Start with [project context and issue map](PROJECT_CONTEXT.md) for the user goals,
@@ -13,8 +14,11 @@ Serve `dist/` with any static host. The data adapter is always synthetic, even
 when the default build command is used. Unsupported routes fail closed.
 
 Changes made in the UI live only in this tab's memory and reset on reload.
-The data models and visual components are shared with the local application;
-the private data adapters are deliberately outside this exported project.
+The data models and visual components are shared with the local application and
+canonical in this repository; the private data adapters, task Context service,
+source-detail reader, and scenario briefs are deliberately outside this exported
+project. The synthetic `/api/investment/history` and `/api/investment/context`
+routes are memory-only demo adapters, not private data endpoints.
 
 ## Local and cloud collaboration
 

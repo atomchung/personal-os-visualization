@@ -1,8 +1,9 @@
-/** Hand-authored fiction; never generated from a real API or private vault. */
+/** Synthetic showcase fixture; never generated from a real API or private vault. */
 import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
-import type { InvestmentData, InvestmentMarket, InvestmentPending, InvestmentWatch, InvestmentWork, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
+import type { InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistorySource, InvestmentMarket, InvestmentPending, InvestmentWatch, InvestmentWork, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
+import { investmentScenario } from "./generated/investment-scenario.ts"
 
-export const DATE = "2026-09-20"
+export const DATE = investmentScenario.as_of
 export const STAMP = `${DATE}T12:00:00+08:00`
 export const WEEK = "2026-W38"
 
@@ -133,33 +134,72 @@ export const health: HealthData = {
   history: { strength_log: [{ date: "2026-09-17", exercise: "臥推（虛構）", set_number: 1, weight_kg: 40, assist_kg: null, reps: 8, rpe: null, slow_negative: false, notes: "合成範例" }], pullup_assist_trend: [{ date: "2026-09-10", assist_kg: 30, max_reps: 6 }, { date: "2026-09-17", assist_kg: 25, max_reps: 6 }] },
 }
 
-const source = { id: "demo-brief", title: "星島產業觀察（虛構）", date: DATE, generated_at: STAMP, source_cutoff: STAMP, age_days: 0, state: "current" as const, limitations: ["手工合成，並非市場資訊"], url: null }
+const source = { id: investmentScenario.source_id, title: investmentScenario.source_title, date: DATE, generated_at: STAMP, source_cutoff: STAMP, age_days: 0, state: "current" as const, limitations: ["由私人情境規格重新生成，並非市場資訊"], url: null }
 export const investment: InvestmentData = {
   as_of: STAMP,
   brief: { state: "current", date: DATE, generated_at: STAMP, source_cutoff: STAMP, session: null,
-    headline: "虛構案例：星島設備推出新一代儲能產品，接下來觀察交付是否跟上。",
-    market_pulse: [{ variable: "範例指數", latest: "1,234 · +0.8%", meaning: "示範市場脈搏欄位" }], market_pulse_notes: [],
-    events: [{ event: "星島設備發表新產品（虛構）", market_reaction: "範例價格上漲 1.2%", interpretation: "產品發表與實際交付仍是兩件事", impact: "新增待查證事項", today: "先讀產品交付說明" }], event_notes: [],
-    thesis_changes: [{ thesis: "能否穩定交付", event_ref: "範例事件", event_index: 0, change: "待驗證", reason: "尚未取得交付數據" }], thesis_notes: [],
-    upcoming: [{ date_label: "09/23", event: "交付說明會（虛構）", check: "交期與產品回饋" }], upcoming_notes: [], actions: ["整理兩個待查問題，不由新聞直接形成交易。"],
-    risks: [{ risk: "展示案例尚無交付證據", event_ref: "範例事件", event_index: 0, status: "觀察" }], risk_notes: [], source },
+    headline: investmentScenario.headline,
+    market_pulse: [{ variable: investmentScenario.market_index.label, latest: `${investmentScenario.market_index.value.toLocaleString()} · +${investmentScenario.market_index.change_percent}%`, meaning: investmentScenario.market_index.meaning }], market_pulse_notes: [],
+    events: [{ event: investmentScenario.event_text, market_reaction: investmentScenario.market_reaction, interpretation: investmentScenario.interpretation, impact: "新增待查證事項", today: `先讀${investmentScenario.next_check}說明` }], event_notes: [],
+    thesis_changes: [{ thesis: investmentScenario.thesis, event_ref: "範例事件", event_index: 0, change: investmentScenario.thesis_change, reason: investmentScenario.thesis_reason }], thesis_notes: [],
+    upcoming: [{ date_label: investmentScenario.next_check_date.slice(5).replace("-", "/"), event: investmentScenario.upcoming_event, check: investmentScenario.evidence_to_check }], upcoming_notes: [], actions: [investmentScenario.action],
+    risks: [{ risk: investmentScenario.risk, event_ref: "範例事件", event_index: 0, status: investmentScenario.risk_status }], risk_notes: [], source },
   weekly_watch: { state: "missing", date: null, source: null }, conditions: { state: "not_connected", message: "展示版未連接交易、帳戶或研究來源。" }, sources: [source],
 }
 
+export const investmentHistory: InvestmentHistory = {
+  state: "ready",
+  coverage: {
+    allowed_sources: [{ id: investmentScenario.source_id, path: investmentScenario.source_path, kind: "synthetic_story" }],
+    available_sources: [{ id: investmentScenario.source_id, path: investmentScenario.source_path, kind: "synthetic_story", bytes: investmentScenario.source_text.length, items: investmentScenario.history.length }],
+    missing_sources: [],
+    items: investmentScenario.history.length,
+    errors: [],
+  },
+  items: [...investmentScenario.history],
+}
+
+export const investmentHistorySources: Record<string, InvestmentHistorySource> = Object.fromEntries(
+  investmentScenario.history.map((item) => [item.id, { ...item, text: item.detail }]),
+) as Record<string, InvestmentHistorySource>
+
+export const investmentContext: InvestmentContext = {
+  schema_version: 1,
+  read_only: true,
+  task: { slug: investmentScenario.context.task_slug, path: "synthetic/context/investment-research-loop-v1" },
+  scope: { mode: "synthetic_task_and_declared_evidence", max_files: 4, files_read: ["synthetic/context/investment-research-loop-v1", investmentScenario.source_path], excluded: ["private vault", "credentials", "network"] },
+  current_state: { status: investmentScenario.context.status, next_action: investmentScenario.context.next_action, last_session: investmentScenario.context.updated_at },
+  requirements: [{ section: "研究問題", line_start: 1, line_end: 1, text: investmentScenario.problem, truncated: false, source: { path: investmentScenario.source_path, root: "synthetic", line_start: 1, line_end: 1 } }],
+  decisions: [
+    ...investmentScenario.context.approved.map((text, index) => ({ kind: "approved" as const, section: "已核可方向", line_start: index + 1, line_end: index + 1, text, truncated: false, source: { path: "synthetic/context/investment-research-loop-v1", root: "synthetic", line_start: index + 1, line_end: index + 1 } })),
+    ...investmentScenario.context.rejected.map((text, index) => ({ kind: "rejected" as const, section: "已否決方向", line_start: index + 1, line_end: index + 1, text, truncated: false, source: { path: "synthetic/context/investment-research-loop-v1", root: "synthetic", line_start: index + 1, line_end: index + 1 } })),
+  ],
+  evidence: investmentScenario.context.evidence.map((item) => ({ ...item, truncated: false, source: { path: item.path, root: "synthetic", line_start: item.line_start, line_end: item.line_end } })),
+  warnings: ["這是合成 Context；沒有連接私人 vault 或外部工具。"],
+}
+
 export const market: InvestmentMarket = { fetched_at: STAMP, state: "ready", cached: true, active: false,
-  items: [{ symbol: "DEMO", label: "範例市場指數", code: "DEMO", value: 1234, unit: "點", change: 10, change_percent: 0.8, quoted_at: STAMP, session: "closed", state: "available", error: null, source_url: "#demo-source" }] }
-export const universe: MomentumUniverse = { state: "ready", symbols: ["DEMO"], label: "虛構標的", note: "DEMO 為展示代號，沒有真實持倉。", source: "合成資料", excluded_count: 0 }
-export const quote: StockQuote = { symbol: "DEMO", label: "星島設備（虛構）", value: 42, unit: "範例幣", change: 0.5, change_percent: 1.2, quoted_at: STAMP, session: "closed", state: "available", error: null, source_url: "#demo-source", fetched_at: STAMP, cached: true }
-export const momentum: StockMomentumData = { symbol: "DEMO", fetched_at: STAMP, cached: true, state: "ready",
-  daily: { state: "available", as_of: DATE, last_close: 42, rsi14: 55, macd: "flat", vs_50ma_pct: 2, range_252_low: 30, range_252_high: 50, range_252_position_pct: 60, distance_high_pct: -16, observations: 252, notes: ["所有指標均為合成數字"] },
+  items: [{ symbol: investmentScenario.symbol, label: investmentScenario.market_index.label, code: investmentScenario.symbol, value: investmentScenario.market_index.value, unit: "點", change: investmentScenario.market_index.change, change_percent: investmentScenario.market_index.change_percent, quoted_at: STAMP, session: "closed", state: "available", error: null, source_url: "#demo-source" }] }
+export const universe: MomentumUniverse = { state: "ready", symbols: [investmentScenario.symbol], label: "虛構標的", note: `${investmentScenario.symbol} 為展示代號，沒有真實持倉。`, source: "合成資料", excluded_count: 0 }
+export const quote: StockQuote = { symbol: investmentScenario.symbol, label: investmentScenario.label, value: investmentScenario.price.value, unit: "範例幣", change: investmentScenario.price.change, change_percent: investmentScenario.price.change_percent, quoted_at: STAMP, session: "closed", state: "available", error: null, source_url: "#demo-source", fetched_at: STAMP, cached: true }
+export const momentum: StockMomentumData = { symbol: investmentScenario.symbol, fetched_at: STAMP, cached: true, state: "ready",
+  daily: { state: "available", as_of: DATE, last_close: 42, rsi14: 55, macd: "flat", return_20d_pct: 4.8, vs_5ma_pct: 1.2, vs_20ma_pct: 2.6, vs_50ma_pct: 2, range_252_low: 30, range_252_high: 50, range_252_position_pct: 60, distance_high_pct: -16, observations: 252, notes: ["所有指標均為合成數字"] },
   premarket: { state: "unavailable", price: null, change_percent: null, quoted_at: null, note: "範例未提供盤前資料" }, source_url: "#demo-source" }
-const watchSource = { path: "synthetic/star-island", label: "合成研究", section: "待查問題", updated: DATE, source_id: "demo-brief" }
+export const leaders: MomentumLeaders = { state: "ready", as_of: DATE, universe,
+  coverage: { candidate_count: 3, scored_count: 3, unavailable_count: 0 },
+  note: "強勢＝最近 20 個完整交易日報酬為正，且收盤在 20／50 日線上方；這是合成研究清單，不是全市場掃描。",
+  leaders: [
+    { symbol: "SYNTH", rank: 1, state: "ready", as_of: DATE, last_close: 42, return_20d_pct: 4.8, vs_5ma_pct: 1.2, vs_20ma_pct: 2.6, vs_50ma_pct: 2, rsi14: 55, macd: "bullish", notes: [] },
+    { symbol: "DEMO-B", rank: 2, state: "ready", as_of: DATE, last_close: 88, return_20d_pct: 3.1, vs_5ma_pct: 0.8, vs_20ma_pct: 1.7, vs_50ma_pct: 2.2, rsi14: 62, macd: "bullish_cross", notes: [] },
+    { symbol: "DEMO-C", rank: 3, state: "partial", as_of: DATE, last_close: 17, return_20d_pct: 1.4, vs_5ma_pct: -0.2, vs_20ma_pct: 0.9, vs_50ma_pct: 1.1, rsi14: 58, macd: "flat", notes: [] },
+  ] }
+const watchSource = { path: investmentScenario.source_path, label: "合成研究", section: "待查問題", updated: DATE, source_id: investmentScenario.source_id }
 export const watch: InvestmentWatch = { as_of: STAMP,
   coverage: { scope: ["合成範例"], scanned_files: 1, omissions: [], errors: [], missing_catalysts: [] },
-  catalysts: [{ id: "demo-catalyst", topic: "星島設備（虛構）", label: "範例說明會", raw: "9 月下旬（合成日期）", date: "2026-09", date_precision: "month", estimated: true, bucket: "undated", source: watchSource }],
-  research: [{ id: "demo-research", topic: "星島設備（虛構）", title: "產品與交付的差距", status: "觀察", purpose: "整理待查問題", excerpt: "這是從零撰寫的研究範例，用來展示閱讀與後續工作的關係。", session_refs: [], source: watchSource }], session_followups: [] }
+  catalysts: [{ id: "demo-catalyst", topic: investmentScenario.label, label: investmentScenario.next_check, raw: `${investmentScenario.next_check_date}（合成日期）`, date: investmentScenario.next_check_date.slice(0, 7), date_precision: "month", estimated: true, bucket: "undated", source: watchSource }],
+  research: [{ id: "demo-research", topic: investmentScenario.label, title: investmentScenario.research_title, status: "觀察", purpose: "整理待查問題", excerpt: investmentScenario.research_excerpt, session_refs: [], source: watchSource }], session_followups: [] }
 const block = { source: "合成資料", note: "展示案例", state: "ready" as const, message: "", limitations: ["未呼叫外部工具"] }
 export const pending: InvestmentPending = { as_of: STAMP, scope: "全合成展示",
-  revisit: { ...block, title: "待回顧", groups: [{ ticker: "DEMO", label: "星島設備（虛構）", overdue_days: 0, items: [{ decision: "檢查交付假設", ticker: "DEMO", horizon: 7, due: DATE, overdue_days: 0, status: "待查", candidate_runs: [] }] }], counts: { due_unmarked: 1, groups: 1 } },
+  revisit: { ...block, title: "待回顧", groups: [{ ticker: investmentScenario.symbol, label: investmentScenario.label, overdue_days: 0, items: [{ decision: investmentScenario.question, ticker: investmentScenario.symbol, horizon: 7, due: DATE, overdue_days: 0, status: "待查", candidate_runs: [] }] }], counts: { due_unmarked: 1, groups: 1 } },
   gate: { ...block, title: "待決定", items: [], counts: { registered: 0, due: 0, later: 0 } },
   weekly: { ...block, title: "範例週回顧", date: DATE, path: "synthetic/weekly", age_days: 0, alerts: [], action_items: [{ text: "整理兩個產品交付問題", done: false, detail: ["全合成案例"] }] } }

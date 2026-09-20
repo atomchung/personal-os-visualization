@@ -1,5 +1,6 @@
 /** Closed, browser-memory-only adapter. No network, storage, or live fallback. */
-import { cockpit, createState, DATE, focus, goals, health, home, ideal, investment, market, momentum, pending, quote, STAMP, timeData, todos, universe, watch } from "./fixtures.ts"
+import { cockpit, createState, DATE, focus, goals, health, home, ideal, investment, investmentContext, investmentHistory, investmentHistorySources, leaders, market, momentum, pending, quote, STAMP, timeData, todos, universe, watch } from "./fixtures.ts"
+import { investmentScenario } from "./generated/investment-scenario.ts"
 
 export function createDemoRequest() {
   const state = createState()
@@ -30,16 +31,23 @@ export function createDemoRequest() {
         case "/api/investment": return reply(investment)
         case "/api/investment/market": return reply(market)
         case "/api/investment/momentum/universe": return reply(universe)
+        case "/api/investment/momentum/leaders": return reply(leaders)
         case "/api/investment/quote":
         case "/api/investment/momentum":
           if (url.searchParams.get("symbol") !== "DEMO") return rejected("只有 DEMO 合成標的可用。", 404)
           return reply(path.endsWith("quote") ? quote : momentum)
         case "/api/investment/watch": return reply(watch)
+        case "/api/investment/history": return reply(investmentHistory)
+        case "/api/investment/context": return reply(investmentContext)
+        case "/api/investment/history/source": {
+          const item = investmentHistorySources[url.searchParams.get("id") ?? ""]
+          return item ? reply(item) : rejected("找不到這段合成歷史來源。", 404)
+        }
         case "/api/investment/pending": return reply(pending)
         case "/api/investment/work": return reply({ items: state.investmentWork })
         case "/api/investment/source":
-          if (url.searchParams.get("id") !== "demo-brief") return rejected("找不到這份合成來源。", 404)
-          return reply({ title: "星島產業觀察（虛構）", date: DATE, text: "這是一份完全合成的展示內容。\n\n星島設備發表範例產品；研究問題是產品交付能否跟上。\n此文字未取自任何私人筆記、帳戶或市場來源。" })
+          if (url.searchParams.get("id") !== investmentScenario.source_id) return rejected("找不到這份合成來源。", 404)
+          return reply({ title: investmentScenario.source_title, date: DATE, text: `${investmentScenario.source_text}\n\n此文字由私人端的情境規格重新生成，未取自任何私人筆記、帳戶或市場來源。` })
         default: return rejected("此資料尚未加入展示版。", 404)
       }
     }
