@@ -22,6 +22,16 @@ function SourceText({source}: {source: InvestmentSource}) {
 const ACTION_TONE: Record<string, "ok" | "warn" | "info" | "mute"> = {"不動":"mute","觀察":"info","補研究":"warn","需評估":"warn"}
 function actionTone(today: string) { const hit=Object.keys(ACTION_TONE).find(k=>today.includes(k)); return hit?ACTION_TONE[hit]:"mute" }
 
+// Only remove exact, pure no-change labels. A sentence that also contains a
+// judgment (for example, why the existing thesis still stands) remains visible.
+const PURE_NO_CHANGE_ACTIONS = new Set(["沒有新資訊", "暫無新資訊", "無新資訊", "不重複升級"])
+function meaningfulActions(actions: string[]) {
+  return actions.filter(action => {
+    const normalized = action.trim().replace(/[。．.!！?？]+$/, "")
+    return !PURE_NO_CHANGE_ACTIONS.has(normalized)
+  })
+}
+
 /** The whole day's judgment in one block, in the order the brief itself argues it. */
 function TodayBrief({b}: {b: InvestmentBrief}) {
   const version=b.session?BRIEF_SESSION_LABELS[b.session]??b.session:null
@@ -37,9 +47,9 @@ function TodayBrief({b}: {b: InvestmentBrief}) {
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline gap-2"><SectionHeading>今日簡報</SectionHeading><span className="text-caption text-ink-3">{b.date??"尚未收到"}{version?` · ${version}`:""}{b.generated_at?` · ${quoteTime(b.generated_at)} 產出`:""}{stale?" · 還沒收到今天的版本":""}</span></div>
       {b.headline?<ReadingText text={b.headline}/>:<p className="text-body text-warn">{b.state==="invalid"?"這份簡報部分格式無法辨識，仍可展開原文閱讀。":"本機尚無可讀簡報。"}</p>}
+      {meaningfulActions(b.actions).length?<div className="flex flex-col gap-1"><h3 className="text-section font-semibold text-ink">今天怎麼做</h3><ul className="flex list-disc flex-col gap-1 pl-4 text-body leading-relaxed text-ink-2">{meaningfulActions(b.actions).map((action,i)=><li key={i}><InlineText text={action}/></li>)}</ul></div>:null}
       {b.source?.limitations.length?<p role="status" className="text-caption text-warn">{b.source.limitations.join(" ")}</p>:null}
     </div>
-    {b.actions.length?<div className="flex flex-col gap-2 rounded-lg border-l-2 border-accent bg-bg-3 p-3"><h3 className="text-num font-bold text-ink">今天怎麼做</h3><ReadingText text={b.actions.join("\n\n")}/></div>:null}
     {b.events.length>0||b.event_notes.length>0?<div className="flex flex-col gap-2"><h3 className="text-section font-semibold text-ink">市場在交易什麼</h3>
       {b.events.map((e,i)=><Card key={`${b.date}:${i}`} className="flex flex-col gap-2 p-3">
         <div className="flex flex-wrap items-start justify-between gap-2"><p className="min-w-0 text-body font-medium leading-relaxed"><InlineText text={e.event}/></p><Chip tone={actionTone(e.today)}>{e.today}</Chip></div>
@@ -108,12 +118,12 @@ export function InvestmentPage() {
       <MarketIndicators/><StockMomentum/>
     </div>
     <div hidden={view!=="work"} className={view==="work"?"flex min-w-0 flex-col gap-5":"hidden"}>
-      <PendingBoard/>
       <section className="flex min-w-0 flex-col gap-3" aria-label="我留下的問題與研究">
-        <div className="flex flex-col gap-1"><SectionHeading>我留下的問題與研究</SectionHeading><p className="text-caption text-ink-3">你在看板上留下的問題、研究與結論，只存在本機；系統整理的提醒另列在上方。</p></div>
+        <div className="flex flex-col gap-1"><SectionHeading>我留下的問題與研究</SectionHeading><p className="text-caption text-ink-3">你在看板上留下的問題、研究與結論，只存在本機；系統整理的提醒另列在下方。</p></div>
         <InvestmentWorkPanel research={watch.data?.research??[]}/>
       </section>
       {watch.data?<ResearchLibrary data={watch.data}/>:null}
+      <PendingBoard/>
     </div>
     <div hidden={view!=="month"} className={view==="month"?"flex flex-col gap-4":"hidden"}>{watch.data?<ResearchWatch data={watch.data} brief={b}/>:<p className="text-body text-ink-3">{watch.isError?"日期資料讀取失敗，請按更新全部。":"正在讀取重要日期…"}</p>}</div>
     {watch.isError?<p role="alert" className="text-body text-warn">研究與重要日期本次讀取失敗。{watch.data?"仍顯示上次內容。":""}</p>:null}
