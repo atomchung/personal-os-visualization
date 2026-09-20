@@ -36,6 +36,7 @@ function meaningfulActions(actions: string[]) {
 function TodayBrief({b}: {b: InvestmentBrief}) {
   const version=b.session?BRIEF_SESSION_LABELS[b.session]??b.session:null
   const stale=b.state==="stale"
+  const actions=meaningfulActions(b.actions)
   // The brief names, per judgment and per risk, which event it came from, and the
   // reader resolves that to one event or to none. Show each row under its event
   // instead of repeating the same driver in three sections; a row that resolved
@@ -44,12 +45,15 @@ function TodayBrief({b}: {b: InvestmentBrief}) {
   const looseTheses=b.thesis_changes.filter(x=>x.event_index===null)
   const looseRisks=b.risks.filter(x=>x.event_index===null)
   return <section className="flex flex-col gap-4" aria-label="今日簡報">
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-baseline gap-2"><SectionHeading>今日簡報</SectionHeading><span className="text-caption text-ink-3">{b.date??"尚未收到"}{version?` · ${version}`:""}{b.generated_at?` · ${quoteTime(b.generated_at)} 產出`:""}{stale?" · 還沒收到今天的版本":""}</span></div>
+    <Card className="flex flex-col gap-3 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SectionHeading>今日簡報</SectionHeading>
+        <span className="text-caption text-ink-3">{b.date??"尚未收到"}{version?` · ${version}`:""}{b.generated_at?` · ${quoteTime(b.generated_at)} 產出`:""}{stale?" · 還沒收到今天的版本":""}</span>
+      </div>
       {b.headline?<ReadingText text={b.headline}/>:<p className="text-body text-warn">{b.state==="invalid"?"這份簡報部分格式無法辨識，仍可展開原文閱讀。":"本機尚無可讀簡報。"}</p>}
-      {meaningfulActions(b.actions).length?<div className="flex flex-col gap-1"><h3 className="text-section font-semibold text-ink">今天怎麼做</h3><ul className="flex list-disc flex-col gap-1 pl-4 text-body leading-relaxed text-ink-2">{meaningfulActions(b.actions).map((action,i)=><li key={i}><InlineText text={action}/></li>)}</ul></div>:null}
+      {actions.length?<div className="border-t border-line-soft pt-3"><h3 className="mb-1 text-label font-semibold text-ink">今天怎麼做</h3><ul className="flex list-disc flex-col gap-1 pl-4 text-body leading-relaxed text-ink-2">{actions.map((action,i)=><li key={i}><InlineText text={action}/></li>)}</ul></div>:null}
       {b.source?.limitations.length?<p role="status" className="text-caption text-warn">{b.source.limitations.join(" ")}</p>:null}
-    </div>
+    </Card>
     {b.events.length>0||b.event_notes.length>0?<div className="flex flex-col gap-2"><h3 className="text-section font-semibold text-ink">市場在交易什麼</h3>
       {b.events.map((e,i)=><Card key={`${b.date}:${i}`} className="flex flex-col gap-2 p-3">
         <div className="flex flex-wrap items-start justify-between gap-2"><p className="min-w-0 text-body font-medium leading-relaxed"><InlineText text={e.event}/></p><Chip tone={actionTone(e.today)}>{e.today}</Chip></div>
@@ -108,9 +112,16 @@ export function InvestmentPage() {
     } finally {setRefreshing(false)}
   }
   return <div className="flex min-w-0 flex-col gap-4">
-    <header className="flex items-start justify-between gap-3"><div className="flex flex-col gap-1"><h1 className="text-display font-bold text-ink">投資</h1><p className="text-caption text-ink-3">看今天的判斷，回看已到期的舊判斷，掌握近期要留意的事件。{DEMO_MODE ? "此處展示固定的虛構案例。" : "行情開著就自動更新。"}</p></div><Button disabled={refreshing||fetching>0} onClick={()=>void refresh()}>{refreshing?"更新全部中…":fetching>0?"資料載入中…":"更新全部"}</Button></header>
-    {notice?<p role="status" aria-live="polite" className="text-caption text-ink-3">{notice}</p>:null}
-    <nav aria-label="投資內容" className="flex flex-wrap gap-2">{([['today','今天'],['work','待處理'],['month','什麼時候看什麼']] as const).map(([key,label])=><Button key={key} aria-pressed={view===key} variant={view===key?"selected":"ghost"} onClick={()=>setView(key)}>{label}</Button>)}</nav>
+    <header className="flex flex-col gap-3 border-b border-line-soft pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+          <h1 className="text-display font-bold text-ink">投資</h1>
+          <nav aria-label="投資內容" className="flex flex-wrap items-center gap-1 rounded-md bg-bg-2 p-0.5">{([['today','今天'],['work','待處理'],['month','什麼時候看什麼']] as const).map(([key,label])=><Button key={key} size="sm" aria-pressed={view===key} variant={view===key?"selected":"ghost"} onClick={()=>setView(key)}>{label}</Button>)}</nav>
+        </div>
+        <Button size="sm" disabled={refreshing||fetching>0} onClick={()=>void refresh()}>{refreshing?"更新全部中…":fetching>0?"資料載入中…":"更新全部"}</Button>
+      </div>
+      {notice?<p role="status" aria-live="polite" className="text-caption text-ink-3">{notice}</p>:null}
+    </header>
     <div hidden={view!=="today"} className={view==="today"?"flex min-w-0 flex-col gap-5":"hidden"}>
       {query.isError?<p role="alert" className="text-body text-warn">簡報讀取失敗。{b?"目前保留上次內容。":""}請按更新全部重試。</p>:null}
       {query.isPending?<p className="text-body text-ink-3">讀取簡報中…</p>:null}
