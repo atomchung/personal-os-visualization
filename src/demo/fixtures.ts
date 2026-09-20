@@ -141,7 +141,7 @@ export const investment: InvestmentData = {
     market_pulse: [{ variable: "範例指數", latest: "1,234 · +0.8%", meaning: "示範市場脈搏欄位" }], market_pulse_notes: [],
     events: [{ event: "星島設備發表新產品（虛構）", market_reaction: "範例價格上漲 1.2%", interpretation: "產品發表與實際交付仍是兩件事", impact: "新增待查證事項", today: "先讀產品交付說明" }], event_notes: [],
     thesis_changes: [{ thesis: "能否穩定交付", event_ref: "範例事件", event_index: 0, change: "待驗證", reason: "尚未取得交付數據" }], thesis_notes: [],
-    upcoming: [{ date_label: "範例：下週", event: "交付說明會（虛構）", check: "交期與產品回饋" }], upcoming_notes: [], actions: ["整理兩個待查問題，不由新聞直接形成交易。"],
+    upcoming: [{ date_label: "09/23", event: "交付說明會（虛構）", check: "交期與產品回饋" }], upcoming_notes: [], actions: ["整理兩個待查問題，不由新聞直接形成交易。"],
     risks: [{ risk: "展示案例尚無交付證據", event_ref: "範例事件", event_index: 0, status: "觀察" }], risk_notes: [], source },
   weekly_watch: { state: "missing", date: null, source: null }, conditions: { state: "not_connected", message: "展示版未連接交易、帳戶或研究來源。" }, sources: [source],
 }

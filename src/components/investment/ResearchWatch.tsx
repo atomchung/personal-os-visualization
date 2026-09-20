@@ -26,11 +26,9 @@ export function ResearchWatch({data,brief}: {data: InvestmentWatch; brief?:Inves
       const hasAdditionalInfo=rawIsAdditional||e.sources.some(source=>source.trim().length>0)
       return <li key={e.key} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 py-2">
         <span className="row-span-2 shrink-0 pt-px text-label tabular-nums text-ink-3">{e.date.slice(5)}{e.estimated?" 約":""}</span>
-        <div className="flex min-w-0 items-start justify-between gap-2">
-          <span className="min-w-0 text-body font-medium"><InlineText text={e.title}/></span>
-          {hasAdditionalInfo?<details className="shrink-0"><summary className="cursor-pointer text-caption text-ink-3">原文與來源</summary><div className="flex max-w-[720px] flex-col gap-2 pt-2 text-caption text-ink-3">{rawIsAdditional?<ReadingText text={raw}/>:null}{e.sources.length?<p className="break-words">{e.sources.join("；")}</p>:null}</div></details>:null}
-        </div>
+        <span className="min-w-0 text-body font-medium"><InlineText text={e.title}/></span>
         {e.verify?<p className="min-w-0 text-caption leading-relaxed text-ink-2">要看什麼：<InlineText text={e.verify}/></p>:null}
+        {hasAdditionalInfo?<details className="col-start-2 min-w-0"><summary className="cursor-pointer text-right text-caption text-ink-3">原文與來源</summary><div className="flex min-w-0 flex-col gap-2 break-words pt-2 text-caption text-ink-3">{rawIsAdditional?<ReadingText text={raw}/>:null}{e.sources.length?<p className="break-words">{e.sources.join("；")}</p>:null}</div></details>:null}
       </li>
     })}</ul>
     {months.length>0?<details><summary className="cursor-pointer text-caption text-ink-3">只知道月份的近期事件（{months.length}）</summary><div className="flex flex-col gap-2 pt-2">{months.map(e=><p key={e.id} className="text-body">{e.topic} · <InlineText text={e.raw}/></p>)}</div></details>:null}
