@@ -6,6 +6,7 @@ import { Card, SectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { MarketIndicators } from "./MarketIndicators"
 import { quoteTime } from "@/lib/investmentFormat"
+import { briefOverviewActions, isBriefEventReference } from "@/lib/investmentBriefPresentation"
 import { StockMomentum } from "./StockMomentum"
 import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
 import { ReadingText, InlineText } from "./ReadingText"
@@ -16,52 +17,74 @@ import { BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentM
 function SourceText({source}: {source: InvestmentSource}) {
   const [open,setOpen]=useState(false)
   const query=useQuery({queryKey:["investment-source",source.id,source.generated_at],queryFn:({signal})=>getInvestmentSource(source.id,signal),enabled:open,staleTime:0,retry:false,refetchOnWindowFocus:false})
-  return <details onToggle={e=>setOpen(e.currentTarget.open)}><summary className="cursor-pointer text-body font-medium">閱讀完整簡報 · {source.date}</summary><div className="max-w-[900px] pt-3">{query.isPending?<p className="text-body text-ink-3">載入原文中…</p>:query.isError?<p role="alert" className="text-body text-warn">簡報原文讀取失敗，請按更新全部。</p>:query.data?<ReadingText text={query.data.text}/>:null}</div></details>
+  return <details onToggle={e=>setOpen(e.currentTarget.open)}><summary className="cursor-pointer text-caption text-ink-3">閱讀簡報原文</summary><div className="max-w-[900px] pt-3">{query.isPending?<p className="text-body text-ink-3">載入原文中…</p>:query.isError?<p role="alert" className="text-body text-warn">簡報原文讀取失敗，請按更新全部。</p>:query.data?<ReadingText text={query.data.text}/>:null}</div></details>
 }
 
 const ACTION_TONE: Record<string, "ok" | "warn" | "info" | "mute"> = {"不動":"mute","觀察":"info","補研究":"warn","需評估":"warn"}
 function actionTone(today: string) { const hit=Object.keys(ACTION_TONE).find(k=>today.includes(k)); return hit?ACTION_TONE[hit]:"mute" }
 
-// Only remove exact, pure no-change labels. A sentence that also contains a
-// judgment (for example, why the existing thesis still stands) remains visible.
-const PURE_NO_CHANGE_ACTIONS = new Set(["沒有新資訊", "暫無新資訊", "無新資訊", "不重複升級"])
-function meaningfulActions(actions: string[]) {
-  return actions.filter(action => {
-    const normalized = action.trim().replace(/[。．.!！?？]+$/, "")
-    return !PURE_NO_CHANGE_ACTIONS.has(normalized)
-  })
-}
-
-/** The whole day's judgment in one block, in the order the brief itself argues it. */
+/** One overview, then event evidence. Original judgments remain available verbatim. */
 function TodayBrief({b}: {b: InvestmentBrief}) {
   const version=b.session?BRIEF_SESSION_LABELS[b.session]??b.session:null
-  const stale=b.state==="stale"
-  // The brief names, per judgment and per risk, which event it came from, and the
-  // reader resolves that to one event or to none. Show each row under its event
-  // instead of repeating the same driver in three sections; a row that resolved
-  // to nothing — including every row on a brief written before the column
-  // existed — keeps its own section, exactly as before.
-  const looseTheses=b.thesis_changes.filter(x=>x.event_index===null)
-  const looseRisks=b.risks.filter(x=>x.event_index===null)
-  return <section className="flex flex-col gap-4" aria-label="今日簡報">
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-baseline gap-2"><SectionHeading>今日簡報</SectionHeading><span className="text-caption text-ink-3">{b.date??"尚未收到"}{version?` · ${version}`:""}{b.generated_at?` · ${quoteTime(b.generated_at)} 產出`:""}{stale?" · 還沒收到今天的版本":""}</span></div>
-      {b.headline?<ReadingText text={b.headline}/>:<p className="text-body text-warn">{b.state==="invalid"?"這份簡報部分格式無法辨識，仍可展開原文閱讀。":"本機尚無可讀簡報。"}</p>}
-      {meaningfulActions(b.actions).length?<div className="flex flex-col gap-1"><h3 className="text-section font-semibold text-ink">今天怎麼做</h3><ul className="flex list-disc flex-col gap-1 pl-4 text-body leading-relaxed text-ink-2">{meaningfulActions(b.actions).map((action,i)=><li key={i}><InlineText text={action}/></li>)}</ul></div>:null}
+  const actions=briefOverviewActions(b.actions,b.headline)
+  // A broken reference is not permission to discard a judgment or a risk.
+  const looseTheses=b.thesis_changes.filter(x=>!isBriefEventReference(x.event_index,b.events.length))
+  const looseRisks=b.risks.filter(x=>!isBriefEventReference(x.event_index,b.events.length))
+  const hasOtherTheses=looseTheses.length>0||b.thesis_notes.length>0
+  const hasOtherRisks=looseRisks.length>0||b.risk_notes.length>0
+
+  return <section className="flex min-w-0 flex-col gap-5" aria-label="今日簡報">
+    <Card className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-section font-bold text-ink">今日重點</h2>
+        <p className="text-caption text-ink-3">{b.date??"尚未收到簡報"}{version?` · ${version}`:""}{b.generated_at?` · ${quoteTime(b.generated_at)} 產出`:""}</p>
+      </div>
+      {b.headline?<ReadingText text={b.headline}/>:<p className="text-body text-warn">{b.state==="invalid"?"這份簡報部分格式無法辨識，仍可展開原文閱讀。":"尚未取得可讀簡報。"}</p>}
+      {actions.length>0?<div className="flex flex-col gap-2 border-t border-line-soft pt-3">
+        <h3 className="text-body font-semibold text-ink">接下來</h3>
+        <ul className="flex list-disc flex-col gap-2 pl-4 text-body leading-relaxed text-ink-2">{actions.map((action,i)=><li key={i}><InlineText text={action}/></li>)}</ul>
+      </div>:null}
+      {b.state==="stale"?<p role="status" className="text-caption text-warn">尚未收到今天的版本，目前顯示上次簡報。</p>:null}
+      {b.state==="invalid"&&b.headline?<p role="status" className="text-caption text-warn">部分格式無法辨識，請一併查看原文。</p>:null}
       {b.source?.limitations.length?<p role="status" className="text-caption text-warn">{b.source.limitations.join(" ")}</p>:null}
-    </div>
-    {b.events.length>0||b.event_notes.length>0?<div className="flex flex-col gap-2"><h3 className="text-section font-semibold text-ink">市場在交易什麼</h3>
-      {b.events.map((e,i)=><Card key={`${b.date}:${i}`} className="flex flex-col gap-2 p-3">
-        <div className="flex flex-wrap items-start justify-between gap-2"><p className="min-w-0 text-body font-medium leading-relaxed"><InlineText text={e.event}/></p><Chip tone={actionTone(e.today)}>{e.today}</Chip></div>
+    </Card>
+
+    {b.events.length>0||b.event_notes.length>0?<section className="flex min-w-0 flex-col gap-3" aria-label="市場變化與持倉影響">
+      <h2 className="text-section font-bold text-ink">市場變化與持倉影響</h2>
+      {b.events.map((e,i)=><Card key={`${b.date}:${i}`} className="flex min-w-0 flex-col gap-3 p-4">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+          <h3 className="min-w-0 break-words text-body font-semibold leading-relaxed text-ink"><InlineText text={e.event}/></h3>
+          {e.today.trim()?<Chip tone={actionTone(e.today)}>{e.today}</Chip>:null}
+        </div>
         <div className="text-body leading-relaxed text-ink-2"><span className="font-medium">對持倉：</span><InlineText text={e.impact}/></div>
-        {b.thesis_changes.filter(x=>x.event_index===i).map((x,j)=><div key={`t${j}`} className="text-body leading-relaxed text-ink-2"><span className="font-medium">受影響的判斷：</span><InlineText text={x.thesis}/> {x.change}<span className="text-ink-3"> — <InlineText text={x.reason}/></span></div>)}
+        {b.thesis_changes.filter(x=>x.event_index===i).map((x,j)=><div key={`t${j}`} className="text-body leading-relaxed text-ink-2"><span className="font-medium">相關判斷：</span><InlineText text={x.thesis}/> {x.change}<span className="text-ink-3"> — <InlineText text={x.reason}/></span></div>)}
         {b.risks.filter(x=>x.event_index===i).map((x,j)=><div key={`r${j}`} className="text-body leading-relaxed text-warn"><span className="font-medium">風險：</span><InlineText text={x.risk}/><span> — <InlineText text={x.status}/></span></div>)}
-        <details><summary className="cursor-pointer text-caption text-ink-3">市場反應與解讀</summary><div className="flex flex-col gap-2 pt-2 text-body text-ink-2"><p><span className="font-medium">市場反應：</span><InlineText text={e.market_reaction}/></p><p><span className="font-medium">市場可能在定價：</span><InlineText text={e.interpretation}/></p></div></details>
+        {e.market_reaction.trim()||e.interpretation.trim()?<details className="border-t border-line-soft pt-2">
+          <summary className="cursor-pointer text-caption text-ink-3">查看市場反應與解讀</summary>
+          <div className="flex flex-col gap-2 pt-2 text-body text-ink-2">
+            {e.market_reaction.trim()?<p><span className="font-medium">市場反應：</span><InlineText text={e.market_reaction}/></p>:null}
+            {e.interpretation.trim()?<p><span className="font-medium">市場解讀：</span><InlineText text={e.interpretation}/></p>:null}
+          </div>
+        </details>:null}
       </Card>)}
       {b.event_notes.length?<ReadingText text={b.event_notes.join("\n\n")}/>:null}
-    </div>:null}
-    {looseTheses.length>0||b.thesis_notes.length>0?<div className="flex flex-col gap-1"><h3 className="text-section font-semibold text-ink">組合判斷</h3><ul className="flex flex-col gap-1">{looseTheses.map((t,i)=><li key={i} className="text-body text-ink-2"><span className="font-medium text-ink"><InlineText text={t.thesis}/></span> {t.change}<span className="text-ink-3"> — <InlineText text={t.reason}/></span></li>)}</ul>{b.thesis_notes.length?<ReadingText text={b.thesis_notes.join("\n\n")}/>:null}</div>:null}
-    {looseRisks.length>0||b.risk_notes.length>0?<div className="flex flex-col gap-1"><h3 className="text-section font-semibold text-warn">風險警報</h3><ul className="flex flex-col gap-1">{looseRisks.map((r,i)=><li key={i} className="text-body text-ink-2"><span className="font-medium text-ink"><InlineText text={r.risk}/></span><span className="text-ink-3"> — <InlineText text={r.status}/></span></li>)}</ul>{b.risk_notes.length?<ReadingText text={b.risk_notes.join("\n\n")}/>:null}</div>:null}
+    </section>:null}
+
+    {hasOtherTheses||hasOtherRisks?<section className="flex min-w-0 flex-col gap-3" aria-label="其他判斷與風險">
+      <h2 className="text-section font-bold text-ink">其他判斷與風險</h2>
+      <Card className="flex min-w-0 flex-col gap-4 p-4">
+        {hasOtherTheses?<div className="flex flex-col gap-2">
+          <h3 className="text-body font-semibold text-ink">組合判斷</h3>
+          <ul className="flex flex-col gap-2">{looseTheses.map((t,i)=><li key={i} className="text-body text-ink-2"><span className="font-medium text-ink"><InlineText text={t.thesis}/></span> {t.change}<span className="text-ink-3"> — <InlineText text={t.reason}/></span></li>)}</ul>
+          {b.thesis_notes.length?<ReadingText text={b.thesis_notes.join("\n\n")}/>:null}
+        </div>:null}
+        {hasOtherRisks?<div className={`flex flex-col gap-2${hasOtherTheses?" border-t border-line-soft pt-3":""}`}>
+          <h3 className="text-body font-semibold text-warn">仍需留意的風險</h3>
+          <ul className="flex flex-col gap-2">{looseRisks.map((r,i)=><li key={i} className="text-body text-ink-2"><span className="font-medium text-ink"><InlineText text={r.risk}/></span><span className="text-ink-3"> — <InlineText text={r.status}/></span></li>)}</ul>
+          {b.risk_notes.length?<ReadingText text={b.risk_notes.join("\n\n")}/>:null}
+        </div>:null}
+      </Card>
+    </section>:null}
     {b.source?<SourceText key={b.source.id} source={b.source}/>:null}
   </section>
 }
@@ -108,9 +131,9 @@ export function InvestmentPage() {
     } finally {setRefreshing(false)}
   }
   return <div className="flex min-w-0 flex-col gap-4">
-    <header className="flex items-start justify-between gap-3"><div className="flex flex-col gap-1"><h1 className="text-display font-bold text-ink">投資</h1><p className="text-caption text-ink-3">看今天的判斷，回看已到期的舊判斷，掌握近期要留意的事件。{DEMO_MODE ? "此處展示固定的虛構案例。" : "行情開著就自動更新。"}</p></div><Button disabled={refreshing||fetching>0} onClick={()=>void refresh()}>{refreshing?"更新全部中…":fetching>0?"資料載入中…":"更新全部"}</Button></header>
+    <header className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-display font-bold text-ink">投資</h1><Button disabled={refreshing||fetching>0} onClick={()=>void refresh()}>{refreshing?"更新全部中…":fetching>0?"資料載入中…":"更新全部"}</Button></header>
     {notice?<p role="status" aria-live="polite" className="text-caption text-ink-3">{notice}</p>:null}
-    <nav aria-label="投資內容" className="flex flex-wrap gap-2">{([['today','今天'],['work','待處理'],['month','什麼時候看什麼']] as const).map(([key,label])=><Button key={key} aria-pressed={view===key} variant={view===key?"selected":"ghost"} onClick={()=>setView(key)}>{label}</Button>)}</nav>
+    <nav aria-label="投資內容" className="flex flex-wrap gap-2">{([['today','今日'],['work','待處理'],['month','什麼時候看什麼']] as const).map(([key,label])=><Button key={key} aria-pressed={view===key} variant={view===key?"selected":"ghost"} onClick={()=>setView(key)}>{label}</Button>)}</nav>
     <div hidden={view!=="today"} className={view==="today"?"flex min-w-0 flex-col gap-5":"hidden"}>
       {query.isError?<p role="alert" className="text-body text-warn">簡報讀取失敗。{b?"目前保留上次內容。":""}請按更新全部重試。</p>:null}
       {query.isPending?<p className="text-body text-ink-3">讀取簡報中…</p>:null}
