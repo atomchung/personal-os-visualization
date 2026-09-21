@@ -3,9 +3,11 @@ import { PAGE_COPY, type PageKey } from "@/lib/informationArchitecture"
 export function PageHeader({
   page,
   action,
+  showSummary = true,
 }: {
   page: PageKey | "guide"
   action?: React.ReactNode
+  showSummary?: boolean
 }) {
   const copy = PAGE_COPY[page]
   return (
@@ -14,9 +16,9 @@ export function PageHeader({
         <h1 className="text-display font-bold leading-display tracking-tight text-ink">
           {copy.label}
         </h1>
-        <p className="max-w-[720px] text-caption leading-body text-ink-3">
+        {showSummary ? <p className="max-w-[720px] text-caption leading-body text-ink-3">
           {copy.summary}
-        </p>
+        </p> : null}
       </div>
       {action}
     </header>
