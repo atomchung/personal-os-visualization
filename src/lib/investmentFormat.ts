@@ -1,3 +1,5 @@
+import type { ActionItemStatus, InvestmentActionItem } from "./investment"
+
 const VALUE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const CHANGE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "exceptZero" })
 const TIME_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", hour: "2-digit", minute: "2-digit", hour12: false })
@@ -46,6 +48,77 @@ export function briefActions(actions: readonly string[]): string[] {
     seen.add(key)
     return true
   })
+}
+
+/** Keep structured next steps in source order; drop only pure no-information labels. */
+export function visibleActionItems<T extends { text: string }>(items: readonly T[]): T[] {
+  const kept = new Set(briefActions(items.map(item => item.text)))
+  return items.filter(item => kept.has(item.text))
+}
+
+const ACTION_STATUS_LABEL: Record<ActionItemStatus, string> = {
+  open: "尚未結案",
+  "has-canonical-home": "已有判斷頁可承接",
+  closed: "正式紀錄已寫下編號",
+}
+
+export function actionStatusLabel(status: ActionItemStatus): string {
+  return ACTION_STATUS_LABEL[status]
+}
+
+/** Extra sentence for statuses that are easy to misread as done. */
+export function actionStatusNote(status: ActionItemStatus): string | null {
+  if (status === "has-canonical-home") return "這還不算完成。判斷頁已可承接，正式紀錄尚未寫下編號。"
+  return null
+}
+
+export function isCanonicalActionId(value: string | undefined): boolean {
+  return typeof value === "string" && value.startsWith("ai:")
+}
+
+export function openActionItems(items: readonly InvestmentActionItem[]): InvestmentActionItem[] {
+  return items.filter(item => item.status === "open" || item.status === "has-canonical-home")
+}
+
+/** Drop items already shown in today's next steps, matching id or exact text. */
+export function remainingActions(
+  items: readonly InvestmentActionItem[],
+  today: readonly { id?: string; text: string }[],
+): InvestmentActionItem[] {
+  const ids = new Set(today.map(item => item.id).filter((id): id is string => Boolean(id)))
+  const texts = new Set(today.map(item => item.text.trim()).filter(Boolean))
+  return openActionItems(items)
+    .filter(item => !ids.has(item.id) && !texts.has(item.text.trim()))
+    .sort((a, b) => (b.date || "").localeCompare(a.date || "") || a.id.localeCompare(b.id))
+}
+
+/** Keep source items; only hide older ones from the first screen. Missing dates stay visible. */
+export function recentActions(items: readonly InvestmentActionItem[], asOf: string | null | undefined, days = 2): InvestmentActionItem[] {
+  const end = asOf?.slice(0, 10)
+  if (!end || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return [...items]
+  const startDate = new Date(`${end}T00:00:00Z`)
+  startDate.setUTCDate(startDate.getUTCDate() - days)
+  const start = startDate.toISOString().slice(0, 10)
+  return items.filter(item => !item.date || (item.date >= start && item.date <= end))
+}
+
+export function historyReadingOrder<T extends { id: string; date: string | null }>(items: readonly T[]): T[] {
+  const dated = items.filter((item) => item.date).sort((a, b) => (b.date || "").localeCompare(a.date || "") || a.id.localeCompare(b.id))
+  const undated = items.filter((item) => !item.date)
+  return [...dated, ...undated]
+}
+
+export type WorkPanelView = "loading" | "error" | "stale" | "empty" | "ready"
+
+/** Fetch-state discriminant so a failed first load is not rendered as an empty list. */
+export function workPanelView(query: {
+  isPending: boolean
+  isError: boolean
+  data?: { items?: readonly unknown[] } | null
+}): WorkPanelView {
+  if (query.data == null) return query.isError ? "error" : "loading"
+  if (query.isError) return "stale"
+  return (query.data.items?.length ?? 0) > 0 ? "ready" : "empty"
 }
 
 /** An unresolvable reference is unlinked content, not permission to discard it. */

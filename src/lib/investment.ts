@@ -15,6 +15,37 @@ export type InvestmentSource = {
   url: string | null
 }
 
+export type EnvelopeCompleteness = "ready" | "partial" | "unavailable"
+export type InvestmentEnvelope = {
+  artifact: string
+  id: string
+  as_of: string
+  generated_at: string
+  source_cutoff: string
+  producer: string
+  completeness: EnvelopeCompleteness
+  limitations: string[]
+}
+export type ActionItemStatus = "open" | "has-canonical-home" | "closed"
+export type InvestmentActionItem = {
+  id: string
+  text: string
+  status: ActionItemStatus
+  tickers: string[]
+  evidence: string[]
+  artifact_id: string
+  source: string
+  date: string
+}
+export type InvestmentActions = {
+  as_of: string
+  state: "ready" | "partial" | "unavailable"
+  message: string
+  limitations: string[]
+  items: InvestmentActionItem[]
+  counts: { open: number; has_canonical_home: number; closed: number }
+}
+
 export type InvestmentBrief = {
   state: InvestmentSourceState
   date: string | null
@@ -39,6 +70,9 @@ export type InvestmentBrief = {
   upcoming: { date_label: string; event: string; check: string }[]
   upcoming_notes: string[]
   actions: string[]
+  /** Optional structured next steps; UI must keep working when this is absent. */
+  action_items?: InvestmentActionItem[]
+  envelope?: InvestmentEnvelope | null
   risks: { risk: string; event_ref: string; event_index: number | null; status: string }[]
   risk_notes: string[]
   source: InvestmentSource | null
@@ -132,6 +166,48 @@ export type InvestmentMarket = {
     error: string | null
     source_url: string
   }[]
+}
+
+export type MarketExploreItem = {
+  symbol: string
+  label: string
+  change_1d_pct: number | null
+  change_7d_pct: number | null
+  activity: { label: string | null; value: number | null }
+  rsi14: number | null
+  vs_50ma_pct: number | null
+  rs_benchmark_1m_pp: number | null
+  rs_benchmark_window: string | null
+  researched: boolean
+}
+export type MarketExploreBucket = {
+  key: "fast" | "active" | "sustained"
+  label: string
+  method: string
+  items: MarketExploreItem[]
+}
+export type MarketExploreMarket = {
+  market: "tw" | "us"
+  artifact: string
+  id: string
+  as_of: string | null
+  generated_at: string | null
+  source_cutoff: string | null
+  producer: string
+  state: "ready" | "partial" | "unavailable"
+  limitations: string[]
+  universe_size: number
+  buckets: MarketExploreBucket[]
+}
+export type MarketExplore = {
+  fetched_at: string
+  cached: boolean
+  state: "ready" | "partial" | "unavailable"
+  message: string
+  note: string
+  markets: MarketExploreMarket[]
+  /** Optional; live adapter may attach scan-level gaps. */
+  limitations?: string[]
 }
 
 export type StockQuote = {
@@ -337,8 +413,19 @@ function acquireMomentumSlot(signal?: AbortSignal): Promise<() => void> {
 export const getInvestment = (signal?: AbortSignal) =>
   readInvestment<InvestmentData>("/api/investment", signal)
 
+export const getInvestmentActions = (signal?: AbortSignal) =>
+  readInvestment<InvestmentActions>("/api/investment/actions", signal)
+
 export const getInvestmentMarket = (signal?: AbortSignal, refresh = false) =>
   readInvestment<InvestmentMarket>(`/api/investment/market?refresh=${refresh}`, signal)
+
+/** Explore scans can be slow; only this getter uses the longer bound. */
+export const getMarketExplore = (signal?: AbortSignal, refresh = false) =>
+  readInvestment<MarketExplore>(
+    refresh ? "/api/investment/explore?refresh=true" : "/api/investment/explore",
+    signal,
+    50_000,
+  )
 
 export const getMomentumUniverse = (signal?: AbortSignal) =>
   readInvestment<MomentumUniverse>("/api/investment/momentum/universe", signal)

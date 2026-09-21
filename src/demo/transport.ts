@@ -1,5 +1,5 @@
 /** Closed, browser-memory-only adapter. No network, storage, or live fallback. */
-import { cockpit, createState, DATE, focus, goals, health, home, ideal, investment, investmentContext, investmentHistory, investmentHistorySources, leaders, market, momentum, pending, quote, STAMP, timeData, todos, universe, watch } from "./fixtures.ts"
+import { cockpit, createState, DATE, focus, goals, health, home, ideal, investment, investmentActions, investmentContext, investmentHistory, investmentHistorySources, leaders, market, marketExplore, momentum, pending, quote, STAMP, timeData, todos, universe, watch } from "./fixtures.ts"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 
 export function createDemoRequest() {
@@ -29,6 +29,8 @@ export function createDemoRequest() {
         case "/api/ideal": return reply(ideal)
         case "/api/health": return reply(health)
         case "/api/investment": return reply(investment)
+        case "/api/investment/actions": return reply(investmentActions)
+        case "/api/investment/explore": return reply(marketExplore)
         case "/api/investment/market": return reply(market)
         case "/api/investment/momentum/universe": return reply(universe)
         case "/api/investment/momentum/leaders": return reply(leaders)

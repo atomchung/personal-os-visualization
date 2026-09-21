@@ -4,6 +4,7 @@ import { Card, SectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { Button } from "@/components/ui/button"
 import { ReadingText } from "./ReadingText"
+import { historyReadingOrder } from "@/lib/investmentFormat"
 import {
   getInvestmentHistorySource,
   type InvestmentContext,
@@ -15,8 +16,15 @@ function stateLabel(state: InvestmentHistory["state"]) {
   return state === "ready" ? "來源完整" : state === "partial" ? "部分來源可讀" : "來源不可用"
 }
 
+function kindLabel(kind: InvestmentHistoryItem["kind"]) {
+  if (kind === "decision_review") return "決策復盤"
+  if (kind === "weekly_review") return "每週回顧"
+  if (kind === "mistake") return "經驗教訓"
+  return kind
+}
+
 function resultLabel(item: InvestmentHistoryItem) {
-  return item.result_state === "known" ? "已有後續結果" : "結果未知"
+  return item.result_state === "known" ? "已有後續結果" : "尚未找到對應紀錄"
 }
 
 function HistoryItem({ item }: { item: InvestmentHistoryItem }) {
@@ -37,7 +45,7 @@ function HistoryItem({ item }: { item: InvestmentHistoryItem }) {
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-1.5">
-          <Chip tone="mute">{item.kind}</Chip>
+          <Chip tone="mute">{kindLabel(item.kind)}</Chip>
           <Chip tone={item.result_state === "known" ? "ok" : "warn"}>{resultLabel(item)}</Chip>
         </div>
       </div>
@@ -84,18 +92,20 @@ function ContextBlock({ context }: { context: InvestmentContext }) {
 
 export function InvestmentHistory({ data, context }: { data: InvestmentHistory; context?: InvestmentContext }) {
   const [showAll, setShowAll] = useState(false)
-  const visibleItems = showAll ? data.items : data.items.slice(0, 12)
-  const hiddenCount = data.items.length - visibleItems.length
+  const ordered = historyReadingOrder(data.items)
+  const visibleItems = showAll ? ordered : ordered.slice(0, 12)
+  const hiddenCount = ordered.length - visibleItems.length
+  const undatedCount = ordered.filter((item) => !item.date).length
   return (
     <section className="flex min-w-0 flex-col gap-3" aria-label="投資歷史回看">
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2"><SectionHeading>回看舊判斷與後續結果</SectionHeading><Chip tone={data.state === "ready" ? "ok" : "warn"}>{stateLabel(data.state)}</Chip></div>
-        <p className="text-body text-ink-3">沿著原先假設、新證據、目前判斷與下一步回看；沒有記錄結果時保持「未知」，不把空白推成結論。</p>
+        <p className="text-body text-ink-3">有日期的紀錄在前。沒有記錄結果時保持「未知」，不把空白推成結論。</p>
       </div>
       {context ? <ContextBlock context={context} /> : null}
       {data.coverage.errors.length ? <div className="flex flex-col gap-1 text-caption text-warn">{data.coverage.errors.map((error) => <p key={error.source_id}>{error.path}：{error.message}</p>)}</div> : null}
       {data.items.length ? <>
-        <p className="text-caption text-ink-3">先顯示 {visibleItems.length} / {data.items.length} 筆；每筆都保留來源位置，避免一次把私人筆記全部載入畫面。</p>
+        <p className="text-caption text-ink-3">先顯示 {visibleItems.length} / {ordered.length} 筆；每筆都保留來源位置。{undatedCount ? `其中 ${undatedCount} 筆標題沒有日期，列在有日期的紀錄之後。` : ""}</p>
         <div className="flex min-w-0 flex-col gap-2">{visibleItems.map((item) => <HistoryItem key={item.id} item={item} />)}</div>
         {hiddenCount > 0 ? <Button type="button" className="self-start" onClick={() => setShowAll(true)}>顯示其餘 {hiddenCount} 筆歷史</Button> : null}
         {showAll && data.items.length > 12 ? <Button type="button" variant="link" className="self-start" onClick={() => setShowAll(false)}>收合到前 12 筆</Button> : null}

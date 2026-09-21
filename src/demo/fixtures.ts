@@ -1,6 +1,6 @@
 /** Synthetic showcase fixture; never generated from a real API or private vault. */
 import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
-import type { InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistorySource, InvestmentMarket, InvestmentPending, InvestmentWatch, InvestmentWork, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
+import type { InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistorySource, InvestmentMarket, InvestmentPending, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 
 export const DATE = investmentScenario.as_of
@@ -135,6 +135,36 @@ export const health: HealthData = {
 }
 
 const source = { id: investmentScenario.source_id, title: investmentScenario.source_title, date: DATE, generated_at: STAMP, source_cutoff: STAMP, age_days: 0, state: "current" as const, limitations: ["由私人情境規格重新生成，並非市場資訊"], url: null }
+const openActionItem: InvestmentActionItem = {
+  id: "ai:demo-deliver-questions",
+  text: investmentScenario.action,
+  status: "open",
+  tickers: [investmentScenario.symbol],
+  evidence: [investmentScenario.evidence_to_check],
+  artifact_id: investmentScenario.source_id,
+  source: "daily-brief",
+  date: DATE,
+}
+const homeActionItem: InvestmentActionItem = {
+  id: "ai:demo-canonical-home",
+  text: "把交付證據門檻寫進判斷頁後再決定是否改變假設。",
+  status: "has-canonical-home",
+  tickers: [investmentScenario.symbol],
+  evidence: ["判斷頁已有交付問題"],
+  artifact_id: "demo-thesis-page",
+  source: "thesis-page",
+  date: "2026-09-18",
+}
+const closedActionItem: InvestmentActionItem = {
+  id: "ai:demo-closed-prior",
+  text: "先前已記錄：不因單一產品發布改動持倉。",
+  status: "closed",
+  tickers: [investmentScenario.symbol],
+  evidence: ["synthetic/investment-research-loop-v1"],
+  artifact_id: investmentScenario.source_id,
+  source: "decision-review",
+  date: "2026-09-13",
+}
 export const investment: InvestmentData = {
   as_of: STAMP,
   brief: { state: "current", date: DATE, generated_at: STAMP, source_cutoff: STAMP, session: null,
@@ -143,8 +173,84 @@ export const investment: InvestmentData = {
     events: [{ event: investmentScenario.event_text, market_reaction: investmentScenario.market_reaction, interpretation: investmentScenario.interpretation, impact: "新增待查證事項", today: `先讀${investmentScenario.next_check}說明` }], event_notes: [],
     thesis_changes: [{ thesis: investmentScenario.thesis, event_ref: "範例事件", event_index: 0, change: investmentScenario.thesis_change, reason: investmentScenario.thesis_reason }], thesis_notes: [],
     upcoming: [{ date_label: investmentScenario.next_check_date.slice(5).replace("-", "/"), event: investmentScenario.upcoming_event, check: investmentScenario.evidence_to_check }], upcoming_notes: [], actions: [investmentScenario.action],
+    action_items: [openActionItem],
+    envelope: {
+      artifact: "daily-brief",
+      id: investmentScenario.source_id,
+      as_of: DATE,
+      generated_at: STAMP,
+      source_cutoff: STAMP,
+      producer: "synthetic-demo",
+      completeness: "ready",
+      limitations: [],
+    },
     risks: [{ risk: investmentScenario.risk, event_ref: "範例事件", event_index: 0, status: investmentScenario.risk_status }], risk_notes: [], source },
   weekly_watch: { state: "missing", date: null, source: null }, conditions: { state: "not_connected", message: "展示版未連接交易、帳戶或研究來源。" }, sources: [source],
+}
+
+export const investmentActions: InvestmentActions = {
+  as_of: STAMP,
+  state: "ready",
+  message: "",
+  limitations: [],
+  items: [openActionItem, homeActionItem, closedActionItem],
+  counts: { open: 1, has_canonical_home: 1, closed: 1 },
+}
+
+function exploreItem(partial: Partial<MarketExploreItem> & Pick<MarketExploreItem, "symbol" | "label">): MarketExploreItem {
+  return {
+    change_1d_pct: null, change_7d_pct: null, activity: { label: null, value: null },
+    rsi14: null, vs_50ma_pct: null, rs_benchmark_1m_pp: null, rs_benchmark_window: null,
+    researched: false, ...partial,
+  }
+}
+
+export const marketExplore: MarketExplore = {
+  fetched_at: STAMP,
+  cached: true,
+  state: "partial",
+  message: "美股僅部分標的通過流動性門檻。",
+  note: "市場線索，不是持倉強弱，也不是交易建議。",
+  markets: [
+    {
+      market: "tw", artifact: "market-explore-tw", id: "demo-explore-tw", as_of: DATE,
+      generated_at: STAMP, source_cutoff: STAMP, producer: "synthetic-demo", state: "ready",
+      limitations: [], universe_size: 50,
+      buckets: [
+        {
+          key: "fast", label: "漲得快", method: "1 日漲幅，並附 7 日對照",
+          items: [
+            exploreItem({ symbol: "ISLE-A", label: "島嶼設備甲", change_1d_pct: 8.2, change_7d_pct: 12.1 }),
+            exploreItem({ symbol: "ISLE-B", label: "島嶼設備乙", change_1d_pct: 6.4, change_7d_pct: 4.0, researched: true }),
+            exploreItem({ symbol: "ISLE-C", label: "島嶼設備丙", change_1d_pct: 5.1, change_7d_pct: null }),
+          ],
+        },
+        {
+          key: "active", label: "量能熱", method: "相對成交量，不是周轉率",
+          items: [
+            exploreItem({ symbol: "HARBOR-1", label: "港灣材料", change_1d_pct: 2.4, activity: { label: "相對成交量", value: 3.2 } }),
+            exploreItem({ symbol: "HARBOR-2", label: "港灣零件", change_1d_pct: 1.1, activity: { label: "相對成交量", value: 2.1 } }),
+          ],
+        },
+        {
+          key: "sustained", label: "持續強", method: "相對範例指數 1 個月超額",
+          items: [
+            exploreItem({ symbol: "RIDGE-1", label: "山脊儲能", vs_50ma_pct: 8.5, rs_benchmark_1m_pp: 6.2, rs_benchmark_window: "1M vs 範例指數", rsi14: 62 }),
+          ],
+        },
+      ],
+    },
+    {
+      market: "us", artifact: "market-explore-us", id: "demo-explore-us", as_of: DATE,
+      generated_at: STAMP, source_cutoff: STAMP, producer: "synthetic-demo", state: "partial",
+      limitations: ["2/20 通過門檻"], universe_size: 20,
+      buckets: [
+        { key: "fast", label: "漲得快", method: "1 日漲幅，並附 7 日對照", items: [] },
+        { key: "active", label: "量能熱", method: "相對成交量，不是周轉率", items: [] },
+        { key: "sustained", label: "持續強", method: "相對範例指數 1 個月超額", items: [] },
+      ],
+    },
+  ],
 }
 
 export const investmentHistory: InvestmentHistory = {
