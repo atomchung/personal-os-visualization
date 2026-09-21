@@ -98,9 +98,7 @@ function MarketBoard({ market }: { market: MarketExploreMarket }) {
         <SubsectionHeading>{label}</SubsectionHeading>
         <span className="text-caption text-ink-3">資料截至 {sourceTimestamp(market.as_of)}</span>
       </div>
-      {market.state === "partial" ? <p role="status" className="text-caption text-warn">這市場只有部分標的通過篩選，沒有補上持倉或其他名單。</p> : null}
       {market.state === "unavailable" ? <p role="status" className="text-body text-warn">這市場目前無法取得資金線索。</p> : null}
-      {market.limitations.length ? <ul className="list-disc pl-5 text-caption text-warn">{market.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul> : null}
       {market.state === "unavailable" ? null : buckets.length ? (
         <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-3">
           {buckets.map(bucket => <BucketColumn key={bucket.key} bucket={bucket} />)}
@@ -109,10 +107,12 @@ function MarketBoard({ market }: { market: MarketExploreMarket }) {
         <p className="text-body text-ink-3">這市場沒有可列的分類。</p>
       )}
       <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
-        <summary className="cursor-pointer py-1">資料口徑</summary>
+        <summary className="cursor-pointer py-1">覆蓋與口徑</summary>
         <div className="flex flex-col gap-1 pt-1">
           <p>掃描 {market.universe_size} 檔 · 產出 {market.producer || "未提供"}</p>
           <p>產出時間：{sourceTimestamp(market.generated_at)} · 來源截止：{sourceTimestamp(market.source_cutoff)}</p>
+          {market.state === "partial" ? <p>本次只涵蓋部分符合條件的標的；沒有用持倉或其他名單補位。</p> : null}
+          {market.limitations.map((limitation, index) => <p key={`limit-${index}`}>{limitation}</p>)}
           {buckets.map(bucket => <p key={`method-${bucket.key}`}>{bucket.label || BUCKET_LABEL[bucket.key]}：{bucket.method || "方法未提供"}{bucket.key === "active" && relativeVolumeNote(bucket.method) ? ` · ${relativeVolumeNote(bucket.method)}` : ""}</p>)}
         </div>
       </details>
