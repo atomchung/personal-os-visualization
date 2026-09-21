@@ -60,6 +60,7 @@ jobs:
               page.on('request', request => { if (!request.url().startsWith(origin)) externalRequests.push(request.url()) })
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
               await page.getByText('今天發生了什麼', { exact: true }).waitFor()
+              assert(await page.getByText('盤中更新', { exact: true }).isVisible())
               const hero = await page.getByText('今天發生了什麼', { exact: true }).boundingBox()
               assert(hero && hero.y + hero.height < height, `${name}: key judgment must begin in first screen`)
               await page.screenshot({ path: `${output}/${name}.png`, fullPage: true })
@@ -118,6 +119,7 @@ jobs:
                       data.brief.source = null
                       data.brief.action_items = []
                       data.brief.envelope = null
+                      data.today = { state: 'unavailable', decision_summary: null, updates: [], limitations: [] }
                       for (const key of ['actions', 'events', 'event_notes', 'thesis_changes', 'thesis_notes', 'risks', 'risk_notes', 'upcoming', 'upcoming_notes', 'market_pulse', 'market_pulse_notes']) data.brief[key] = []
                     }
                   }
