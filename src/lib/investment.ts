@@ -78,9 +78,28 @@ export type InvestmentBrief = {
   source: InvestmentSource | null
 }
 
+export type InvestmentTodayUpdate = {
+  id: string
+  observed_at: string
+  summary: string
+  portfolio_impact: string
+  action: string
+  relevance: ("decision-change" | "action-watch-change" | "new-price-discovery" | "ai-infra-readthrough")[]
+  source_path: string
+}
+
+export type InvestmentTodayView = {
+  state: "ready" | "partial" | "unavailable"
+  decision_summary: string | null
+  updates: InvestmentTodayUpdate[]
+  limitations: string[]
+}
+
 export type InvestmentData = {
   as_of: string
   brief: InvestmentBrief
+  /** Optional current-day projection: latest formal brief + post-cutoff intraday deltas. */
+  today?: InvestmentTodayView
   weekly_watch: {
     state: InvestmentSourceState
     date: string | null
