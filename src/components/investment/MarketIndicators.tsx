@@ -48,7 +48,7 @@ export function MarketIndicators() {
         <p className="text-caption leading-body text-warn">部分指標未取得或已過時，請留意各項報價時間。</p>
       ) : null}
       {data && data.items.length > 0 ? (
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
           {data.items.map((item) => {
             const link = quoteLink(item.source_url)
             const up = item.change !== null && item.change > 0
