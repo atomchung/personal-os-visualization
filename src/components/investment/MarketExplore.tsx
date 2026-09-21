@@ -138,6 +138,11 @@ export function MarketExplore() {
   const hasItems = data?.markets.some(market => market.buckets.some(bucket => bucket.items.length > 0)) ?? false
   const caption = data?.note?.trim() || "市場線索，不是持倉強弱，也不是交易建議。"
 
+  // Today is a decision-reading surface, not an operational error dashboard.
+  // A first-load producer failure stays available in the global source status instead of
+  // occupying a full primary section; stale cached data remains visible and explicitly marked.
+  if (failed || (data?.state === "unavailable" && !data.markets.length)) return null
+
   return (
     <section className="flex min-w-0 flex-col gap-3" aria-label="市場資金在哪" aria-busy={query.isFetching}>
       <div>
@@ -145,9 +150,7 @@ export function MarketExplore() {
         <p className="mt-1 text-caption text-ink-3">{caption}</p>
       </div>
       {pending ? <p role="status" className="text-body text-ink-3">整理市場資金線索中…</p> : null}
-      {failed ? <p role="alert" className="text-body text-warn">市場探索讀取失敗。請按更新資料；不會改寫上方簡報。</p> : null}
       {stale ? <p role="alert" className="text-body text-warn">市場探索更新失敗。以下是先前內容，不是最新。</p> : null}
-      {data?.state === "unavailable" && !failed ? <p role="status" className="text-body text-warn">{data.message || "目前無法取得市場資金線索。"}</p> : null}
       {data?.state === "partial" ? <p role="status" className="text-caption text-warn">{data.message || "部分市場的資金線索不完整。"}</p> : null}
       {data?.limitations?.length ? <ul className="list-disc pl-5 text-caption text-warn">{data.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul> : null}
       {data && data.state !== "unavailable" ? (
