@@ -32,7 +32,8 @@ export function sourceTimestamp(value: string | null | undefined): string {
   const timestamp = new Date(value)
   if (Number.isNaN(timestamp.getTime())) return "時間未能辨識"
   if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return `${value.replace("T", " ")}（未註明時區）`
-  return `${SOURCE_TIME_FORMAT.format(timestamp)} 台北`
+  const parts = Object.fromEntries(SOURCE_TIME_FORMAT.formatToParts(timestamp).map(part => [part.type, part.value]))
+  return `${parts.year}/${parts.month}/${parts.day} ${parts.hour}:${parts.minute} 台北`
 }
 
 const PURE_NO_CHANGE_ACTIONS = new Set(["沒有新資訊", "暫無新資訊", "無新資訊", "不重複升級"])
