@@ -110,11 +110,14 @@ jobs:
                       ]
                       data.brief.risks = [{ risk: '合成缺少關聯的風險', status: '仍待確認', event_ref: '' }]
                       data.brief.actions = ['觀察 5%', '觀察 5%', '觀察 6%', '不加碼', '加碼']
+                      data.brief.action_items = []
                     }
                     if (scenario === 'missing') {
                       data.brief.state = 'missing'
                       data.brief.headline = ''
                       data.brief.source = null
+                      data.brief.action_items = []
+                      data.brief.envelope = null
                       for (const key of ['actions', 'events', 'event_notes', 'thesis_changes', 'thesis_notes', 'risks', 'risk_notes', 'upcoming', 'upcoming_notes', 'market_pulse', 'market_pulse_notes']) data.brief[key] = []
                     }
                   }
