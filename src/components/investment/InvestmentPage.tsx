@@ -33,17 +33,25 @@ function SourceText({ source }: { source: InvestmentSource }) {
   </details>
 }
 
+function todayText(text: string): string {
+  return text
+    .replace(/\bCORE\b/g, "半導體核心（NVDA／台積電）")
+    .replace(/\bMEMORY\b/g, "記憶體")
+    .replace(/\bINTERCONNECT\b/g, "AI 互連")
+    .replace(/相對強度/g, "相對大盤強弱")
+}
+
 function ThesisRows({ rows }: { rows: InvestmentBrief["thesis_changes"] }) {
   return <ul className="flex flex-col gap-3">{rows.map((row, index) => <li key={index} className="text-body leading-relaxed text-ink-2">
-    <p><span className="font-medium text-ink"><InlineText text={row.thesis} /></span>{row.change ? <> · <InlineText text={row.change} /></> : null}</p>
-    {row.reason ? <p className="mt-1"><InlineText text={row.reason} /></p> : null}
+    <p><span className="font-medium text-ink"><InlineText text={todayText(row.thesis)} /></span>{row.change ? <> · <InlineText text={todayText(row.change)} /></> : null}</p>
+    {row.reason ? <p className="mt-1"><InlineText text={todayText(row.reason)} /></p> : null}
   </li>)}</ul>
 }
 
 function RiskRows({ rows }: { rows: InvestmentBrief["risks"] }) {
   return <ul className="flex flex-col gap-3">{rows.map((row, index) => <li key={index} className="text-body leading-relaxed text-ink-2">
-    <p className="font-medium text-warn"><InlineText text={row.risk} /></p>
-    {row.status ? <p className="mt-1"><InlineText text={row.status} /></p> : null}
+    <p className="font-medium text-warn"><InlineText text={todayText(row.risk)} /></p>
+    {row.status ? <p className="mt-1"><InlineText text={todayText(row.status)} /></p> : null}
   </li>)}</ul>
 }
 
@@ -96,7 +104,7 @@ function todayFollowups(b: InvestmentBrief): string[] {
   return briefActions(raw)
     .map(text => text.replace(/[*_`~]/g, "").trim())
     .filter(text => !/^補研究[：:]/.test(text))
-    .map(text => text.replace(/^(?:繼續觀察|觀察|行動)[：:]\s*/, ""))
+    .map(text => todayText(text.replace(/^(?:繼續觀察|觀察|行動)[：:]\s*/, "")))
     .filter(Boolean)
     .slice(0, 2)
 }
@@ -135,13 +143,13 @@ function TodayBrief({ b }: { b: InvestmentBrief }) {
     {b.events.length > 0 || b.event_notes.length > 0 ? <section aria-label="今天發生了什麼" className="flex min-w-0 flex-col gap-3">
       <SectionHeading>今天發生了什麼</SectionHeading>
       {b.events.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">{b.events.map((event, index) => <article key={`${b.date}:${index}`} className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
-        <SubsectionHeading><InlineText text={event.event} /></SubsectionHeading>
-        {event.impact ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">對持倉的影響：</span><InlineText text={event.impact} /></p> : null}
-        {event.today ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">現在要注意：</span><InlineText text={event.today} /></p> : null}
-        {event.interpretation ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={event.interpretation} /></p> : null}
+        <SubsectionHeading><InlineText text={todayText(event.event)} /></SubsectionHeading>
+        {event.impact ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">對持倉的影響：</span><InlineText text={todayText(event.impact)} /></p> : null}
+        {event.today ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">現在要注意：</span><InlineText text={todayText(event.today)} /></p> : null}
+        {event.interpretation ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={todayText(event.interpretation)} /></p> : null}
         {theses.byEvent[index].length ? <div className="border-l-2 border-line pl-3"><p className="mb-2 text-caption font-medium text-ink-3">投資判斷</p><ThesisRows rows={theses.byEvent[index]} /></div> : null}
         {risks.byEvent[index].length ? <div className="border-l-2 border-warn pl-3"><p className="mb-2 text-caption font-medium text-warn">要留意的風險</p><RiskRows rows={risks.byEvent[index]} /></div> : null}
-        {event.market_reaction ? <details><summary className="cursor-pointer py-2 text-caption font-medium text-ink-3">市場反應與細節</summary><div className="pt-1 text-body leading-relaxed text-ink-2"><InlineText text={event.market_reaction} /></div></details> : null}
+        {event.market_reaction ? <details><summary className="cursor-pointer py-2 text-caption font-medium text-ink-3">市場反應與細節</summary><div className="pt-1 text-body leading-relaxed text-ink-2"><InlineText text={todayText(event.market_reaction)} /></div></details> : null}
       </article>)}</Card> : null}
       {b.event_notes.length ? <ReadingText text={b.event_notes.join("\n\n")} /> : null}
     </section> : null}
