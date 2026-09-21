@@ -134,6 +134,7 @@ jobs:
               }, scenario)
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
               if (scenario === 'unlinked-long') {
+                await page.getByText('其他判斷變化', { exact: true }).click()
                 for (const text of ['合成未關聯判斷', '合成越界判斷', '合成缺少關聯的風險']) {
                   const item = page.getByText(text, { exact: true })
                   assert.equal(await item.count(), 1)
