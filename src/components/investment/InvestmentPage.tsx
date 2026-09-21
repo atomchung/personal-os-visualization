@@ -118,49 +118,41 @@ function TodayBrief({ b }: { b: InvestmentBrief }) {
   const hasUnlinked = theses.unlinked.length > 0 || risks.unlinked.length > 0 || b.thesis_notes.length > 0 || b.risk_notes.length > 0
   const envelopeIncomplete = b.envelope && b.envelope.completeness !== "ready"
   return <section aria-label="今日簡報" className="flex min-w-0 flex-col gap-6 break-words">
-    <section className="flex min-w-0 flex-col gap-3" aria-label="今日判斷">
+    <section aria-label="今天發生了什麼" className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <SectionHeading>今日判斷</SectionHeading>
+        <SectionHeading>今天發生了什麼</SectionHeading>
         <span className="text-caption text-ink-3">{b.date ?? "日期未提供"}{version ? ` · ${version}` : " · 版次未標示"} · 資料截至 {sourceTimestamp(b.source_cutoff)}</span>
       </div>
-      <Card className="min-w-0 p-4 shadow-sm sm:p-5">
-        {b.state === "stale" ? <p role="status" className="mb-3 text-caption text-warn">目前是較早的簡報，請留意資料截止時間。</p> : null}
-        {b.state === "invalid" ? <p role="status" className="mb-3 text-caption text-warn">這份簡報部分內容未能辨識，已保留可讀段落與完整原文。</p> : null}
-        {envelopeIncomplete ? <p role="status" className="mb-3 text-caption text-warn">{b.envelope?.completeness === "partial" ? "這份簡報資料不完整；細節可在下方來源展開查看。" : "這份簡報的資料包目前無法確認是否完整。"}</p> : null}
-        <div className="max-w-[960px] text-section leading-relaxed text-ink">{b.headline ? <ReadingText text={b.headline} /> : <p className="text-body text-ink-3">尚未取得可讀的投資判斷。</p>}</div>
-        {followups.length ? <div className="mt-4 border-t border-line-soft pt-4">
-          <p className="mb-2 text-caption font-medium text-ink-3">今天要追</p>
-          <ul className="flex list-disc flex-col gap-2 pl-5 text-body leading-relaxed text-ink-2">{followups.map((item, index) => <li key={index}><InlineText text={item} /></li>)}</ul>
-        </div> : null}
-        {b.source?.limitations.length || b.envelope?.limitations.length ? <details className="mt-4 border-t border-line-soft pt-3 text-caption text-ink-3"><summary className="cursor-pointer py-1">資料完整度</summary>
+      {b.state === "stale" ? <p role="status" className="text-caption text-warn">目前是較早的簡報，請留意資料截止時間。</p> : null}
+      {b.state === "invalid" ? <p role="status" className="text-caption text-warn">這份簡報部分內容未能辨識，已保留可讀段落與完整原文。</p> : null}
+      {envelopeIncomplete ? <p role="status" className="text-caption text-warn">{b.envelope?.completeness === "partial" ? "這份簡報資料不完整；細節可在下方來源展開查看。" : "這份簡報的資料包目前無法確認是否完整。"}</p> : null}
+      {b.events.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">{b.events.map((event, index) => <article key={`${b.date}:${index}`} className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
+        <SubsectionHeading><InlineText text={todayText(event.event)} /></SubsectionHeading>
+        {event.impact ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">對持倉的影響：</span><InlineText text={todayText(event.impact)} /></p> : null}
+        {event.today ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">現在要注意：</span><InlineText text={todayText(event.today)} /></p> : null}
+        {theses.byEvent[index].length ? <div className="border-l-2 border-line pl-3"><p className="mb-2 text-caption font-medium text-ink-3">判斷變化</p><ThesisRows rows={theses.byEvent[index]} /></div> : null}
+        {risks.byEvent[index].length ? <div className="border-l-2 border-warn pl-3"><p className="mb-2 text-caption font-medium text-warn">要留意的風險</p><RiskRows rows={risks.byEvent[index]} /></div> : null}
+        {event.interpretation || event.market_reaction ? <details><summary className="cursor-pointer py-2 text-caption font-medium text-ink-3">市場反應與細節</summary><div className="flex flex-col gap-2 pt-1 text-body leading-relaxed text-ink-2">{event.market_reaction ? <p><InlineText text={todayText(event.market_reaction)} /></p> : null}{event.interpretation ? <p><InlineText text={todayText(event.interpretation)} /></p> : null}</div></details> : null}
+      </article>)}</Card> : b.headline ? <Card className="min-w-0 p-4 sm:p-5"><ReadingText text={b.headline} /></Card> : <p className="text-body text-ink-3">尚未取得可讀的今日變化。</p>}
+      {b.event_notes.length ? <ReadingText text={b.event_notes.join("\n\n")} /> : null}
+      {hasUnlinked ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">其他判斷變化</summary><Card className="mt-2 grid min-w-0 gap-5 p-4 sm:p-5">
+        {theses.unlinked.length > 0 || b.thesis_notes.length > 0 ? <div className="flex min-w-0 flex-col gap-3"><ThesisRows rows={theses.unlinked} />{b.thesis_notes.length ? <ReadingText text={b.thesis_notes.join("\n\n")} /> : null}</div> : null}
+        {risks.unlinked.length > 0 || b.risk_notes.length > 0 ? <div className="flex min-w-0 flex-col gap-3"><p className="text-caption font-medium text-warn">要留意的風險</p><RiskRows rows={risks.unlinked} />{b.risk_notes.length ? <ReadingText text={b.risk_notes.join("\n\n")} /> : null}</div> : null}
+      </Card></details> : null}
+    </section>
+
+    <section className="flex min-w-0 flex-col gap-3" aria-label="今天怎麼做">
+      <SectionHeading>今天怎麼做</SectionHeading>
+      <Card className="min-w-0 p-4 sm:p-5">
+        {followups.length ? <ul className="flex list-disc flex-col gap-2 pl-5 text-body leading-relaxed text-ink-2">{followups.map((item, index) => <li key={index}><InlineText text={item} /></li>)}</ul> : <p className="text-body text-ink-3">目前沒有新的動作或特別注意事項。</p>}
+        {b.headline ? <details className="mt-4 border-t border-line-soft pt-3 text-caption text-ink-3"><summary className="cursor-pointer py-1">晨報判斷</summary><div className="max-w-[960px] pt-2 text-body leading-relaxed text-ink-2"><ReadingText text={b.headline} /></div></details> : null}
+        {b.source?.limitations.length || b.envelope?.limitations.length ? <details className="mt-3 border-t border-line-soft pt-3 text-caption text-ink-3"><summary className="cursor-pointer py-1">資料完整度</summary>
           {b.envelope?.producer ? <p className="mt-2">產出方式：{b.envelope.producer}</p> : null}
           {b.envelope?.limitations.length ? <ul className="mt-2 list-disc pl-4 text-warn">{b.envelope.limitations.map((limitation, index) => <li key={`envelope-${index}`}>{limitation}</li>)}</ul> : null}
           {b.source?.limitations.length ? <ul className="mt-2 list-disc pl-4 text-warn">{b.source.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul> : null}
         </details> : null}
       </Card>
     </section>
-
-    {b.events.length > 0 || b.event_notes.length > 0 ? <section aria-label="今天發生了什麼" className="flex min-w-0 flex-col gap-3">
-      <SectionHeading>今天發生了什麼</SectionHeading>
-      {b.events.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">{b.events.map((event, index) => <article key={`${b.date}:${index}`} className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
-        <SubsectionHeading><InlineText text={todayText(event.event)} /></SubsectionHeading>
-        {event.impact ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">對持倉的影響：</span><InlineText text={todayText(event.impact)} /></p> : null}
-        {event.today ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">現在要注意：</span><InlineText text={todayText(event.today)} /></p> : null}
-        {event.interpretation ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={todayText(event.interpretation)} /></p> : null}
-        {theses.byEvent[index].length ? <div className="border-l-2 border-line pl-3"><p className="mb-2 text-caption font-medium text-ink-3">投資判斷</p><ThesisRows rows={theses.byEvent[index]} /></div> : null}
-        {risks.byEvent[index].length ? <div className="border-l-2 border-warn pl-3"><p className="mb-2 text-caption font-medium text-warn">要留意的風險</p><RiskRows rows={risks.byEvent[index]} /></div> : null}
-        {event.market_reaction ? <details><summary className="cursor-pointer py-2 text-caption font-medium text-ink-3">市場反應與細節</summary><div className="pt-1 text-body leading-relaxed text-ink-2"><InlineText text={todayText(event.market_reaction)} /></div></details> : null}
-      </article>)}</Card> : null}
-      {b.event_notes.length ? <ReadingText text={b.event_notes.join("\n\n")} /> : null}
-    </section> : null}
-
-    {hasUnlinked ? <section aria-label="其他判斷變化" className="flex min-w-0 flex-col gap-3">
-      <SubsectionHeading>其他判斷變化</SubsectionHeading>
-      <Card className="grid min-w-0 gap-5 p-4 sm:p-5">
-        {theses.unlinked.length > 0 || b.thesis_notes.length > 0 ? <div className="flex min-w-0 flex-col gap-3"><ThesisRows rows={theses.unlinked} />{b.thesis_notes.length ? <ReadingText text={b.thesis_notes.join("\n\n")} /> : null}</div> : null}
-        {risks.unlinked.length > 0 || b.risk_notes.length > 0 ? <div className="flex min-w-0 flex-col gap-3"><p className="text-caption font-medium text-warn">要留意的風險</p><RiskRows rows={risks.unlinked} />{b.risk_notes.length ? <ReadingText text={b.risk_notes.join("\n\n")} /> : null}</div> : null}
-      </Card>
-    </section> : null}
 
     {b.source ? <div className="border-t border-line-soft"><SourceText key={b.source.id} source={b.source} /></div> : null}
   </section>
