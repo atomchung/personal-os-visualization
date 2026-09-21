@@ -2,6 +2,9 @@ name: Check visualization
 on: [push, pull_request]
 permissions:
   contents: read
+concurrency:
+  group: visualization-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -18,7 +21,7 @@ jobs:
       - run: npm run build
       - name: Synthetic browser read-back
         run: |
-          # CI-only browser tooling: do not change the generated package boundary.
+          # Browser tooling is CI-only; generated package/runtime boundaries stay unchanged.
           npm install --no-save --package-lock=false --ignore-scripts playwright@1.56.1
           npx playwright install --with-deps chromium
           npm run preview -- --host 127.0.0.1 --port 4173 > "$RUNNER_TEMP/visualization-preview.log" 2>&1 &
@@ -37,32 +40,128 @@ jobs:
           const output = '.artifacts/investment-hub'
           await mkdir(output, { recursive: true })
           const browser = await chromium.launch()
-          const report = { revision: process.env.GITHUB_SHA, browser: browser.version(), mode: 'synthetic-only', pages: [] }
+          const report = { revision: process.env.GITHUB_SHA, browser: browser.version(), mode: 'synthetic-only', pages: [], scenarios: [] }
+          const layoutOf = page => page.evaluate(() => ({
+            viewport: document.documentElement.clientWidth,
+            scrollWidth: document.documentElement.scrollWidth,
+            headings: Array.from(document.querySelectorAll('h1,h2,h3')).filter(el => el.getClientRects().length).map(el => el.textContent)
+          }))
+          async function noOverflow(page, label) {
+            const layout = await layoutOf(page)
+            assert(layout.scrollWidth <= layout.viewport + 1, `${label}: document must not scroll horizontally (${layout.scrollWidth}/${layout.viewport})`)
+            return layout
+          }
           try {
             for (const [name, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844], ['small', 320, 740]]) {
               const page = await browser.newPage({ viewport: { width, height } })
               const errors = []
+              const externalRequests = []
               page.on('pageerror', error => errors.push(error.message))
+              page.on('request', request => { if (!request.url().startsWith(origin)) externalRequests.push(request.url()) })
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
               await page.getByText('今日判斷', { exact: true }).waitFor()
+              const hero = await page.getByText('今日判斷', { exact: true }).boundingBox()
+              assert(hero && hero.y + hero.height < height, `${name}: key judgment must begin in first screen`)
               await page.screenshot({ path: `${output}/${name}.png`, fullPage: true })
-              const layout = await page.evaluate(() => ({
-                viewport: document.documentElement.clientWidth,
-                scrollWidth: document.documentElement.scrollWidth,
-                headings: Array.from(document.querySelectorAll('h1,h2,h3')).map(el => el.textContent),
-                overflow: Array.from(document.querySelectorAll('main *')).filter(el => {
-                  const r = el.getBoundingClientRect()
-                  return r.width > 0 && r.right > document.documentElement.clientWidth + 1
-                }).slice(0, 10).map(el => ({ tag: el.tagName, text: el.textContent?.slice(0, 120) }))
-              }))
+              await page.screenshot({ path: `${output}/${name}-first-screen.png` })
+              const layout = await noOverflow(page, name)
               for (const label of ['正在研究', '近期要留意', '舊判斷回看', '今日']) {
-                await page.getByRole('tab', { name: label, exact: true }).click()
+                const tab = page.getByRole('tab', { name: label, exact: true })
+                await tab.click()
+                assert.equal(await tab.getAttribute('aria-selected'), 'true')
+                await noOverflow(page, `${name}/${label}`)
               }
+              const today = page.getByRole('tab', { name: '今日', exact: true })
+              await today.focus()
+              await page.keyboard.press('ArrowRight')
+              assert.equal(await page.getByRole('tab', { name: '正在研究', exact: true }).getAttribute('aria-selected'), 'true')
+              await page.keyboard.press('End')
+              assert.equal(await page.getByRole('tab', { name: '舊判斷回看', exact: true }).getAttribute('aria-selected'), 'true')
+              await page.keyboard.press('Home')
+              assert.equal(await today.getAttribute('aria-selected'), 'true')
               await page.locator('details').evaluateAll(elements => elements.forEach(el => { if (el.getClientRects().length) el.open = true }))
-              await page.waitForTimeout(100)
+              await page.getByText('此文字由私人端的情境規格重新生成', { exact: false }).waitFor()
               await page.screenshot({ path: `${output}/${name}-expanded.png`, fullPage: true })
-              report.pages.push({ name, ...layout, errors })
+              await noOverflow(page, `${name}/expanded`)
+              report.pages.push({ name, ...layout, errors, externalRequests, keyboard: 'passed', sourceDisclosure: 'passed' })
               assert.deepEqual(errors, [], `${name}: no browser runtime errors`)
+              assert.deepEqual(externalRequests, [], `${name}: demo must remain network-isolated`)
+              await page.close()
+            }
+            // Modify only in-memory synthetic Responses. Do not rewrite generated fixtures,
+            // introduce test routes into production, or use any private source material.
+            for (const scenario of ['unlinked-long', 'missing', 'initial-error', 'refresh-error', 'quote-unavailable']) {
+              const page = await browser.newPage({ viewport: { width: 320, height: 740 } })
+              const errors = []
+              page.on('pageerror', error => errors.push(error.message))
+              await page.addInitScript(scenario => {
+                const original = Response.prototype.json
+                Response.prototype.json = async function () {
+                  const data = await original.call(this)
+                  if (data?.brief) {
+                    if (scenario === 'initial-error' || window.__failBrief) throw new Error('Synthetic read failure')
+                    if (scenario === 'unlinked-long') {
+                      data.brief.state = 'stale'
+                      data.brief.source_cutoff = null
+                      data.brief.headline = '合成長標題：' + 'LongUnbrokenEvidence'.repeat(18)
+                      data.brief.thesis_changes = [
+                        { thesis: '合成未關聯判斷', event_index: null, event_ref: '', change: '轉弱', reason: '缺少新證據，並非維持不變。' },
+                        { thesis: '合成越界判斷', event_index: 999, event_ref: '', change: '待驗證', reason: '應保留內容，不猜測新聞關聯。' }
+                      ]
+                      data.brief.risks = [{ risk: '合成缺少關聯的風險', status: '仍待確認', event_ref: '' }]
+                      data.brief.actions = ['觀察 5%', '觀察 5%', '觀察 6%', '不加碼', '加碼']
+                    }
+                    if (scenario === 'missing') {
+                      data.brief.state = 'missing'
+                      data.brief.headline = ''
+                      data.brief.source = null
+                      for (const key of ['actions', 'events', 'event_notes', 'thesis_changes', 'thesis_notes', 'risks', 'risk_notes', 'upcoming', 'upcoming_notes', 'market_pulse', 'market_pulse_notes']) data.brief[key] = []
+                    }
+                  }
+                  if (scenario === 'quote-unavailable' && data?.symbol && 'quoted_at' in data) {
+                    data.state = 'unavailable'
+                    data.value = null
+                    data.change_percent = null
+                    data.quoted_at = null
+                  }
+                  return data
+                }
+              }, scenario)
+              await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
+              if (scenario === 'unlinked-long') {
+                for (const text of ['合成未關聯判斷', '合成越界判斷', '合成缺少關聯的風險']) {
+                  const item = page.getByText(text, { exact: true })
+                  assert.equal(await item.count(), 1)
+                  assert(await item.isVisible())
+                }
+                assert.equal(await page.getByText('觀察 5%', { exact: true }).count(), 1)
+                assert(await page.getByText('觀察 6%', { exact: true }).isVisible())
+                assert(await page.getByText('資料截至 未提供', { exact: true }).isVisible())
+                await page.getByText('另有 1 項下一步', { exact: true }).click()
+                assert(await page.getByText('加碼', { exact: true }).isVisible())
+              }
+              if (scenario === 'missing') {
+                assert(await page.getByText('尚未取得可讀的投資判斷。', { exact: true }).isVisible())
+                assert(await page.getByText('這份簡報沒有列出具體下一步；不代表不需要行動。', { exact: true }).isVisible())
+              }
+              if (scenario === 'initial-error') {
+                await page.getByRole('alert').filter({ hasText: '簡報讀取失敗' }).waitFor()
+                assert.equal(await page.getByText('這份簡報沒有列出具體下一步；不代表不需要行動。', { exact: true }).count(), 0)
+              }
+              if (scenario === 'refresh-error') {
+                await page.evaluate(() => { window.__failBrief = true })
+                await page.getByRole('button', { name: '更新資料', exact: true }).click()
+                await page.getByRole('alert').filter({ hasText: '目前保留上次內容' }).waitFor()
+                assert(await page.getByText('今日判斷', { exact: true }).isVisible())
+              }
+              if (scenario === 'quote-unavailable') {
+                await page.getByText('報價未取得', { exact: true }).waitFor()
+                assert(await page.getByText('價格未取得', { exact: true }).isVisible())
+              }
+              await page.screenshot({ path: `${output}/${scenario}.png`, fullPage: true })
+              const layout = await noOverflow(page, scenario)
+              report.scenarios.push({ name: scenario, ...layout, errors })
+              assert.deepEqual(errors, [], `${scenario}: no browser runtime errors`)
               await page.close()
             }
           } finally {
