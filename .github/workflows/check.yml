@@ -143,7 +143,7 @@ jobs:
                   assert(await item.isVisible())
                 }
                 assert.equal(await page.getByText('觀察 5%', { exact: true }).count(), 1)
-                assert(await page.getByText('觀察 6%', { exact: true }).isVisible())
+                assert(await page.getByText('收盤前再看一次量能是否延續，不因單一盤中波動追價。', { exact: true }).isVisible())
                 assert(await page.getByText('今天怎麼做', { exact: true }).isVisible())
                 assert(await page.getByText(/資料截至 未提供/).isVisible())
                 assert.equal(await page.getByText('加碼', { exact: true }).count(), 0)
