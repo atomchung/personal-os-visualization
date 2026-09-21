@@ -36,6 +36,16 @@ test("every page runs with no network; unknown routes and real symbols fail clos
   } finally { globalThis.fetch = original }
 })
 
+test("Today projection keeps intraday delta inside the daily flow", async () => {
+  const request = createDemoRequest()
+  const data = await (await request("/api/investment")).json()
+  assert.equal(data.today.state, "ready")
+  assert.equal(data.today.decision_summary, "今天不需要因這則新訊號調整部位。")
+  assert.equal(data.today.updates.length, 1)
+  assert.equal(data.today.updates[0].relevance.includes("new-price-discovery"), true)
+  assert.match(data.today.updates[0].source_path, /^wiki\/morning\//)
+})
+
 test("history and Context expose one coherent scenario with explicit unknown results", async () => {
   const request = createDemoRequest()
   const history = await (await request("/api/investment/history")).json()

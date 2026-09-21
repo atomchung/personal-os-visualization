@@ -167,6 +167,20 @@ const closedActionItem: InvestmentActionItem = {
 }
 export const investment: InvestmentData = {
   as_of: STAMP,
+  today: {
+    state: "ready",
+    decision_summary: "今天不需要因這則新訊號調整部位。",
+    limitations: [],
+    updates: [{
+      id: "news:demo-intraday-1",
+      observed_at: `${DATE}T15:10:00+08:00`,
+      summary: "盤中價格反應確認早盤事件有被市場交易，但幅度仍不足以改變原判斷。",
+      portfolio_impact: "原本的核心假設不變；這次更新只提高對後續量能確認的優先級。",
+      action: "收盤前再看一次量能是否延續，不因單一盤中波動追價。",
+      relevance: ["new-price-discovery", "action-watch-change"],
+      source_path: `wiki/morning/${DATE}_news.md`,
+    }],
+  },
   brief: { state: "current", date: DATE, generated_at: STAMP, source_cutoff: STAMP, session: null,
     headline: investmentScenario.headline,
     market_pulse: [{ variable: investmentScenario.market_index.label, latest: `${investmentScenario.market_index.value.toLocaleString()} · +${investmentScenario.market_index.change_percent}%`, meaning: investmentScenario.market_index.meaning }], market_pulse_notes: [],
