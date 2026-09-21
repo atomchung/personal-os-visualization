@@ -66,7 +66,6 @@ function BucketMetrics({ bucket, item }: { bucket: MarketExploreBucket; item: Ma
 
 function BucketColumn({ bucket }: { bucket: MarketExploreBucket }) {
   const items = bucket.items.slice(0, 3)
-  const volumeNote = bucket.key === "active" ? relativeVolumeNote(bucket.method) : null
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <SubsectionHeading>{bucket.label || BUCKET_LABEL[bucket.key]}</SubsectionHeading>
@@ -92,7 +91,7 @@ function BucketColumn({ bucket }: { bucket: MarketExploreBucket }) {
 
 function MarketBoard({ market }: { market: MarketExploreMarket }) {
   const label = MARKET_LABEL[market.market]
-  const buckets = orderedBuckets(market.buckets)
+  const buckets = orderedBuckets(market.buckets).filter(bucket => bucket.items.length > 0)
   return (
     <Card className="flex min-w-0 flex-col gap-3 overflow-hidden p-4 sm:p-5">
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
