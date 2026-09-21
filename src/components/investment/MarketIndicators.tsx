@@ -29,9 +29,9 @@ export function MarketIndicators() {
   const data = query.data
 
   return (
-    <section className="flex min-w-0 flex-col gap-2" aria-label="市場指標" aria-busy={query.isFetching}>
+    <section className="flex min-w-0 flex-col gap-2" aria-label="現在盤面" aria-busy={query.isFetching}>
       <div className="flex flex-wrap items-baseline gap-2">
-        <SectionHeading>市場指標</SectionHeading>
+        <SectionHeading>現在盤面</SectionHeading>
         <span className="text-caption text-ink-3">
           {DEMO_MODE ? "固定合成報價" : <>{data ? `讀取 ${quoteTime(data.fetched_at)}` : ""}{data ? (data.active ? " · 開著就每 30 秒更新" : " · 休市，每 5 分鐘確認") : ""}</>}
         </span>
