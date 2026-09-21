@@ -18,8 +18,8 @@ import { PendingBoard } from "./InvestmentPending"
 import { InvestmentHistory } from "./InvestmentHistory"
 import {
   BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentMarket,
-  getInvestmentPending, getInvestmentHistory, getInvestmentContext, getMomentumLeaders,
-  getMomentumUniverse, getStockMomentum, getStockQuote, getInvestmentSource, getInvestmentWork,
+  getInvestmentPending, getInvestmentHistory, getInvestmentContext,
+  getInvestmentSource, getInvestmentWork,
   getInvestmentActions, getMarketExplore,
   type InvestmentActionItem, type InvestmentBrief, type InvestmentSource,
 } from "@/lib/investment"
@@ -168,8 +168,8 @@ export function InvestmentPage() {
   const client = useQueryClient()
   const fetching = useIsFetching({ predicate: q => String(q.queryKey[0]).startsWith("investment") })
   const query = useQuery({ queryKey: ["investment"], queryFn: ({ signal }) => getInvestment(signal), retry: false, refetchOnWindowFocus: true, staleTime: 60_000 })
-  const watch = useQuery({ queryKey: ["investment-watch"], queryFn: ({ signal }) => getInvestmentWatch(signal), retry: false, refetchOnWindowFocus: false })
-  const actions = useQuery({ queryKey: ["investment-actions"], queryFn: ({ signal }) => getInvestmentActions(signal), retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
+  const watch = useQuery({ queryKey: ["investment-watch"], queryFn: ({ signal }) => getInvestmentWatch(signal), enabled: view === "work" || view === "month", retry: false, refetchOnWindowFocus: false })
+  const actions = useQuery({ queryKey: ["investment-actions"], queryFn: ({ signal }) => getInvestmentActions(signal), enabled: view === "work", retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
   const history = useQuery({ queryKey: ["investment-history"], queryFn: ({ signal }) => getInvestmentHistory(signal), enabled: view === "history", retry: false, refetchOnWindowFocus: false })
   const context = useQuery({ queryKey: ["investment-context"], queryFn: ({ signal }) => getInvestmentContext(signal), enabled: view === "history", retry: false, refetchOnWindowFocus: false })
   const b = query.data?.brief
@@ -180,49 +180,45 @@ export function InvestmentPage() {
   }
   async function refresh() {
     setRefreshing(true)
-    setNotice("正在更新簡報、待續行動、研究、持倉與市場行情…")
+    setNotice("正在更新目前頁面的資料…")
     const failures: string[] = []
     async function run<T>(label: string, key: readonly unknown[], fn: () => Promise<T>): Promise<T | undefined> {
       try { return await client.fetchQuery({ queryKey: key, queryFn: fn, staleTime: 0, retry: false }) }
       catch { failures.push(label); return undefined }
     }
     try {
-      const [brief, research, market, universe, , pending, leaders, actionBoard, explore] = await Promise.all([
-        run("簡報", ["investment"], () => getInvestment()), run("研究", ["investment-watch"], () => getInvestmentWatch()),
-        run("市場行情", ["investment-market"], () => getInvestmentMarket(undefined, true)), run("股票清單", ["investment-momentum-universe"], () => getMomentumUniverse()),
-        run("我的投資事項", ["investment-work"], () => getInvestmentWork()),
-        run("系統提醒", ["investment-pending"], () => getInvestmentPending()),
-        run("清單動能", ["investment-momentum-leaders"], () => getMomentumLeaders(undefined, true)),
-        run("待續行動", ["investment-actions"], () => getInvestmentActions()),
-        run("市場探索", ["investment-explore"], () => getMarketExplore(undefined, true)),
-      ])
-      if (brief?.brief.state === "invalid" || brief?.brief.state === "missing") failures.push("簡報內容")
-      if (research?.coverage.errors.length) failures.push("部分研究來源")
-      if (brief?.brief.source?.limitations.length) failures.push("簡報部分段落")
-      if (market?.state === "unavailable" || market?.state === "partial") failures.push("部分市場報價")
-      if (pending) failures.push(...([["舊判斷回看", pending.revisit], ["待確認事項", pending.gate], ["每週觀察", pending.weekly]] as const).filter(([, item]) => item.state === "unavailable").map(([label]) => label))
-      if (universe?.state === "unavailable") failures.push("股票清單")
-      if (leaders?.state === "unavailable" || leaders?.state === "partial") failures.push("清單動能部分日線")
-      if (actionBoard?.state === "unavailable") failures.push("待續行動")
-      if (explore?.state === "unavailable") failures.push("市場探索")
-      else if (explore?.state === "partial") failures.push("部分市場探索")
-      if (universe?.state === "ready") {
-        const results = await Promise.all(universe.symbols.map(symbol => run(symbol, ["investment-momentum", symbol], () => getStockMomentum(symbol, undefined, true))))
-        results.forEach((result, index) => { if (result?.daily.state === "unavailable") failures.push(`${universe.symbols[index]} 日線`) })
-        const quotes = await Promise.all(universe.symbols.map(symbol => run(`${symbol} 最新價`, ["investment-quote", symbol], () => getStockQuote(symbol, undefined, true))))
-        quotes.forEach((quote, index) => { if (quote && quote.state !== "available") failures.push(`${universe.symbols[index]} 最新價`) })
-      }
-      if (view === "history") {
+      if (view === "today") {
+        const [brief, market, explore] = await Promise.all([
+          run("簡報", ["investment"], () => getInvestment()),
+          run("市場行情", ["investment-market"], () => getInvestmentMarket(undefined, true)),
+          run("市場探索", ["investment-explore"], () => getMarketExplore(undefined, true)),
+        ])
+        if (brief?.brief.state === "invalid" || brief?.brief.state === "missing") failures.push("簡報內容")
+        if (brief?.brief.source?.limitations.length) failures.push("簡報部分段落")
+        if (market?.state === "unavailable" || market?.state === "partial") failures.push("部分市場報價")
+        if (explore?.state === "partial") failures.push("部分市場探索")
+        await client.invalidateQueries({ queryKey: ["investment-source"], refetchType: "active" })
+      } else if (view === "work") {
+        const [research, actionBoard] = await Promise.all([
+          run("研究", ["investment-watch"], () => getInvestmentWatch()),
+          run("待續行動", ["investment-actions"], () => getInvestmentActions()),
+          run("我的投資事項", ["investment-work"], () => getInvestmentWork()),
+          run("系統提醒", ["investment-pending"], () => getInvestmentPending()),
+        ])
+        if (research?.coverage.errors.length) failures.push("部分研究來源")
+        if (actionBoard?.state === "unavailable") failures.push("待續行動")
+      } else if (view === "month") {
+        const research = await run("重要日期", ["investment-watch"], () => getInvestmentWatch())
+        if (research?.coverage.errors.length) failures.push("部分日期來源")
+      } else {
         const [records] = await Promise.all([
           run("歷史來源", ["investment-history"], () => getInvestmentHistory()),
           run("研究脈絡", ["investment-context"], () => getInvestmentContext()),
         ])
         if (records && records.state !== "ready") failures.push("部分歷史來源")
       }
-      await client.invalidateQueries({ queryKey: ["investment-source"], refetchType: "active" })
-      if (client.getQueryCache().findAll({ queryKey: ["investment-source"], type: "active" }).some(item => item.state.status === "error")) failures.push("簡報原文")
       const at = new Date().toLocaleTimeString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })
-      setNotice(`${at} ${failures.length ? `已重新讀取，仍未取得：${[...new Set(failures)].join("、")}` : "已重新讀取資料"}。簡報與行情各自的截止時間仍以頁面標示為準。`)
+      setNotice(`${at} ${failures.length ? `已重新讀取，仍未取得：${[...new Set(failures)].join("、")}` : "已重新讀取目前頁面"}。各資料的截止時間仍以頁面標示為準。`)
     } finally { setRefreshing(false) }
   }
   return <div className="flex min-w-0 flex-col gap-4 break-words">
@@ -257,7 +253,7 @@ export function InvestmentPage() {
       {context.isError ? <p role="alert" className="text-body text-warn">研究脈絡這次無法取得；歷史資料仍可單獨查看。</p> : null}
       {history.data ? <InvestmentHistory data={history.data} context={context.data} /> : null}
     </div>
-    {watch.isError ? <p role="alert" className="text-body text-warn">研究與重要日期本次讀取失敗。{watch.data ? "仍顯示上次內容。" : ""}</p> : null}
+    {view !== "today" && watch.isError ? <p role="alert" className="text-body text-warn">研究與重要日期本次讀取失敗。{watch.data ? "仍顯示上次內容。" : ""}</p> : null}
     <details className="border-t border-line-soft pt-3"><summary className="cursor-pointer py-2 text-caption text-ink-3">資料來源與讀取狀況{watch.data?.coverage.errors.length ? ` · ${watch.data.coverage.errors.length} 項異常` : ""}</summary><div className="flex flex-col gap-2 pt-2 text-caption text-ink-3">
       <p>{DEMO_MODE ? "簡報、研究、日期與行情全由合成資料提供。更新資料只重讀範例，不連接帳戶或外部資料。" : "簡報、研究和日期讀取本機 Investment Note；行情向 Yahoo Finance 查詢。更新資料不會同步 Git 或重新生成 AI 簡報。"}</p>
       <p>每週觀察：{query.data?.weekly_watch.date ?? "尚未取得日期"}。目前只提供日期，無法據此確認本週回顧是否完成。</p>
