@@ -110,19 +110,24 @@ jobs:
                       ]
                       data.brief.risks = [{ risk: '合成缺少關聯的風險', status: '仍待確認', event_ref: '' }]
                       data.brief.actions = ['觀察 5%', '觀察 5%', '觀察 6%', '不加碼', '加碼']
+                      data.brief.action_items = []
                     }
                     if (scenario === 'missing') {
                       data.brief.state = 'missing'
                       data.brief.headline = ''
                       data.brief.source = null
+                      data.brief.action_items = []
+                      data.brief.envelope = null
                       for (const key of ['actions', 'events', 'event_notes', 'thesis_changes', 'thesis_notes', 'risks', 'risk_notes', 'upcoming', 'upcoming_notes', 'market_pulse', 'market_pulse_notes']) data.brief[key] = []
                     }
                   }
-                  if (scenario === 'quote-unavailable' && data?.symbol && 'quoted_at' in data) {
-                    data.state = 'unavailable'
-                    data.value = null
-                    data.change_percent = null
-                    data.quoted_at = null
+                  if (scenario === 'quote-unavailable' && Array.isArray(data?.items) && data.items.some(item => item && 'quoted_at' in item)) {
+                    const item = data.items.find(item => item && 'quoted_at' in item)
+                    item.state = 'unavailable'
+                    item.value = null
+                    item.change = null
+                    item.change_percent = null
+                    item.quoted_at = null
                   }
                   return data
                 }
@@ -136,17 +141,19 @@ jobs:
                 }
                 assert.equal(await page.getByText('觀察 5%', { exact: true }).count(), 1)
                 assert(await page.getByText('觀察 6%', { exact: true }).isVisible())
-                assert(await page.getByText('資料截至 未提供', { exact: true }).isVisible())
-                await page.getByText('另有 1 項下一步', { exact: true }).click()
-                assert(await page.getByText('加碼', { exact: true }).isVisible())
+                assert(await page.getByText('今天要追', { exact: true }).isVisible())
+                assert(await page.getByText(/資料截至 未提供/).isVisible())
+                assert.equal(await page.getByText('加碼', { exact: true }).count(), 0)
+                assert.equal(await page.getByText('尚未結束的行動', { exact: true }).count(), 0)
+                assert.equal(await page.getByText('繼續研究', { exact: true }).count(), 0)
               }
               if (scenario === 'missing') {
                 assert(await page.getByText('尚未取得可讀的投資判斷。', { exact: true }).isVisible())
-                assert(await page.getByText('這份簡報沒有列出具體下一步；不代表不需要行動。', { exact: true }).isVisible())
+                assert.equal(await page.getByText('今天要追', { exact: true }).count(), 0)
               }
               if (scenario === 'initial-error') {
                 await page.getByRole('alert').filter({ hasText: '簡報讀取失敗' }).waitFor()
-                assert.equal(await page.getByText('這份簡報沒有列出具體下一步；不代表不需要行動。', { exact: true }).count(), 0)
+                assert.equal(await page.getByText('今天要追', { exact: true }).count(), 0)
               }
               if (scenario === 'refresh-error') {
                 await page.evaluate(() => { window.__failBrief = true })
@@ -155,8 +162,8 @@ jobs:
                 assert(await page.getByText('今日判斷', { exact: true }).isVisible())
               }
               if (scenario === 'quote-unavailable') {
-                await page.getByText('報價未取得', { exact: true }).waitFor()
-                assert(await page.getByText('價格未取得', { exact: true }).isVisible())
+                await page.getByText('未取得', { exact: true }).first().waitFor()
+                assert(await page.getByText('未取得', { exact: true }).first().isVisible())
               }
               await page.screenshot({ path: `${output}/${scenario}.png`, fullPage: true })
               const layout = await noOverflow(page, scenario)

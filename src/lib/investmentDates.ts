@@ -35,6 +35,13 @@ export function mentionsTicker(upperText: string, topic: string): boolean {
   return new RegExp(`(^|[^A-Z0-9])${escaped}(?=$|[^A-Z0-9])`).test(upperText)
 }
 
+/** Prefer research whose topic already appears in today's brief; otherwise keep source order. */
+export function researchForToday<T extends { topic: string }>(research: readonly T[], haystack: string, limit = 3): T[] {
+  const upper = haystack.toUpperCase()
+  const hits = research.filter(item => mentionsTicker(upper, item.topic))
+  return (hits.length ? hits : [...research]).slice(0, limit)
+}
+
 /** Split a registered `next_catalyst` string into the event and what it should answer. */
 export function splitCatalyst(raw: string): { event: string; verify: string } {
   const body=raw.replace(/^~?\d{4}-\d{2}(?:-\d{2})?\s*/,"").replace(/^\([A-Za-z]{3}\)\s*/,"")
