@@ -4,6 +4,7 @@ import { createDemoRequest } from "../src/demo/transport.ts"
 import { investmentScenario } from "../src/demo/generated/investment-scenario.ts"
 import { splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
+import { briefActions, groupBriefRows, sourceTimestamp, quoteTime } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -95,4 +96,41 @@ test("investment writes honor versions; malformed and cancelled requests are vis
   assert.equal((await request("/api/todos", write({ text: "" }))).status, 422)
   assert.equal((await request("/api/goals/demo-build/milestones/1", write({ done: "true" }))).status, 422)
   await assert.rejects(request("/api/home", { signal: AbortSignal.abort() }), { name: "AbortError" })
+})
+
+test("brief actions remove only exact duplicates and pure no-information labels", () => {
+  const input = ["沒有新資訊。", "觀察 5%", " 觀察 5% ", "觀察 6%", "不加碼", "加碼", "沒有新資訊，但仍需驗證需求。", "", "無新資訊！"]
+  const original = [...input]
+  assert.deepEqual(briefActions(input), ["觀察 5%", "觀察 6%", "不加碼", "加碼", "沒有新資訊，但仍需驗證需求。"])
+  assert.deepEqual(input, original, "presentation must not mutate the source")
+})
+
+test("every thesis and risk survives missing, malformed or out-of-range event references exactly once", () => {
+  const rows: { id: string; event_index?: number | null }[] = [
+    { id: "linked", event_index: 0 }, { id: "last", event_index: 1 },
+    { id: "null", event_index: null }, { id: "omitted" }, { id: "negative", event_index: -1 },
+    { id: "too-large", event_index: 2 }, { id: "fraction", event_index: 0.5 }, { id: "nan", event_index: NaN },
+    { id: "string", event_index: "0" as unknown as number },
+  ]
+  const grouped = groupBriefRows(rows, 2)
+  assert.deepEqual(grouped.byEvent.map(group => group.map(row => row.id)), [["linked"], ["last"]])
+  assert.deepEqual(grouped.unlinked.map(row => row.id), ["null", "omitted", "negative", "too-large", "fraction", "nan", "string"])
+  assert.deepEqual([...grouped.byEvent.flat(), ...grouped.unlinked].map(row => row.id).sort(), rows.map(row => row.id).sort())
+  assert.equal(grouped.byEvent[0][0], rows[0], "preserve original source objects and meaning")
+  assert.deepEqual(groupBriefRows(rows, 0), { byEvent: [], unlinked: rows })
+})
+
+test("brief timestamps retain unknown and date-only precision and never invent a cutoff", () => {
+  for (const value of [undefined, null, "", "unknown"]) assert.equal(sourceTimestamp(value), "未提供")
+  assert.equal(sourceTimestamp("2026-09-21"), "2026-09-21")
+  assert.equal(sourceTimestamp("2026-02-30"), "時間未能辨識")
+  assert.equal(sourceTimestamp("2026-09-21T99:99:99Z"), "時間未能辨識")
+  assert.equal(sourceTimestamp("2026-09-20T18:30:00Z"), "2026/09/21 02:30 台北")
+  assert.equal(sourceTimestamp("2026-09-21T08:30:00"), "2026-09-21 08:30:00（未註明時區）")
+})
+
+test("quotes from another year cannot look like today's quotes", () => {
+  const now = new Date("2026-09-21T01:00:00Z")
+  assert.match(quoteTime("2025-09-21T01:00:00Z", now), /2025/)
+  assert.doesNotMatch(quoteTime("2026-09-21T01:00:00Z", now), /2026/)
 })
