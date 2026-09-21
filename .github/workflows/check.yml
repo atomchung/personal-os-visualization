@@ -5,6 +5,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,3 +16,65 @@ jobs:
       - run: npm test
       - run: npm run lint
       - run: npm run build
+      - name: Synthetic browser read-back
+        run: |
+          # CI-only browser tooling: do not change the generated package boundary.
+          npm install --no-save --package-lock=false --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium
+          npm run preview -- --host 127.0.0.1 --port 4173 > "$RUNNER_TEMP/visualization-preview.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright'
+          import assert from 'node:assert/strict'
+          import { mkdir, writeFile } from 'node:fs/promises'
+          const origin = 'http://127.0.0.1:4173'
+          for (let attempt = 0; attempt < 40; attempt++) {
+            try { if ((await fetch(origin)).ok) break } catch {}
+            if (attempt === 39) throw new Error('Preview did not start')
+            await new Promise(resolve => setTimeout(resolve, 250))
+          }
+          const output = '.artifacts/investment-hub'
+          await mkdir(output, { recursive: true })
+          const browser = await chromium.launch()
+          const report = { revision: process.env.GITHUB_SHA, browser: browser.version(), mode: 'synthetic-only', pages: [] }
+          try {
+            for (const [name, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844], ['small', 320, 740]]) {
+              const page = await browser.newPage({ viewport: { width, height } })
+              const errors = []
+              page.on('pageerror', error => errors.push(error.message))
+              await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
+              await page.getByText('今日判斷', { exact: true }).waitFor()
+              await page.screenshot({ path: `${output}/${name}.png`, fullPage: true })
+              const layout = await page.evaluate(() => ({
+                viewport: document.documentElement.clientWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                headings: Array.from(document.querySelectorAll('h1,h2,h3')).map(el => el.textContent),
+                overflow: Array.from(document.querySelectorAll('main *')).filter(el => {
+                  const r = el.getBoundingClientRect()
+                  return r.width > 0 && r.right > document.documentElement.clientWidth + 1
+                }).slice(0, 10).map(el => ({ tag: el.tagName, text: el.textContent?.slice(0, 120) }))
+              }))
+              for (const label of ['正在研究', '近期要留意', '舊判斷回看', '今日']) {
+                await page.getByRole('tab', { name: label, exact: true }).click()
+              }
+              await page.locator('details').evaluateAll(elements => elements.forEach(el => { if (el.getClientRects().length) el.open = true }))
+              await page.waitForTimeout(100)
+              await page.screenshot({ path: `${output}/${name}-expanded.png`, fullPage: true })
+              report.pages.push({ name, ...layout, errors })
+              assert.deepEqual(errors, [], `${name}: no browser runtime errors`)
+              await page.close()
+            }
+          } finally {
+            await writeFile(`${output}/report.json`, JSON.stringify(report, null, 2))
+            await browser.close()
+          }
+          NODE
+      - name: Retain synthetic screenshots and read-back
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: investment-hub-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/investment-hub/
+          if-no-files-found: warn
+          retention-days: 7
