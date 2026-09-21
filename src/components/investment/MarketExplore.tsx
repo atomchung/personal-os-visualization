@@ -150,7 +150,7 @@ export function MarketExplore() {
       </div>
       {pending ? <p role="status" className="text-body text-ink-3">整理市場資金線索中…</p> : null}
       {stale ? <p role="alert" className="text-body text-warn">市場探索更新失敗。以下是先前內容，不是最新。</p> : null}
-      {data && data.state !== "unavailable" ? (
+      {data ? (
         <>
           <div className="flex min-w-0 flex-col gap-3">
             {visibleMarkets.map(market => <MarketBoard key={market.market} market={market} />)}
