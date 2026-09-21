@@ -59,8 +59,8 @@ jobs:
               page.on('pageerror', error => errors.push(error.message))
               page.on('request', request => { if (!request.url().startsWith(origin)) externalRequests.push(request.url()) })
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
-              await page.getByText('今日判斷', { exact: true }).waitFor()
-              const hero = await page.getByText('今日判斷', { exact: true }).boundingBox()
+              await page.getByText('今天發生了什麼', { exact: true }).waitFor()
+              const hero = await page.getByText('今天發生了什麼', { exact: true }).boundingBox()
               assert(hero && hero.y + hero.height < height, `${name}: key judgment must begin in first screen`)
               await page.screenshot({ path: `${output}/${name}.png`, fullPage: true })
               await page.screenshot({ path: `${output}/${name}-first-screen.png` })
@@ -141,15 +141,15 @@ jobs:
                 }
                 assert.equal(await page.getByText('觀察 5%', { exact: true }).count(), 1)
                 assert(await page.getByText('觀察 6%', { exact: true }).isVisible())
-                assert(await page.getByText('今天要追', { exact: true }).isVisible())
+                assert(await page.getByText('今天怎麼做', { exact: true }).isVisible())
                 assert(await page.getByText(/資料截至 未提供/).isVisible())
                 assert.equal(await page.getByText('加碼', { exact: true }).count(), 0)
                 assert.equal(await page.getByText('尚未結束的行動', { exact: true }).count(), 0)
                 assert.equal(await page.getByText('繼續研究', { exact: true }).count(), 0)
               }
               if (scenario === 'missing') {
-                assert(await page.getByText('尚未取得可讀的投資判斷。', { exact: true }).isVisible())
-                assert.equal(await page.getByText('今天要追', { exact: true }).count(), 0)
+                assert(await page.getByText('尚未取得可讀的今日變化。', { exact: true }).isVisible())
+                assert(await page.getByText('今天怎麼做', { exact: true }).isVisible())
               }
               if (scenario === 'initial-error') {
                 await page.getByRole('alert').filter({ hasText: '簡報讀取失敗' }).waitFor()
@@ -159,7 +159,7 @@ jobs:
                 await page.evaluate(() => { window.__failBrief = true })
                 await page.getByRole('button', { name: '更新資料', exact: true }).click()
                 await page.getByRole('alert').filter({ hasText: '目前保留上次內容' }).waitFor()
-                assert(await page.getByText('今日判斷', { exact: true }).isVisible())
+                assert(await page.getByText('今天發生了什麼', { exact: true }).isVisible())
               }
               if (scenario === 'quote-unavailable') {
                 await page.getByText('未取得', { exact: true }).first().waitFor()
