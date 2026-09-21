@@ -94,7 +94,10 @@ function ContinuationList({ items, compact = false, olderCount = 0, onOpenWork }
 function todayFollowups(b: InvestmentBrief): string[] {
   const raw = b.action_items?.length ? b.action_items.map(item => item.text) : b.actions
   return briefActions(raw)
-    .filter(text => !/(^|[：:\\s])補研究[：:：]?/i.test(text.replace(/[\\*_\`~]/g, "")))
+    .map(text => text.replace(/[*_`~]/g, "").trim())
+    .filter(text => !/^補研究[：:]/.test(text))
+    .map(text => text.replace(/^(?:繼續觀察|觀察|行動)[：:]\s*/, ""))
+    .filter(Boolean)
     .slice(0, 2)
 }
 
