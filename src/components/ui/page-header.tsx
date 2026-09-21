@@ -3,7 +3,7 @@ import { PAGE_COPY, type PageKey } from "@/lib/informationArchitecture"
 export function PageHeader({
   page,
   action,
-  showSummary = true,
+  showSummary = page !== "investment",
 }: {
   page: PageKey | "guide"
   action?: React.ReactNode
