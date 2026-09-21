@@ -70,8 +70,6 @@ function BucketColumn({ bucket }: { bucket: MarketExploreBucket }) {
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <SubsectionHeading>{bucket.label || BUCKET_LABEL[bucket.key]}</SubsectionHeading>
-      <p className="text-caption text-ink-3">{bucket.method || "方法未提供"}</p>
-      {volumeNote ? <p className="text-caption text-ink-3">{volumeNote}</p> : null}
       {items.length ? (
         <ul className="flex min-w-0 flex-col">
           {items.map(item => (
@@ -116,6 +114,7 @@ function MarketBoard({ market }: { market: MarketExploreMarket }) {
         <div className="flex flex-col gap-1 pt-1">
           <p>掃描 {market.universe_size} 檔 · 產出 {market.producer || "未提供"}</p>
           <p>產出時間：{sourceTimestamp(market.generated_at)} · 來源截止：{sourceTimestamp(market.source_cutoff)}</p>
+          {buckets.map(bucket => <p key={`method-${bucket.key}`}>{bucket.label || BUCKET_LABEL[bucket.key]}：{bucket.method || "方法未提供"}{bucket.key === "active" && relativeVolumeNote(bucket.method) ? ` · ${relativeVolumeNote(bucket.method)}` : ""}</p>)}
         </div>
       </details>
     </Card>
@@ -136,12 +135,13 @@ export function MarketExplore() {
   const failed = query.isError && !data
   const stale = query.isError && !!data
   const hasItems = data?.markets.some(market => market.buckets.some(bucket => bucket.items.length > 0)) ?? false
+  const visibleMarkets = data ? orderedMarkets(data.markets).filter(market => market.buckets.some(bucket => bucket.items.length > 0)) : []
   const caption = data?.note?.trim() || "市場線索，不是持倉強弱，也不是交易建議。"
 
   // Today is a decision-reading surface, not an operational error dashboard.
   // A first-load producer failure stays available in the global source status instead of
   // occupying a full primary section; stale cached data remains visible and explicitly marked.
-  if (failed || (data?.state === "unavailable" && !data.markets.length)) return null
+  if (failed || data?.state === "unavailable" || (data && !hasItems)) return null
 
   return (
     <section className="flex min-w-0 flex-col gap-3" aria-label="市場資金在哪" aria-busy={query.isFetching}>
@@ -151,13 +151,10 @@ export function MarketExplore() {
       </div>
       {pending ? <p role="status" className="text-body text-ink-3">整理市場資金線索中…</p> : null}
       {stale ? <p role="alert" className="text-body text-warn">市場探索更新失敗。以下是先前內容，不是最新。</p> : null}
-      {data?.state === "partial" ? <p role="status" className="text-caption text-warn">{data.message || "部分市場的資金線索不完整。"}</p> : null}
-      {data?.limitations?.length ? <ul className="list-disc pl-5 text-caption text-warn">{data.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul> : null}
       {data && data.state !== "unavailable" ? (
         <>
-          {!hasItems ? <p className="text-body text-ink-3">這次沒有通過篩選的標的可列，沒有用持倉或其他名單填補。</p> : null}
           <div className="flex min-w-0 flex-col gap-3">
-            {orderedMarkets(data.markets).map(market => <MarketBoard key={market.market} market={market} />)}
+            {visibleMarkets.map(market => <MarketBoard key={market.market} market={market} />)}
           </div>
         </>
       ) : null}
