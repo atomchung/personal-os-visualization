@@ -70,6 +70,7 @@
     "tsconfig.app.json": "05845c6fd00054edbdd02212d39d99865601b5e4883b2b7a765a8d32127bbfbf",
     "tsconfig.json": "770b4140bbb581e2dfd9ea9946ffc9c75a1d86ba7d2db5f77c83e37cbdf9d808",
     "tsconfig.node.json": "d366cc0827139db39c61815f22491bbfda56c654354a42ad7795143d314e45e8",
-    "vite.config.ts": "351176a61f818d958c1de0661fb2b2aa3e2a9b96cac53d66dff525a3f2e58847"
+    "vite.config.ts": "351176a61f818d958c1de0661fb2b2aa3e2a9b96cac53d66dff525a3f2e58847",
+    "src/components/investment/InvestmentNarrative.tsx": "dff1c23069f435627e0fb2a3cb8b2aa8cc23b8219f9c47a756f395720c5ba2e9"
   }
 }

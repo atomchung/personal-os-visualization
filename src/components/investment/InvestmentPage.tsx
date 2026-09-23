@@ -16,11 +16,12 @@ import { ReadingText, InlineText } from "./ReadingText"
 import { InvestmentWorkPanel } from "./InvestmentWork"
 import { PendingBoard } from "./InvestmentPending"
 import { InvestmentHistory } from "./InvestmentHistory"
+import { InvestmentNarrativeSection } from "./InvestmentNarrative"
 import {
   BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentMarket,
   getInvestmentPending, getInvestmentHistory, getInvestmentContext,
   getInvestmentSource, getInvestmentWork,
-  getInvestmentActions, getMarketExplore,
+  getInvestmentActions, getMarketExplore, getInvestmentNarrative,
   type InvestmentActionItem, type InvestmentBrief, type InvestmentSource, type InvestmentTodayView, type InvestmentTodayUpdate,
 } from "@/lib/investment"
 
@@ -206,15 +207,18 @@ export function InvestmentPage() {
     }
     try {
       if (view === "today") {
-        const [brief, market, explore] = await Promise.all([
+        const [brief, market, explore, narrative] = await Promise.all([
           run("簡報", ["investment"], () => getInvestment()),
           run("市場行情", ["investment-market"], () => getInvestmentMarket(undefined, true)),
           run("市場探索", ["investment-explore"], () => getMarketExplore(undefined, true)),
+          run("我的論點", ["investment-narrative"], () => getInvestmentNarrative()),
         ])
         if (brief?.brief.state === "invalid" || brief?.brief.state === "missing") failures.push("簡報內容")
         if (brief?.brief.source?.limitations.length) failures.push("簡報部分段落")
         if (market?.state === "unavailable" || market?.state === "partial") failures.push("部分市場報價")
         if (explore?.state === "partial") failures.push("部分市場探索")
+        if (narrative && narrative.state !== "ready") failures.push("我的論點部分來源")
+        if (!narrative) failures.push("我的論點")
         await client.invalidateQueries({ queryKey: ["investment-source"], refetchType: "active" })
       } else if (view === "work") {
         const [research, actionBoard] = await Promise.all([
@@ -247,6 +251,7 @@ export function InvestmentPage() {
       if (next !== null) { event.preventDefault(); openView(VIEWS[next][0]) }
     }}>{label}</Button>)}</nav>
     <div id="investment-panel-today" role="tabpanel" aria-labelledby="investment-tab-today" hidden={view !== "today"} className={view === "today" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
+      <InvestmentNarrativeSection enabled={view === "today"} />
       {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次內容。" : ""}請按更新資料重試。</p> : null}
       {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
       {b ? <TodayBrief b={b} today={query.data?.today} /> : null}

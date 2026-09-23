@@ -109,6 +109,102 @@ export type InvestmentData = {
   sources: InvestmentSource[]
 }
 
+export type InvestmentNarrativeState = "ready" | "unknown" | "stale" | "drift" | "partial"
+export type InvestmentNarrativeSource = {
+  path: string
+  line?: number
+  label?: string
+  expect?: string
+}
+export type InvestmentNarrativeSection = {
+  state: InvestmentNarrativeState
+  text: string | null
+  source?: InvestmentNarrativeSource | null
+  reason?: string | null
+}
+export type InvestmentNarrativeDecisionView = {
+  state: InvestmentNarrativeState
+  reason: string | null
+  decision_id: string | null
+  route: {
+    component: "DecisionView"
+    route_key: "decision_id"
+    ticker: string
+    decision_id: string | null
+  }
+  sources: InvestmentNarrativeSource[]
+}
+export type InvestmentNarrativeExpression = {
+  ticker: string
+  holding_state: "ready" | "unknown"
+  holding_reason: string | null
+  state: InvestmentNarrativeState
+  linkage: {
+    state: InvestmentNarrativeState
+    kind: "direct" | "thesis_home_inherited" | null
+    narrative_id: string | null
+    source: InvestmentNarrativeSource | null
+    reason: string | null
+  }
+  thesis_source: InvestmentNarrativeSource | null
+  decision_view: InvestmentNarrativeDecisionView
+}
+export type InvestmentNarrativeLatestChangeItem = {
+  story_id: string | null
+  narrative_id: string
+  link_type: "narrative_id" | "story_id" | "conflict"
+  text: string | null
+  why_important: string | null
+  market_reaction: string | null
+  interpretation: string | null
+  at: string | null
+  source: InvestmentNarrativeSource
+  state: InvestmentNarrativeState | null
+}
+export type InvestmentNarrative = {
+  artifact: "personalos-investment-hub"
+  schema_version: string
+  id: string
+  state: "ready" | "partial" | "unavailable"
+  as_of: string
+  generated_at: string
+  source_cutoff: string
+  producer: string
+  limitations: string[]
+  today: {
+    state: "ready" | "partial" | "unavailable" | "unknown"
+    baseline: { path: string; source_cutoff: string | null } | null
+    limitations: string[]
+  }
+  narratives: {
+    narrative_id: string | null
+    title: string | null
+    status: string
+    updated: string | null
+    state: InvestmentNarrativeState
+    state_reason: string | null
+    source: InvestmentNarrativeSource | null
+    what_i_bet: {
+      state: InvestmentNarrativeState
+      narrative: InvestmentNarrativeSection
+      owner_thesis: InvestmentNarrativeSection
+      reason: string | null
+    }
+    current_tension: InvestmentNarrativeSection
+    expressions: {
+      state: InvestmentNarrativeState
+      items: InvestmentNarrativeExpression[]
+      reason: string | null
+    }
+    latest_change: {
+      state: InvestmentNarrativeState
+      item: InvestmentNarrativeLatestChangeItem | null
+      reason: string | null
+    }
+    references: (InvestmentNarrativeSource | null)[]
+  }[]
+}
+
 export type InvestmentSourceText = {
   title: string
   date: string | null
@@ -431,6 +527,9 @@ function acquireMomentumSlot(signal?: AbortSignal): Promise<() => void> {
 
 export const getInvestment = (signal?: AbortSignal) =>
   readInvestment<InvestmentData>("/api/investment", signal)
+
+export const getInvestmentNarrative = (signal?: AbortSignal) =>
+  readInvestment<InvestmentNarrative>("/api/investment/narrative", signal)
 
 export const getInvestmentActions = (signal?: AbortSignal) =>
   readInvestment<InvestmentActions>("/api/investment/actions", signal)

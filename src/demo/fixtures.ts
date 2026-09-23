@@ -1,6 +1,6 @@
 /** Synthetic showcase fixture; never generated from a real API or private vault. */
 import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
-import type { InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistorySource, InvestmentMarket, InvestmentPending, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
+import type { InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistorySource, InvestmentMarket, InvestmentNarrative, InvestmentPending, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 
 export const DATE = investmentScenario.as_of
@@ -200,6 +200,38 @@ export const investment: InvestmentData = {
     },
     risks: [{ risk: investmentScenario.risk, event_ref: "範例事件", event_index: 0, status: investmentScenario.risk_status }], risk_notes: [], source },
   weekly_watch: { state: "missing", date: null, source: null }, conditions: { state: "not_connected", message: "展示版未連接交易、帳戶或研究來源。" }, sources: [source],
+}
+
+export const investmentNarrative: InvestmentNarrative = {
+  artifact: "personalos-investment-hub",
+  schema_version: "1.0",
+  id: "investment-hub:demo",
+  state: "unavailable",
+  as_of: "unknown",
+  generated_at: STAMP,
+  source_cutoff: "unknown",
+  producer: "synthetic-demo",
+  limitations: ["展示版沒有連接 Investment Note；不展示或推測個人論點與持倉。"],
+  today: { state: "unavailable", baseline: null, limitations: ["沒有合成事件關聯資料。"] },
+  narratives: [{
+    narrative_id: "ai-infrastructure-economics",
+    title: "AI infrastructure economics",
+    status: "unknown",
+    updated: null,
+    state: "unknown",
+    state_reason: "展示版沒有連接 Investment Note 的 narrative producer。",
+    source: null,
+    what_i_bet: {
+      state: "unknown",
+      narrative: { state: "unknown", text: null, source: null, reason: "沒有已連接的 scorecard。" },
+      owner_thesis: { state: "unknown", text: null, source: null, reason: "沒有已連接的 owner thesis。" },
+      reason: "展示資料不包含個人論點。",
+    },
+    current_tension: { state: "unknown", text: null, source: null, reason: "沒有已連接的 scorecard。" },
+    expressions: { state: "unknown", items: [], reason: "展示資料不包含個人持倉或 thesis links。" },
+    latest_change: { state: "unknown", item: null, reason: "展示資料沒有 narrative_id/story_id 關聯。" },
+    references: [null, null, null],
+  }],
 }
 
 export const investmentActions: InvestmentActions = {

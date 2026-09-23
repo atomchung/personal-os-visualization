@@ -23,7 +23,7 @@ test("every page runs with no network; unknown routes and real symbols fail clos
   globalThis.fetch = () => { throw new Error("Unexpected network request") }
   try {
     const request = createDemoRequest()
-    for (const path of ["home", "cockpit", "focus", "time", "goals", "ideal", "health", "todos", "investment", "investment/actions", "investment/explore", "investment/market", "investment/watch", "investment/history", "investment/context", "investment/pending", "investment/work", "investment/momentum/universe", "investment/momentum/leaders", `investment/quote?symbol=${investmentScenario.symbol}`, `investment/momentum?symbol=${investmentScenario.symbol}`, `investment/source?id=${investmentScenario.source_id}`, `investment/history/source?id=${investmentScenario.history[0].id}`]) {
+    for (const path of ["home", "cockpit", "focus", "time", "goals", "ideal", "health", "todos", "investment", "investment/narrative", "investment/actions", "investment/explore", "investment/market", "investment/watch", "investment/history", "investment/context", "investment/pending", "investment/work", "investment/momentum/universe", "investment/momentum/leaders", `investment/quote?symbol=${investmentScenario.symbol}`, `investment/momentum?symbol=${investmentScenario.symbol}`, `investment/source?id=${investmentScenario.source_id}`, `investment/history/source?id=${investmentScenario.history[0].id}`]) {
       const result = await request(`/api/${path}`)
       assert.equal(result.status, 200, path)
       assert.equal(typeof await result.json(), "object", path)
@@ -44,6 +44,17 @@ test("Today projection keeps intraday delta inside the daily flow", async () => 
   assert.equal(data.today.updates.length, 1)
   assert.equal(data.today.updates[0].relevance.includes("new-price-discovery"), true)
   assert.match(data.today.updates[0].source_path, /^wiki\/morning\//)
+})
+
+test("the showcase keeps the personal narrative and holdings explicitly unknown", async () => {
+  const request = createDemoRequest()
+  const response = await request("/api/investment/narrative")
+  const data = await response.json()
+  assert.equal(data.state, "unavailable")
+  assert.equal(data.narratives[0].state, "unknown")
+  assert.equal(data.narratives[0].expressions.state, "unknown")
+  assert.equal(data.narratives[0].expressions.items.length, 0)
+  assert.match(data.limitations[0], /不展示或推測個人論點與持倉/)
 })
 
 test("history and Context expose one coherent scenario with explicit unknown results", async () => {
