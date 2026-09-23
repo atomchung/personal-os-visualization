@@ -251,10 +251,10 @@ export function InvestmentPage() {
       if (next !== null) { event.preventDefault(); openView(VIEWS[next][0]) }
     }}>{label}</Button>)}</nav>
     <div id="investment-panel-today" role="tabpanel" aria-labelledby="investment-tab-today" hidden={view !== "today"} className={view === "today" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
-      <InvestmentNarrativeSection enabled={view === "today"} />
       {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次內容。" : ""}請按更新資料重試。</p> : null}
       {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
       {b ? <TodayBrief b={b} today={query.data?.today} /> : null}
+      <InvestmentNarrativeSection enabled={view === "today"} />
       <MarketIndicators />
       <MarketExplore />
     </div>
