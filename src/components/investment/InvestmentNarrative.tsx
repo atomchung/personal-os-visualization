@@ -131,7 +131,7 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
     <details className="p-4 text-caption text-ink-3 sm:p-5">
       <summary className="cursor-pointer">資料來源與完整度</summary>
       <div className="flex flex-col gap-2 pt-2">
-        <p>論點：{narrative.narrative_id || "ID 未知"} · scorecard 更新：{sourceTimestamp(narrative.updated)} · 資料截至：{sourceTimestamp(data.source_cutoff)}</p>
+        <p>論點：{narrative.narrative_id || "ID 未知"} · scorecard 更新：{sourceTimestamp(narrative.updated)} · 論點來源時間：{sourceTimestamp(data.source_cutoff)}</p>
         <ul className="flex flex-col gap-1">{narrative.references.map((source, index) => source ? <SourceReference key={`${source.path}:${index}`} source={source} /> : null)}</ul>
         {data.limitations.map((limitation, index) => <p key={index} className="text-warn">{limitation}</p>)}
       </div>
@@ -161,7 +161,7 @@ export function InvestmentNarrativeSection({ enabled }: { enabled: boolean }) {
     {data && narrative ? <>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <SubsectionHeading>{narrative.title || "AI 大故事標題未提供"}</SubsectionHeading>
-        <span className="text-caption text-ink-3">資料截至 {sourceTimestamp(data.source_cutoff)}</span>
+        <span className="text-caption text-ink-3">論點來源時間 {sourceTimestamp(data.source_cutoff)}</span>
       </div>
       <StateNote state={narrative.state} reason={narrative.state_reason} />
       <NarrativeContent data={data} narrative={narrative} />
