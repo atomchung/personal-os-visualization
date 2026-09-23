@@ -84,20 +84,31 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
         <SubsectionHeading>我在押什麼</SubsectionHeading>
         <StateChip state={narrative.what_i_bet.state} />
       </div>
-      <p className="text-caption text-ink-3">AI 大故事</p>
-      {narrative.what_i_bet.narrative.text ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.what_i_bet.narrative.text} /></p> : <p className="text-body text-ink-3">尚未取得可讀的敘事內容。</p>}
-      <p className="pt-1 text-caption text-ink-3">既有 owner thesis</p>
-      {narrative.what_i_bet.owner_thesis.text ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.what_i_bet.owner_thesis.text} /></p> : <p className="text-body text-ink-3">尚未取得 owner thesis。</p>}
-      <StateNote state={narrative.what_i_bet.state} reason={narrative.what_i_bet.reason} />
-    </article>
-
-    <article className="flex min-w-0 flex-col gap-2 p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <SubsectionHeading>當前關鍵張力</SubsectionHeading>
-        <StateChip state={narrative.current_tension.state} />
+      <div className="flex min-w-0 flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-caption text-ink-3">AI 大故事</p>
+          <StateChip state={narrative.what_i_bet.narrative.state} />
+        </div>
+        {narrative.what_i_bet.narrative.text ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.what_i_bet.narrative.text} /></p> : <p className="text-body text-ink-3">尚未取得可讀的敘事內容。</p>}
+        <StateNote state={narrative.what_i_bet.narrative.state} reason={narrative.what_i_bet.narrative.reason} />
       </div>
-      {narrative.current_tension.text ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.current_tension.text} /></p> : <p className="text-body text-ink-3">尚未取得來源中的關鍵張力。</p>}
-      <StateNote state={narrative.current_tension.state} reason={narrative.current_tension.reason} />
+      <div className="flex min-w-0 flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-caption text-ink-3">既有 owner thesis</p>
+          <StateChip state={narrative.what_i_bet.owner_thesis.state} />
+        </div>
+        {narrative.what_i_bet.owner_thesis.text ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.what_i_bet.owner_thesis.text} /></p> : <p className="text-body text-ink-3">尚未取得 owner thesis。</p>}
+        <StateNote state={narrative.what_i_bet.owner_thesis.state} reason={narrative.what_i_bet.owner_thesis.reason} />
+      </div>
+      <div className="flex min-w-0 flex-col gap-2 border-l-2 border-line pl-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <SubsectionHeading>當前關鍵張力</SubsectionHeading>
+          <StateChip state={narrative.current_tension.state} />
+        </div>
+        {narrative.current_tension.text ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.current_tension.text} /></p> : <p className="text-body text-ink-3">尚未取得來源中的關鍵張力。</p>}
+        <StateNote state={narrative.current_tension.state} reason={narrative.current_tension.reason} />
+      </div>
+      <StateNote state={narrative.what_i_bet.state} reason={narrative.what_i_bet.reason} />
     </article>
 
     <article className="flex min-w-0 flex-col gap-2 p-4 sm:p-5">
@@ -153,7 +164,7 @@ export function InvestmentNarrativeSection({ enabled }: { enabled: boolean }) {
   const state: DisplayState = query.isError ? "unavailable" : data?.state ?? "unknown"
   return <section aria-label="我的論點" className="flex min-w-0 flex-col gap-3 break-words">
     <SectionHeading aside={<StateChip state={state} />}>我的論點</SectionHeading>
-    <p className="text-caption text-ink-3">沿用 Investment Note 的 AI 敘事、owner thesis、持倉關聯與既有 Decision View。</p>
+    <p className="text-caption text-ink-3">沿著同一條論點脈絡讀：我在押什麼 → 關鍵張力 → 哪些持倉在表達 → 最近哪一環變化及其重要性。每一環都保留來源狀態。</p>
     {DEMO_MODE ? <p className="text-caption text-ink-3">展示版只提供合成資料；個人論點與持倉保持未知。</p> : null}
     {query.isPending && !data ? <p role="status" className="text-body text-ink-3">正在讀取論點來源；讀取完成前不顯示健康狀態。</p> : null}
     {query.isError ? <p role="alert" className="text-caption text-warn">這次論點來源讀取失敗。{data ? "以下保留上次讀取結果。" : "目前無法確認論點狀態。"}請按更新資料重試。</p> : null}
