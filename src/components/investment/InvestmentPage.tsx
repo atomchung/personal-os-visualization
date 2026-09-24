@@ -17,12 +17,13 @@ import { InvestmentWorkPanel } from "./InvestmentWork"
 import { PendingBoard } from "./InvestmentPending"
 import { InvestmentHistory } from "./InvestmentHistory"
 import { InvestmentNarrativeSection } from "./InvestmentNarrative"
+import { buildTodayStories, todayStoryHeadline, type TodayStory } from "@/lib/investmentToday"
 import {
   BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentMarket,
   getInvestmentPending, getInvestmentHistory, getInvestmentContext,
   getInvestmentSource, getInvestmentWork,
   getInvestmentActions, getMarketExplore, getInvestmentNarrative,
-  type InvestmentActionItem, type InvestmentBrief, type InvestmentSource, type InvestmentTodayView, type InvestmentTodayUpdate,
+  type InvestmentActionItem, type InvestmentBrief, type InvestmentSource, type InvestmentTodayView,
 } from "@/lib/investment"
 
 function SourceText({ source }: { source: InvestmentSource }) {
@@ -111,14 +112,50 @@ function todayFollowups(b: InvestmentBrief, today?: InvestmentTodayView): string
     .slice(0, 2)
 }
 
-function IntradayUpdate({ item }: { item: InvestmentTodayUpdate }) {
-  return <article className="flex min-w-0 flex-col gap-2 p-4 sm:p-5">
-    <div className="flex flex-wrap items-center gap-2">
-      <Chip tone="info">盤中更新</Chip>
-      <span className="text-caption text-ink-3">{sourceTimestamp(item.observed_at)}</span>
+type TodayBriefRows = {
+  theses: { byEvent: InvestmentBrief["thesis_changes"][]; unlinked: InvestmentBrief["thesis_changes"] }
+  risks: { byEvent: InvestmentBrief["risks"][]; unlinked: InvestmentBrief["risks"] }
+}
+
+function TodayStoryCard({ story, theses, risks }: {
+  story: TodayStory
+  theses: TodayBriefRows["theses"]
+  risks: TodayBriefRows["risks"]
+}) {
+  const latestUpdate = story.updates[0]
+  const heading = todayStoryHeadline(story)
+  const latestImpact = latestUpdate?.portfolio_impact.trim()
+  const latestAction = latestUpdate?.action.trim()
+  const hasSources = story.updates.length > 0 || Boolean(story.story_id)
+  return <article className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
+    <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
+      <div className="min-w-0">
+        {latestUpdate ? <p className="text-caption font-medium text-ink-3">目前狀態</p> : null}
+        <SubsectionHeading><InlineText text={todayText(heading)} /></SubsectionHeading>
+      </div>
+      {latestUpdate ? <span className="shrink-0 text-caption text-ink-3">最近更新 {sourceTimestamp(latestUpdate.observed_at)}</span> : null}
     </div>
-    <SubsectionHeading><InlineText text={todayText(item.summary)} /></SubsectionHeading>
-    {item.portfolio_impact ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">對判斷的影響：</span><InlineText text={todayText(item.portfolio_impact)} /></p> : null}
+    {story.updates.map((item, index) => <div key={item.id} className="flex min-w-0 flex-col gap-2">
+      <p className="text-caption font-medium text-ink-3">{index === 0 ? "最新盤中觀察" : "較早盤中觀察"} · {sourceTimestamp(item.observed_at)}</p>
+      {item.summary.trim() !== heading.trim() ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={todayText(item.summary)} /></p> : null}
+      {item.portfolio_impact ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">對判斷的影響：</span><InlineText text={todayText(item.portfolio_impact)} /></p> : null}
+      {item.action ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">現在要注意：</span><InlineText text={todayText(item.action)} /></p> : null}
+    </div>)}
+    {story.events.map(({ event, event_index }, index) => <div key={event_index} className="flex min-w-0 flex-col gap-2">
+      <p className="text-caption font-medium text-ink-3">{index === 0 ? "正式簡報基線" : "同故事中的另一份正式簡報"}</p>
+      {event.event.trim() !== heading.trim() ? <p className="text-body font-medium leading-relaxed text-ink"><InlineText text={todayText(event.event)} /></p> : null}
+      {event.market_reaction ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報市場反應：</span><InlineText text={todayText(event.market_reaction)} /></p> : null}
+      {event.interpretation ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報市場解讀：</span><InlineText text={todayText(event.interpretation)} /></p> : null}
+      {event.impact && event.impact.trim() !== latestImpact ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報基線的持倉影響：</span><InlineText text={todayText(event.impact)} /></p> : null}
+      {event.today && event.today.trim() !== latestAction ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報基線提醒：</span><InlineText text={todayText(event.today)} /></p> : null}
+      {theses.byEvent[event_index].length ? <div className="border-l-2 border-line pl-3"><p className="mb-2 text-caption font-medium text-ink-3">判斷變化</p><ThesisRows rows={theses.byEvent[event_index]} /></div> : null}
+      {risks.byEvent[event_index].length ? <div className="border-l-2 border-warn pl-3"><p className="mb-2 text-caption font-medium text-warn">要留意的風險</p><RiskRows rows={risks.byEvent[event_index]} /></div> : null}
+    </div>)}
+    {hasSources ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
+      <summary className="cursor-pointer py-1">來源與事件身分</summary>
+      {story.story_id ? <p className="pt-1">事件 ID：{story.story_id}</p> : <p className="pt-1">來源沒有提供可用的事件 ID；此項目保持獨立。</p>}
+      {story.updates.length ? <ul className="flex min-w-0 flex-col gap-1 pt-1">{story.updates.map(item => <li key={item.id} className="break-all">{item.id} · {sourceTimestamp(item.observed_at)} · {item.source_path}</li>)}</ul> : null}
+    </details> : null}
   </article>
 }
 
@@ -127,6 +164,7 @@ function TodayBrief({ b, today }: { b: InvestmentBrief; today?: InvestmentTodayV
   const version = b.session ? BRIEF_SESSION_LABELS[b.session] : null
   const followups = todayFollowups(b, today)
   const updates = today?.updates ?? []
+  const stories = buildTodayStories(b.date, b.events, updates)
   const theses = groupBriefRows(b.thesis_changes, b.events.length)
   const risks = groupBriefRows(b.risks, b.events.length)
   const hasUnlinked = theses.unlinked.length > 0 || risks.unlinked.length > 0 || b.thesis_notes.length > 0 || b.risk_notes.length > 0
@@ -135,22 +173,13 @@ function TodayBrief({ b, today }: { b: InvestmentBrief; today?: InvestmentTodayV
     <section aria-label="今天發生了什麼" className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <SectionHeading>今天發生了什麼</SectionHeading>
-        <span className="text-caption text-ink-3">{b.date ?? "日期未提供"}{version ? ` · ${version}` : " · 版次未標示"} · 資料截至 {sourceTimestamp(b.source_cutoff)}</span>
+        <span className="text-caption text-ink-3">{b.date ?? "日期未提供"}{version ? ` · ${version}` : " · 版次未標示"} · {updates.length ? "正式簡報截至" : "資料截至"} {sourceTimestamp(b.source_cutoff)}</span>
       </div>
       {b.state === "stale" ? <p role="status" className="text-caption text-warn">目前是較早的簡報，請留意資料截止時間。</p> : null}
       {b.state === "invalid" ? <p role="status" className="text-caption text-warn">這份簡報部分內容未能辨識，已保留可讀段落與完整原文。</p> : null}
       {envelopeIncomplete ? <p role="status" className="text-caption text-warn">{b.envelope?.completeness === "partial" ? "這份簡報資料不完整；細節可在下方來源展開查看。" : "這份簡報的資料包目前無法確認是否完整。"}</p> : null}
-      {updates.length || b.events.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
-        {updates.slice(0, 2).map(item => <IntradayUpdate key={item.id} item={item} />)}
-        {b.events.map((event, index) => <article key={`${b.date}:${index}`} className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
-          <SubsectionHeading><InlineText text={todayText(event.event)} /></SubsectionHeading>
-          {event.impact ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">對持倉的影響：</span><InlineText text={todayText(event.impact)} /></p> : null}
-          {event.today ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">現在要注意：</span><InlineText text={todayText(event.today)} /></p> : null}
-          {theses.byEvent[index].length ? <div className="border-l-2 border-line pl-3"><p className="mb-2 text-caption font-medium text-ink-3">判斷變化</p><ThesisRows rows={theses.byEvent[index]} /></div> : null}
-          {risks.byEvent[index].length ? <div className="border-l-2 border-warn pl-3"><p className="mb-2 text-caption font-medium text-warn">要留意的風險</p><RiskRows rows={risks.byEvent[index]} /></div> : null}
-          {event.interpretation || event.market_reaction ? <details><summary className="cursor-pointer py-2 text-caption font-medium text-ink-3">市場反應與細節</summary><div className="flex flex-col gap-2 pt-1 text-body leading-relaxed text-ink-2">{event.market_reaction ? <p><InlineText text={todayText(event.market_reaction)} /></p> : null}{event.interpretation ? <p><InlineText text={todayText(event.interpretation)} /></p> : null}</div></details> : null}
-        </article>)}
-        {updates.length > 2 ? <details className="p-4 text-caption text-ink-3 sm:p-5"><summary className="cursor-pointer">另有 {updates.length - 2} 則盤中更新</summary><div className="mt-2 divide-y divide-line-soft">{updates.slice(2).map(item => <IntradayUpdate key={item.id} item={item} />)}</div></details> : null}
+      {stories.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
+        {stories.map(story => <TodayStoryCard key={story.key} story={story} theses={theses} risks={risks} />)}
       </Card> : b.headline ? <Card className="min-w-0 p-4 sm:p-5"><ReadingText text={b.headline} /></Card> : <p className="text-body text-ink-3">尚未取得可讀的今日變化。</p>}
       {b.event_notes.length ? <ReadingText text={b.event_notes.join("\n\n")} /> : null}
       {hasUnlinked ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">其他判斷變化</summary><Card className="mt-2 grid min-w-0 gap-5 p-4 sm:p-5">

@@ -173,6 +173,7 @@ export const investment: InvestmentData = {
     limitations: [],
     updates: [{
       id: "news:demo-intraday-1",
+      story_id: "demo-storage-event",
       observed_at: `${DATE}T15:10:00+08:00`,
       summary: "盤中價格反應確認早盤事件有被市場交易，但幅度仍不足以改變原判斷。",
       portfolio_impact: "原本的核心假設不變；這次更新只提高對後續量能確認的優先級。",
@@ -184,7 +185,7 @@ export const investment: InvestmentData = {
   brief: { state: "current", date: DATE, generated_at: STAMP, source_cutoff: STAMP, session: null,
     headline: investmentScenario.headline,
     market_pulse: [{ variable: investmentScenario.market_index.label, latest: `${investmentScenario.market_index.value.toLocaleString()} · +${investmentScenario.market_index.change_percent}%`, meaning: investmentScenario.market_index.meaning }], market_pulse_notes: [],
-    events: [{ event: investmentScenario.event_text, market_reaction: investmentScenario.market_reaction, interpretation: investmentScenario.interpretation, impact: "新增待查證事項", today: `先讀${investmentScenario.next_check}說明` }], event_notes: [],
+    events: [{ story_id: "demo-storage-event", event: investmentScenario.event_text, market_reaction: investmentScenario.market_reaction, interpretation: investmentScenario.interpretation, impact: "新增待查證事項", today: `先讀${investmentScenario.next_check}說明` }], event_notes: [],
     thesis_changes: [{ thesis: investmentScenario.thesis, event_ref: "範例事件", event_index: 0, change: investmentScenario.thesis_change, reason: investmentScenario.thesis_reason }], thesis_notes: [],
     upcoming: [{ date_label: investmentScenario.next_check_date.slice(5).replace("-", "/"), event: investmentScenario.upcoming_event, check: investmentScenario.evidence_to_check }], upcoming_notes: [], actions: [investmentScenario.action],
     action_items: [openActionItem],

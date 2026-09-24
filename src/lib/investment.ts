@@ -56,6 +56,8 @@ export type InvestmentBrief = {
   market_pulse: { variable: string; latest: string; meaning: string }[]
   market_pulse_notes: string[]
   events: {
+    /** Producer-owned identity for joining a formal event to its intraday updates. */
+    story_id?: string | null
     event: string
     market_reaction: string
     interpretation: string
@@ -80,6 +82,8 @@ export type InvestmentBrief = {
 
 export type InvestmentTodayUpdate = {
   id: string
+  /** Producer-owned identity; absent IDs must remain unlinked in the UI. */
+  story_id?: string | null
   observed_at: string
   summary: string
   portfolio_impact: string
