@@ -67,6 +67,16 @@ jobs:
                 `${name}: latest update must be the story heading`)
               assert(await page.getByText('星島設備發表新一代儲能產品（虛構）', { exact: true }).isVisible(),
                 `${name}: formal brief baseline must remain visible in the story card`)
+              const thesisTab = page.getByRole('tab', { name: '我的論點', exact: true })
+              await thesisTab.click()
+              assert.equal(await thesisTab.getAttribute('aria-selected'), 'true')
+              await page.getByText('來源關聯不一致', { exact: true }).waitFor({ timeout: 5000 })
+              const thesisStatus = page.getByRole('region', { name: '論點近況' })
+              assert(await thesisStatus.getByRole('heading', { name: '今天的論點變化', exact: true }).isVisible(),
+                `${name}: daily judgment changes must be grouped in the thesis status view`)
+              assert(await thesisStatus.getByRole('heading', { name: '持續觀察的風險', exact: true }).isVisible(),
+                `${name}: continuing risks must appear beside daily changes as a separate subgroup`)
+              assert(await thesisStatus.getByText('展示案例尚無交付證據', { exact: true }).isVisible())
               const thesis = page.getByRole('region', { name: '我的論點｜五層證據' })
               assert(await thesis.getByText('來源關聯不一致', { exact: true }).isVisible(),
                 `${name}: narrative aggregate drift must remain visible`)
@@ -116,7 +126,7 @@ jobs:
               await page.screenshot({ path: `${output}/${name}.png`, fullPage: true })
               await page.screenshot({ path: `${output}/${name}-first-screen.png` })
               const layout = await noOverflow(page, name)
-              for (const label of ['正在研究', '近期要留意', '舊判斷回看', '今日']) {
+              for (const label of ['我的論點', '正在研究', '近期要留意', '舊判斷回看', '今日']) {
                 const tab = page.getByRole('tab', { name: label, exact: true })
                 await tab.click()
                 assert.equal(await tab.getAttribute('aria-selected'), 'true')
@@ -124,6 +134,8 @@ jobs:
               }
               const today = page.getByRole('tab', { name: '今日', exact: true })
               await today.focus()
+              await page.keyboard.press('ArrowRight')
+              assert.equal(await page.getByRole('tab', { name: '我的論點', exact: true }).getAttribute('aria-selected'), 'true')
               await page.keyboard.press('ArrowRight')
               assert.equal(await page.getByRole('tab', { name: '正在研究', exact: true }).getAttribute('aria-selected'), 'true')
               await page.keyboard.press('End')
@@ -141,7 +153,7 @@ jobs:
             }
             // Modify only in-memory synthetic Responses. Do not rewrite generated fixtures,
             // introduce test routes into production, or use any private source material.
-            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio']) {
+            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio']) {
               const page = await browser.newPage({ viewport: { width: 320, height: 740 } })
               const errors = []
               page.on('pageerror', error => errors.push(error.message))
@@ -155,6 +167,7 @@ jobs:
                     data.narratives[0].thesis_evidence.state = 'partial'
                     data.narratives[0].thesis_evidence.reason = '合成測試：五層證據覆蓋仍不完整。'
                   }
+                  if (scenario === 'narrative-delayed' && Array.isArray(data?.narratives)) await new Promise(resolve => setTimeout(resolve, 600))
                   if (data?.brief) {
                     if (scenario === 'initial-error' || window.__failBrief) throw new Error('Synthetic read failure')
                     if (scenario === 'blank-summary') {
@@ -264,8 +277,9 @@ jobs:
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
               if (scenario === 'unlinked-long') {
                 await page.getByText('其他判斷變化', { exact: true }).click()
+                const todayPanel = page.locator('#investment-panel-today')
                 for (const text of ['合成未關聯判斷', '合成越界判斷', '合成缺少關聯的風險']) {
-                  const item = page.getByText(text, { exact: true })
+                  const item = todayPanel.getByText(text, { exact: true })
                   assert.equal(await item.count(), 1)
                   assert(await item.isVisible())
                 }
@@ -286,27 +300,48 @@ jobs:
               if (scenario === 'missing') {
                 assert(await page.getByText('尚未取得可讀的今日變化。', { exact: true }).isVisible())
                 assert(await page.getByText('今天怎麼做', { exact: true }).isVisible())
+                await page.getByRole('tab', { name: '我的論點', exact: true }).click()
+                const thesisStatus = page.getByRole('region', { name: '論點近況' })
+                assert(await thesisStatus.getByText('簡報來源尚未取得，無法確認是否有論點變化或風險。', { exact: true }).isVisible())
+                assert(await thesisStatus.getByText('目前沒有可讀的論點變化；請先確認簡報來源完整。', { exact: true }).isVisible())
+                assert(await thesisStatus.getByText('目前沒有可讀的風險註記；請先確認簡報來源完整。', { exact: true }).isVisible())
+                assert.equal(await thesisStatus.getByText('已確認完整的簡報沒有列出論點變化。', { exact: true }).count(), 0)
               }
               if (scenario === 'initial-error') {
                 await page.getByRole('alert').filter({ hasText: '簡報讀取失敗' }).waitFor()
                 assert.equal(await page.getByText('今天要追', { exact: true }).count(), 0)
               }
               if (scenario === 'refresh-error') {
+                await page.getByRole('tab', { name: '我的論點', exact: true }).click()
+                await page.getByText('今天的論點變化', { exact: true }).waitFor({ timeout: 5000 })
                 await page.evaluate(() => { window.__failBrief = true })
                 await page.getByRole('button', { name: '更新資料', exact: true }).click()
-                await page.getByRole('alert').filter({ hasText: '目前保留上次內容' }).waitFor()
-                assert(await page.getByText('今天發生了什麼', { exact: true }).isVisible())
+                const thesisPanel = page.locator('#investment-panel-thesis')
+                await thesisPanel.getByRole('alert').filter({ hasText: '目前保留上次讀取的資料' }).waitFor({ timeout: 5000 })
+                assert(await thesisPanel.getByText('交付能力是否足以支撐需求', { exact: true }).isVisible())
+                assert(await thesisPanel.getByRole('region', { name: '持續觀察的風險' }).getByText('觀察', { exact: true }).isVisible())
               }
               if (scenario === 'quote-unavailable') {
                 await page.getByText('未取得', { exact: true }).first().waitFor()
                 assert(await page.getByText('未取得', { exact: true }).first().isVisible())
               }
               if (scenario === 'narrative-stale-partial') {
+                await page.getByRole('tab', { name: '我的論點', exact: true }).click()
+                await page.getByText('來源較舊', { exact: true }).waitFor({ timeout: 5000 })
                 const thesis = page.getByRole('region', { name: '我的論點｜五層證據' })
                 assert(await thesis.getByText('來源較舊', { exact: true }).isVisible())
                 assert(await thesis.getByText('合成測試：論點來源較舊；僅示範 aggregate 狀態。', { exact: true }).isVisible())
                 assert(await thesis.getByText('證據覆蓋：資料部分可用', { exact: true }).isVisible())
                 assert(await thesis.getByText('合成測試：五層證據覆蓋仍不完整。', { exact: true }).isVisible())
+              }
+              if (scenario === 'narrative-delayed') {
+                const thesisTab = page.getByRole('tab', { name: '我的論點', exact: true })
+                await thesisTab.click()
+                assert.equal(await thesisTab.getAttribute('aria-selected'), 'true')
+                const thesis = page.getByRole('region', { name: '我的論點｜五層證據' })
+                await thesis.getByRole('status').filter({ hasText: '正在讀取論點來源' }).waitFor({ timeout: 5000 })
+                await thesis.getByText('來源關聯不一致', { exact: true }).waitFor({ timeout: 5000 })
+                assert(await thesis.getByText('證據覆蓋：資料部分可用', { exact: true }).isVisible())
               }
               if (scenario === 'market-empty') {
                 assert(await page.getByText('本次完整掃描沒有符合條件的標的。', { exact: true }).isVisible())

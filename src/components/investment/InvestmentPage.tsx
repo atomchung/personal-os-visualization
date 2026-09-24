@@ -16,6 +16,7 @@ import { InvestmentWorkPanel } from "./InvestmentWork"
 import { PendingBoard } from "./InvestmentPending"
 import { InvestmentHistory } from "./InvestmentHistory"
 import { InvestmentNarrativeSection } from "./InvestmentNarrative"
+import { InvestmentThesis } from "./InvestmentThesis"
 import { buildTodayStories, todayStoryHeadline, type TodayStory } from "@/lib/investmentToday"
 import {
   BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentMarket, getInvestmentPulse,
@@ -205,7 +206,7 @@ function TodayBrief({ b, today }: { b: InvestmentBrief; today?: InvestmentTodayV
   </section>
 }
 
-const VIEWS = [["today", "今日"], ["work", "正在研究"], ["month", "近期要留意"], ["history", "舊判斷回看"]] as const
+const VIEWS = [["today", "今日"], ["thesis", "我的論點"], ["work", "正在研究"], ["month", "近期要留意"], ["history", "舊判斷回看"]] as const
 type View = typeof VIEWS[number][0]
 
 export function InvestmentPage() {
@@ -235,21 +236,26 @@ export function InvestmentPage() {
     }
     try {
       if (view === "today") {
-        const [brief, market, explore, pulse, narrative] = await Promise.all([
+        const [brief, market, explore, pulse] = await Promise.all([
           run("簡報", ["investment"], () => getInvestment()),
           run("市場行情", ["investment-market"], () => getInvestmentMarket(undefined, true)),
           run("市場探索", ["investment-explore"], () => getMarketExplore(undefined, true)),
           run("台股整體盤感", ["investment-pulse"], () => getInvestmentPulse()),
-          run("我的論點", ["investment-narrative"], () => getInvestmentNarrative()),
         ])
         if (brief?.brief.state === "invalid" || brief?.brief.state === "missing") failures.push("簡報內容")
         if (brief?.brief.source?.limitations.length) failures.push("簡報部分段落")
         if (market?.state === "unavailable" || market?.state === "partial") failures.push("部分市場報價")
         if (explore?.state === "partial") failures.push("部分市場探索")
         if (!pulse || pulse.state !== "ready") failures.push("台股整體盤感")
+        await client.invalidateQueries({ queryKey: ["investment-source"], refetchType: "active" })
+      } else if (view === "thesis") {
+        const [brief, narrative] = await Promise.all([
+          run("簡報", ["investment"], () => getInvestment()),
+          run("我的論點", ["investment-narrative"], () => getInvestmentNarrative()),
+        ])
+        if (brief?.brief.state === "invalid" || brief?.brief.state === "missing") failures.push("簡報內容")
         if (narrative && narrative.state !== "ready") failures.push("我的論點部分來源")
         if (!narrative) failures.push("我的論點")
-        await client.invalidateQueries({ queryKey: ["investment-source"], refetchType: "active" })
       } else if (view === "work") {
         const [research, actionBoard] = await Promise.all([
           run("研究", ["investment-watch"], () => getInvestmentWatch()),
@@ -284,8 +290,12 @@ export function InvestmentPage() {
       {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次內容。" : ""}請按更新資料重試。</p> : null}
       {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
       {b ? <TodayBrief b={b} today={query.data?.today} /> : null}
-      <InvestmentNarrativeSection enabled={view === "today"} onOpenHistory={() => openView("history")} />
       <MarketIndicators />
+    </div>
+    <div id="investment-panel-thesis" role="tabpanel" aria-labelledby="investment-tab-thesis" hidden={view !== "thesis"} className={view === "thesis" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
+      <InvestmentNarrativeSection enabled={view === "thesis"} onOpenHistory={() => openView("history")} />
+      {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次讀取的資料；資料截止時間仍以簡報標示為準。" : "目前沒有可用的簡報資料。"}請按更新資料重試。</p> : null}
+      {b ? <InvestmentThesis b={b} /> : <p className="text-body text-ink-3">{query.isError ? "論點近況來源讀取失敗，請按更新資料。" : "正在讀取論點近況…"}</p>}
     </div>
     <div id="investment-panel-work" role="tabpanel" aria-labelledby="investment-tab-work" hidden={view !== "work"} className={view === "work" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
       {actions.isError ? <p role="status" className="text-caption text-warn">待續行動這次讀不到。{actions.data ? "以下保留上次內容。" : ""}本機筆記仍可使用。</p> : null}
