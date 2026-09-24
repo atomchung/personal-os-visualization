@@ -318,8 +318,8 @@ jobs:
                 await page.getByRole('button', { name: '更新資料', exact: true }).click()
                 const thesisPanel = page.locator('#investment-panel-thesis')
                 await thesisPanel.getByRole('alert').filter({ hasText: '目前保留上次讀取的資料' }).waitFor({ timeout: 5000 })
-                assert(await thesisPanel.getByText('展示案例尚無交付證據', { exact: true }).isVisible())
-                assert(await thesisPanel.getByText('展示案例的採購成本仍需查證', { exact: true }).isVisible())
+                assert(await thesisPanel.getByText('交付能力是否足以支撐需求', { exact: true }).isVisible())
+                assert(await thesisPanel.getByRole('region', { name: '持續觀察的風險' }).getByText('觀察', { exact: true }).isVisible())
               }
               if (scenario === 'quote-unavailable') {
                 await page.getByText('未取得', { exact: true }).first().waitFor()
