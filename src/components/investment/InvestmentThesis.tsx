@@ -52,19 +52,47 @@ export function InvestmentThesis({ b }: { b: InvestmentBrief }) {
   const alerts = b.risk_notes.filter(note => note.trim())
   const structuredRisks = b.risks.filter(row => row.risk.trim())
   const unlinked = b.thesis_changes.filter(row => row.event_index === null).length
+  const limitations = [...new Set([...(b.source?.limitations ?? []), ...(b.envelope?.limitations ?? [])])]
+  const confirmedComplete = b.state === "current"
+    && b.envelope?.completeness === "ready"
+    && (!b.source || b.source.state === "current")
+    && limitations.length === 0
+  const sourceStatus = b.state === "missing" || b.source?.state === "missing"
+    ? "簡報來源尚未取得，無法確認是否有論點變化或風險。"
+    : b.state === "invalid" || b.source?.state === "invalid"
+      ? "簡報未能完整辨識；空白欄位不代表沒有變化或風險。"
+      : b.state === "stale" || b.source?.state === "stale"
+        ? "目前使用較早的簡報資料；空白欄位不代表最新狀態沒有變化或風險。"
+        : b.envelope?.completeness === "partial"
+          ? "簡報來源標示內容不完整；空白欄位不代表沒有變化或風險。"
+          : b.envelope?.completeness === "unavailable"
+            ? "目前無法確認簡報資料是否完整；空白欄位不代表沒有變化或風險。"
+            : limitations.length
+              ? "簡報來源列有未完成項目；空白欄位不代表沒有變化或風險。"
+              : !confirmedComplete
+                ? "簡報來源未明示完整度；空白欄位不代表沒有變化或風險。"
+                : null
+  const emptyThesisCopy = confirmedComplete
+    ? "已確認完整的簡報沒有列出論點變化。"
+    : "目前沒有可讀的論點變化；請先確認簡報來源完整。"
+  const emptyRiskCopy = confirmedComplete
+    ? "已確認完整的簡報沒有列出風險段落。"
+    : "目前沒有可讀的風險註記；請先確認簡報來源完整。"
   return <section className="flex min-w-0 flex-col gap-3 break-words" aria-label="論點近況">
     <div className="flex flex-wrap items-baseline justify-between gap-2">
       <SectionHeading>論點近況</SectionHeading>
       <span className="text-caption text-ink-3">{b.date ?? "日期未提供"}{version ? ` · ${version}` : " · 版次未標示"} · 資料截至 {sourceTimestamp(b.source_cutoff)}</span>
     </div>
     <p className="text-caption text-ink-3">這裡把今天的判斷變化和仍需留意的風險放在一起；來源欄位與時間範圍仍分開顯示。</p>
+    {sourceStatus ? <p role="status" className="text-caption leading-relaxed text-warn">{sourceStatus}</p> : null}
+    {limitations.length ? <ul className="list-disc pl-5 text-caption leading-relaxed text-warn">{limitations.map((item, index) => <li key={index}><InlineText text={item} /></li>)}</ul> : null}
     <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
       <section className="flex min-w-0 flex-col gap-3 p-4 sm:p-5" aria-label="今天的論點變化">
         <SubsectionHeading>今天的論點變化</SubsectionHeading>
         <p className="text-caption text-ink-3">↑ ↓ → 是簡報自己標的方向。這裡呈現本日評估；事件卡上的「現在要注意」則是當日盯盤項。{unlinked ? `本日 ${unlinked} 條沒有標出對應事件，只列在這裡。` : ""}</p>
         {b.thesis_changes.length ? <div className="-mx-4 divide-y divide-line-soft sm:-mx-5">
           {b.thesis_changes.map((row, index) => <ThesisCard key={`${row.thesis}-${index}`} row={row} events={b.events} />)}
-        </div> : <p className="text-body text-ink-3">這份簡報沒有列出論點變化。</p>}
+        </div> : !b.thesis_notes.length ? <p className="text-body text-ink-3">{emptyThesisCopy}</p> : null}
         {b.thesis_notes.length ? <ReadingText text={b.thesis_notes.join("\n\n")} /> : null}
       </section>
 
@@ -82,7 +110,7 @@ export function InvestmentThesis({ b }: { b: InvestmentBrief }) {
         {alerts.length ? <div className="-mx-4 divide-y divide-line-soft sm:-mx-5">
           {alerts.map((note, index) => <AlertCard key={`note-${index}`} text={note} />)}
         </div> : null}
-        {!structuredRisks.length && !alerts.length ? <p className="text-body text-ink-3">這份簡報沒有列出風險段落。</p> : null}
+        {!structuredRisks.length && !alerts.length ? <p className="text-body text-ink-3">{emptyRiskCopy}</p> : null}
       </section>
     </Card>
   </section>

@@ -294,6 +294,7 @@ export function InvestmentPage() {
     </div>
     <div id="investment-panel-thesis" role="tabpanel" aria-labelledby="investment-tab-thesis" hidden={view !== "thesis"} className={view === "thesis" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
       <InvestmentNarrativeSection enabled={view === "thesis"} onOpenHistory={() => openView("history")} />
+      {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次讀取的資料；資料截止時間仍以簡報標示為準。" : "目前沒有可用的簡報資料。"}請按更新資料重試。</p> : null}
       {b ? <InvestmentThesis b={b} /> : <p className="text-body text-ink-3">{query.isError ? "論點近況來源讀取失敗，請按更新資料。" : "正在讀取論點近況…"}</p>}
     </div>
     <div id="investment-panel-work" role="tabpanel" aria-labelledby="investment-tab-work" hidden={view !== "work"} className={view === "work" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
