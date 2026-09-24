@@ -7,7 +7,7 @@ import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyReadingOrder, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, todayActionPlan, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyReadingOrder, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -86,11 +86,11 @@ test("brief session rows expose provenance only for the producer-declared sessio
   const brief = syntheticInvestment.brief
   const usRows = briefSessionRows(brief)
   assert.deepEqual(usRows.map(({ label, targetTime, matches }) => ({ label, targetTime, matches })), [
-    { label: "台股盤前注意", targetTime: "08:00", matches: false },
-    { label: "美股盤前注意", targetTime: "21:15", matches: true },
+    { label: "台股盤前注意 · 正式版", targetTime: "08:00", matches: false },
+    { label: "美股盤前注意 · 正式版", targetTime: "21:15", matches: true },
   ])
   assert.deepEqual(usRows[0], {
-    session: "tw-open-prep", label: "台股盤前注意", targetTime: "08:00", matches: false,
+    session: "tw-open-prep", label: "台股盤前注意 · 正式版", targetTime: "08:00", matches: false,
     state: null, date: null, generatedAt: null, sourceCutoff: null,
   })
   assert.equal(usRows[1]?.date, brief.date)
@@ -105,6 +105,22 @@ test("brief session rows expose provenance only for the producer-declared sessio
   const missingSessionRows = briefSessionRows({ ...brief, session: null })
   assert.equal(missingSessionRows.some(row => row.matches), false)
   assert(missingSessionRows.every(row => row.date === null && row.generatedAt === null && row.sourceCutoff === null))
+})
+
+test("stale Today action heading names the inherited report, while a current brief keeps its action heading", () => {
+  const brief = syntheticInvestment.brief
+  assert.deepEqual(todayActionSection({ ...brief, state: "stale" }), {
+    heading: "目前可用行動",
+    context: "沿用 2026-09-20 · 美股盤前注意 · 正式版；今日正式版尚未產出。",
+  })
+  assert.deepEqual(todayActionSection({ ...brief, state: "current" }), {
+    heading: "今天怎麼做",
+    context: null,
+  })
+  assert.deepEqual(todayActionSection({ ...brief, state: "stale", date: null, session: null }), {
+    heading: "目前可用行動",
+    context: "沿用 日期未提供 · 版次未標示；今日正式版尚未產出。",
+  })
 })
 
 test("synthetic formal brief and later update keep their Taiwan-time chronology across midnight", () => {

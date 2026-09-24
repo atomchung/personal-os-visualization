@@ -7,7 +7,7 @@ import { Chip } from "@/components/ui/chip"
 import { PageHeader } from "@/components/ui/page-header"
 import { MarketIndicators } from "./MarketIndicators"
 import {
-  actionStatusLabel, actionStatusNote, briefSessionRows, BRIEF_SESSION_LABELS, groupBriefRows, openActionItems, todayActionPlan,
+  actionStatusLabel, actionStatusNote, briefSessionRows, BRIEF_SESSION_LABELS, groupBriefRows, openActionItems, todayActionPlan, todayActionSection,
   sourceTimestamp,
 } from "@/lib/investmentFormat"
 import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
@@ -198,6 +198,7 @@ function TodayBriefSessions({ brief, hasUpdates }: { brief: InvestmentBrief; has
 function TodayBrief({ b, today, readFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed: boolean }) {
   const version = b.session ? BRIEF_SESSION_LABELS[b.session] : null
   const actionPlan = todayActionPlan(b, today, readFailed)
+  const actionSection = todayActionSection(b)
   const updates = today?.updates ?? []
   const stories = buildTodayStories(b.date, b.events, updates)
   const theses = groupBriefRows(b.thesis_changes, b.events.length)
@@ -221,8 +222,11 @@ function TodayBrief({ b, today, readFailed }: { b: InvestmentBrief; today?: Inve
       </Card></details> : null}
     </section>
 
-    <section className="flex min-w-0 flex-col gap-3" aria-label="今天怎麼做">
-      <SectionHeading>今天怎麼做</SectionHeading>
+    <section className="flex min-w-0 flex-col gap-3" aria-label={actionSection.heading}>
+      <div className="flex min-w-0 flex-col gap-1">
+        <SectionHeading>{actionSection.heading}</SectionHeading>
+        {actionSection.context ? <p className="text-caption text-warn">{actionSection.context}</p> : null}
+      </div>
       <Card className="min-w-0 p-4 sm:p-5">
         {today?.decision_summary ? <p className="mb-3 text-body font-medium leading-relaxed text-ink"><InlineText text={todayBriefText(today.decision_summary, today.decision_summary_date ?? null)} /></p> : null}
         {actionPlan.coverageMessage ? <p role="status" className="mb-3 text-caption leading-relaxed text-warn">{actionPlan.coverageMessage}</p> : null}
