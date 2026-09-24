@@ -8,8 +8,8 @@ const DATE_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", 
 const SOURCE_TIME_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
 export const NARRATIVE_FALSIFIER_UNAVAILABLE_COPY = "此讀取資料未提供獨立的明確推翻條件欄位；挑戰訊號不等同於推翻條件。"
 export const BRIEF_SESSION_METADATA = {
-  "tw-open-prep": { label: "台股盤前注意", targetTime: "08:00" },
-  "us-open-prep": { label: "美股盤前注意", targetTime: "21:15" },
+  "tw-open-prep": { label: "台股盤前注意 · 正式版", targetTime: "08:00" },
+  "us-open-prep": { label: "美股盤前注意 · 正式版", targetTime: "21:15" },
 } as const
 export type BriefSession = keyof typeof BRIEF_SESSION_METADATA
 export const BRIEF_SESSION_LABELS: Record<string, string> = Object.fromEntries(
@@ -93,6 +93,18 @@ export type BriefSessionRow = {
   date: string | null
   generatedAt: string | null
   sourceCutoff: string | null
+}
+
+export type TodayActionSection = { heading: string; context: string | null }
+
+/** Do not headline an older formal brief as today's action. */
+export function todayActionSection(brief: Pick<InvestmentBrief, "state" | "date" | "session">): TodayActionSection {
+  if (brief.state !== "stale") return { heading: "今天怎麼做", context: null }
+  const session = brief.session ? BRIEF_SESSION_LABELS[brief.session] ?? "版次未標示" : "版次未標示"
+  return {
+    heading: "目前可用行動",
+    context: `沿用 ${brief.date ?? "日期未提供"} · ${session}；今日正式版尚未產出。`,
+  }
 }
 
 /** A single selected brief belongs only to its producer-declared session. */
