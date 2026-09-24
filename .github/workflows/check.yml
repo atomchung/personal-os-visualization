@@ -88,6 +88,7 @@ jobs:
               const historyLink = thesis.getByRole('button', { name: '舊判斷回看', exact: true })
               await historyLink.click()
               assert.equal(await page.getByRole('tab', { name: '舊判斷回看', exact: true }).getAttribute('aria-selected'), 'true')
+              await page.getByRole('heading', { name: '回看舊判斷與後續結果', exact: true }).waitFor()
               assert(await page.getByRole('heading', { name: '回看舊判斷與後續結果', exact: true }).isVisible())
               await page.getByRole('tab', { name: '今日', exact: true }).click()
               const marketCard = page.locator('[aria-label="現在盤面與市場資金"]')
