@@ -131,7 +131,7 @@ export function MarketExplore({ market, embedded = false }: { market: "tw" | "us
   })
   const data = query.data
   useEffect(() => {
-    if (!data || data.state === "unavailable") return
+    if (!data || (data.state === "unavailable" && !data.cached)) return
     setLastUsableMarkets(current => {
       let next = current
       for (const item of data.markets) {
