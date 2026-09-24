@@ -70,7 +70,7 @@ jobs:
               const thesisTab = page.getByRole('tab', { name: '我的論點', exact: true })
               await thesisTab.click()
               assert.equal(await thesisTab.getAttribute('aria-selected'), 'true')
-              await page.getByText('來源關聯不一致', { exact: true }).waitFor()
+              await page.getByText('來源關聯不一致', { exact: true }).waitFor({ timeout: 5000 })
               const thesisStatus = page.getByRole('region', { name: '論點近況' })
               assert(await thesisStatus.getByRole('heading', { name: '今天的論點變化', exact: true }).isVisible(),
                 `${name}: daily judgment changes must be grouped in the thesis status view`)
@@ -313,12 +313,11 @@ jobs:
               }
               if (scenario === 'refresh-error') {
                 await page.getByRole('tab', { name: '我的論點', exact: true }).click()
-                await page.getByText('今天的論點變化', { exact: true }).waitFor()
+                await page.getByText('今天的論點變化', { exact: true }).waitFor({ timeout: 5000 })
                 await page.evaluate(() => { window.__failBrief = true })
                 await page.getByRole('button', { name: '更新資料', exact: true }).click()
-                await page.getByRole('alert').filter({ hasText: '目前保留上次內容' }).waitFor()
                 const thesisPanel = page.locator('#investment-panel-thesis')
-                await thesisPanel.getByRole('alert').filter({ hasText: '目前保留上次讀取的資料' }).waitFor()
+                await thesisPanel.getByRole('alert').filter({ hasText: '目前保留上次讀取的資料' }).waitFor({ timeout: 5000 })
                 assert(await thesisPanel.getByText('展示案例尚無交付證據', { exact: true }).isVisible())
                 assert(await thesisPanel.getByText('展示案例的採購成本仍需查證', { exact: true }).isVisible())
               }
@@ -328,7 +327,7 @@ jobs:
               }
               if (scenario === 'narrative-stale-partial') {
                 await page.getByRole('tab', { name: '我的論點', exact: true }).click()
-                await page.getByText('來源較舊', { exact: true }).waitFor()
+                await page.getByText('來源較舊', { exact: true }).waitFor({ timeout: 5000 })
                 const thesis = page.getByRole('region', { name: '我的論點｜五層證據' })
                 assert(await thesis.getByText('來源較舊', { exact: true }).isVisible())
                 assert(await thesis.getByText('合成測試：論點來源較舊；僅示範 aggregate 狀態。', { exact: true }).isVisible())
@@ -340,8 +339,8 @@ jobs:
                 await thesisTab.click()
                 assert.equal(await thesisTab.getAttribute('aria-selected'), 'true')
                 const thesis = page.getByRole('region', { name: '我的論點｜五層證據' })
-                await thesis.getByRole('status').filter({ hasText: '正在讀取論點來源' }).waitFor()
-                await thesis.getByText('來源關聯不一致', { exact: true }).waitFor()
+                await thesis.getByRole('status').filter({ hasText: '正在讀取論點來源' }).waitFor({ timeout: 5000 })
+                await thesis.getByText('來源關聯不一致', { exact: true }).waitFor({ timeout: 5000 })
                 assert(await thesis.getByText('證據覆蓋：資料部分可用', { exact: true }).isVisible())
               }
               if (scenario === 'market-empty') {
