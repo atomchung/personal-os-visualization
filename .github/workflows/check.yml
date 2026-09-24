@@ -108,7 +108,24 @@ jobs:
               const twMarket = page.getByRole('tab', { name: '台股', exact: true })
               const usMarket = page.getByRole('tab', { name: '美股', exact: true })
               assert.equal(await twMarket.getAttribute('aria-selected'), 'true')
-              assert(await page.getByText(/資料日 .* · 產出於/).isVisible())
+              const taiwanPulse = page.locator('[aria-label="台股整體盤感"]')
+              assert(await taiwanPulse.getByText(/資料交易日 .*本頁讀取於 .*產出於/).isVisible(),
+                `${name}: market date, local page read, and producer time must be separate`)
+              assert(await taiwanPulse.getByText('漲跌方向待核對', { exact: true }).isVisible(),
+                `${name}: unverified direction must have a neutral explicit state`)
+              assert(!(await taiwanPulse.innerText()).includes('漲跌 120 點（+0.55%）'),
+                `${name}: unverified index changes must not be presented as a directional conclusion`)
+              const pulseIntegrityDetails = taiwanPulse.locator('details')
+              const pulseIntegrityDisclosure = taiwanPulse.locator('details > summary')
+              await pulseIntegrityDisclosure.focus()
+              await page.keyboard.press('Space')
+              assert(await taiwanPulse.getByText(/TWSE 日結原值：21,880 點；漲跌 120 點/).isVisible(),
+                `${name}: source-specific TWSE value must remain inspectable`)
+              assert(await taiwanPulse.getByText(/盤後量價原值：21,880 點；漲跌 -120 點/).isVisible(),
+                `${name}: conflicting source-specific value must remain inspectable`)
+              await page.keyboard.press('Space')
+              assert.equal(await pulseIntegrityDetails.getAttribute('open'), null,
+                `${name}: disclosure must collapse by keyboard`)
               assert(await page.getByText(/報價時間/).first().isVisible())
               await usMarket.click()
               assert.equal(await usMarket.getAttribute('aria-selected'), 'true')

@@ -76,6 +76,17 @@ export function sourceTimestamp(value: string | null | undefined): string {
   return `${parts.year}/${parts.month}/${parts.day} ${parts.hour}:${parts.minute} 台北`
 }
 
+/** Only a producer-confirmed direction may expose signed index changes. */
+export function marketIndexDirectionDisplay(
+  status: string | null | undefined,
+  change: number | null,
+  changePercent: number | null,
+) {
+  if (status === "confirmed") return { state: "confirmed" as const, change, changePercent }
+  if (status === "needs_review") return { state: "needs_review" as const, change: null, changePercent: null }
+  return { state: "unknown" as const, change: null, changePercent: null }
+}
+
 const PURE_NO_CHANGE_ACTIONS = new Set(["沒有新資訊", "暫無新資訊", "無新資訊", "不重複升級"])
 /** Presentation-only: preserve source order, numbers, negation and distinct wording. */
 export function briefActions(actions: readonly string[]): string[] {

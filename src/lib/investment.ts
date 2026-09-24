@@ -384,12 +384,39 @@ export type InvestmentMarket = {
 
 export type InvestmentMarketPulse = {
   as_of: string | null
+  /** Requested market session; the producer owns trading-calendar resolution. */
+  requested_date?: string | null
+  /** Independently reported source dates; do not infer a shared session. */
+  source_dates?: { twse?: string | null; tpex?: string | null } | null
   generated_at: string | null
   source_cutoff: string | null
   producer: string
   state: "ready" | "partial" | "unavailable"
   limitations: string[]
-  index: { label: string; value: number | null; change: number | null; change_pct: number | null }
+  index: {
+    label: string
+    value: number | null
+    change: number | null
+    change_pct: number | null
+    direction_check?: {
+      status?: "confirmed" | "needs_review" | "unavailable" | null
+      reason?: string | null
+      as_of?: string | null
+      twse_change?: number | null
+      twse_change_pct?: number | null
+      session_flow_change?: number | null
+      twse_close?: number | null
+      session_flow_close?: number | null
+      session_flow_status?: string | null
+    } | null
+  }
+  /** Producer diagnostics from the separate after-close feed. */
+  flow?: {
+    as_of?: string | null
+    index_close?: number | null
+    index_change?: number | null
+    limitations?: string[]
+  } | null
   breadth: {
     combined: { up: number | null; down: number | null; flat: number | null; limit_up: number | null; limit_down: number | null }
     advancer_ratio: number | null

@@ -563,10 +563,11 @@ export const market: InvestmentMarket = { fetched_at: STAMP, state: "ready", cac
     { symbol: investmentScenario.symbol, market: "tw", label: investmentScenario.market_index.label, code: investmentScenario.symbol, value: investmentScenario.market_index.value, unit: "點", change: investmentScenario.market_index.change, change_percent: investmentScenario.market_index.change_percent, quoted_at: STAMP, session: "closed", state: "available", error: null, source_url: "#demo-source" },
     { symbol: "DEMO-US-INDEX", market: "us", label: "合成美股指數", code: null, value: 5200, unit: "點", change: -18, change_percent: -0.35, quoted_at: `${DATE}T09:30:00-04:00`, session: "regular", state: "available", error: null, source_url: "#demo-source" },
   ] }
-export const pulse: InvestmentMarketPulse = {
-  as_of: PREVIOUS_DATE, generated_at: STAMP, source_cutoff: `${PREVIOUS_DATE}T13:30:00+08:00`, producer: "synthetic-demo", state: "ready",
-  limitations: ["全部數字都是合成展示資料；這份日結統計不是盤中報價。"],
-  index: { label: "合成台股指數", value: 21880, change: 120, change_pct: 0.55 },
+const basePulse: InvestmentMarketPulse = {
+  as_of: PREVIOUS_DATE, requested_date: DATE, source_dates: { twse: PREVIOUS_DATE, tpex: PREVIOUS_DATE },
+  generated_at: STAMP, source_cutoff: `${PREVIOUS_DATE}T13:30:00+08:00`, producer: "synthetic-demo", state: "partial",
+  limitations: ["全部數字都是合成展示資料；這份日結統計不是盤中報價。", `合成狀態：要求 ${DATE}，來源只回傳 ${PREVIOUS_DATE}。`],
+  index: { label: "合成台股指數", value: 21880, change: 120, change_pct: 0.55, direction_check: { status: "confirmed", as_of: PREVIOUS_DATE } },
   breadth: { combined: { up: 1050, down: 520, flat: 150, limit_up: 20, limit_down: 5 }, advancer_ratio: 0.61 },
   turnover: { combined_stock: 420_000_000_000 },
   themes: {
@@ -575,6 +576,46 @@ export const pulse: InvestmentMarketPulse = {
     weakest: [{ theme: "合成顯示鏈", avg_change_pct: -1.2 }],
   },
 }
+export const pulseIntegrityScenarios = {
+  confirmed: {
+    ...basePulse,
+    as_of: DATE,
+    source_dates: { twse: DATE, tpex: DATE },
+    source_cutoff: `${DATE}T13:30:00+08:00`,
+    state: "ready",
+    limitations: ["全部數字都是合成展示資料；這份日結統計不是盤中報價。"],
+    index: { ...basePulse.index, direction_check: { status: "confirmed", as_of: DATE } },
+  } satisfies InvestmentMarketPulse,
+  needsReview: {
+    ...basePulse,
+    state: "partial",
+    limitations: [...basePulse.limitations, "合成衝突：方向未確認，保留來源數值供查看。"],
+    index: {
+      ...basePulse.index,
+      direction_check: {
+        status: "needs_review",
+        reason: "合成衝突：兩個來源的同日漲跌方向不一致；未選定方向。",
+        as_of: PREVIOUS_DATE,
+        twse_change: 120,
+        twse_change_pct: 0.55,
+        session_flow_change: -120,
+        twse_close: 21880,
+        session_flow_close: 21880,
+        session_flow_status: "close_matched",
+      },
+    },
+  } satisfies InvestmentMarketPulse,
+  previousSessionPartial: {
+    ...basePulse,
+    as_of: PREVIOUS_DATE,
+    requested_date: DATE,
+    source_dates: { twse: PREVIOUS_DATE, tpex: null },
+    source_cutoff: `${PREVIOUS_DATE}T13:30:00+08:00`,
+    state: "partial",
+    limitations: [...basePulse.limitations, `合成狀態：要求 ${DATE}，來源只回傳 ${PREVIOUS_DATE}。`],
+  } satisfies InvestmentMarketPulse,
+}
+export const pulse: InvestmentMarketPulse = pulseIntegrityScenarios.needsReview
 export const universe: MomentumUniverse = { state: "ready", symbols: [investmentScenario.symbol], label: "虛構標的", note: `${investmentScenario.symbol} 為展示代號，沒有真實持倉。`, source: "合成資料", excluded_count: 0 }
 export const quote: StockQuote = { symbol: investmentScenario.symbol, label: investmentScenario.label, value: investmentScenario.price.value, unit: "範例幣", change: investmentScenario.price.change, change_percent: investmentScenario.price.change_percent, quoted_at: STAMP, session: "closed", state: "available", error: null, source_url: "#demo-source", fetched_at: STAMP, cached: true }
 export const momentum: StockMomentumData = { symbol: investmentScenario.symbol, fetched_at: STAMP, cached: true, state: "ready",
