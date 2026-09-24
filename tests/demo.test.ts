@@ -6,7 +6,7 @@ import { investmentScenario } from "../src/demo/generated/investment-scenario.ts
 import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
-import { anchorRelativeDay, buildTodayStories, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
+import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
 import { actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, historyReadingOrder, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, todayActionPlan, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
@@ -75,6 +75,7 @@ test("Today prose uses the source session date across midnight and preserves unk
   assert.equal(taipeiCalendarDate("2026-09-24T18:30:00Z"), "2026-09-25", "UTC evening timestamps must use the Taiwan calendar date")
   assert.equal(taipeiCalendarDate("2026-09-24T23:00:00-04:00"), "2026-09-25")
   assert.equal(taipeiCalendarDate("2026-09-24T18:30:00"), null, "a timezone-free timestamp must not invent a Taiwan date")
+  assert.equal(staleBriefStatusText("2026-09-24", "美股開盤前版", "2026/09/24 21:30 台北"), "目前沿用 2026-09-24 · 美股開盤前版；資訊截至 2026/09/24 21:30 台北。")
 })
 
 test("Today groups brief events and updates only by producer-owned story identity", async () => {

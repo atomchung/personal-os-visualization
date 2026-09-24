@@ -17,7 +17,7 @@ import { PendingBoard } from "./InvestmentPending"
 import { InvestmentHistory } from "./InvestmentHistory"
 import { InvestmentNarrativeSection } from "./InvestmentNarrative"
 import { InvestmentThesis } from "./InvestmentThesis"
-import { anchorRelativeDay, buildTodayStories, taipeiCalendarDate, todayStoryHeadline, type TodayStory } from "@/lib/investmentToday"
+import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline, type TodayStory } from "@/lib/investmentToday"
 import {
   BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentMarket, getInvestmentPulse,
   getInvestmentPending, getInvestmentHistory, getInvestmentContext,
@@ -193,7 +193,7 @@ function TodayBrief({ b, today, readFailed }: { b: InvestmentBrief; today?: Inve
         <SectionHeading>今天發生了什麼</SectionHeading>
         <span className="text-caption text-ink-3">{b.date ?? "日期未提供"}{version ? ` · ${version}` : " · 版次未標示"} · {updates.length ? "正式簡報截至" : "資料截至"} {sourceTimestamp(b.source_cutoff)}</span>
       </div>
-      {b.state === "stale" ? <p role="status" className="text-caption text-warn">目前沿用 {b.date ?? "日期未提供"} · {version ?? "版次未標示"}；資訊截至 {sourceTimestamp(b.source_cutoff)}。</p> : null}
+      {b.state === "stale" ? <p role="status" className="text-caption text-warn">{staleBriefStatusText(b.date, version, sourceTimestamp(b.source_cutoff))}</p> : null}
       {b.state === "invalid" ? <p role="status" className="text-caption text-warn">這份簡報部分內容未能辨識，已保留可讀段落與完整原文。</p> : null}
       {envelopeIncomplete ? <p role="status" className="text-caption text-warn">{b.envelope?.completeness === "partial" ? "這份簡報資料不完整；細節可在下方來源展開查看。" : "這份簡報的資料包目前無法確認是否完整。"}</p> : null}
       {stories.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">

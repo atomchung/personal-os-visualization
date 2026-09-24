@@ -43,6 +43,10 @@ export function taipeiCalendarDate(value: string | null | undefined): string | n
   return `${parts.year}-${parts.month}-${parts.day}`
 }
 
+export function staleBriefStatusText(date: string | null, sessionLabel: string | null, cutoff: string): string {
+  return `目前沿用 ${date ?? "日期未提供"} · ${sessionLabel ?? "版次未標示"}；資訊截至 ${cutoff}。`
+}
+
 /**
  * Join only on explicit producer-owned identity. Brief events without an ID
  * and updates without an ID stay independent; wording and tickers are never
