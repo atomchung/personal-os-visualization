@@ -346,6 +346,8 @@ jobs:
                 }
                 if (scenario === 'session-stale-us') {
                   assert(await page.getByRole('status').filter({ hasText: '目前沿用 2026-09-20 · 美股盤前注意' }).isVisible())
+                  assert(await page.getByText('目前可用行動', { exact: true }).isVisible())
+                  assert(await page.getByText('沿用 2026-09-20 · 美股盤前注意 · 正式版；今日正式版尚未產出。', { exact: true }).isVisible())
                 }
                 if (scenario === 'session-missing') {
                   assert.equal(await sessions.getByText('本次資料未提供這個班次的正式簡報。', { exact: true }).count(), 2)
@@ -364,7 +366,8 @@ jobs:
                 }
                 assert.equal(await page.getByText('觀察 5%', { exact: true }).count(), 1)
                 assert(await page.getByText('收盤前再看一次量能是否延續，不因單一盤中波動追價。', { exact: true }).isVisible())
-                assert(await page.getByText('今天怎麼做', { exact: true }).isVisible())
+                assert(await page.getByText('目前可用行動', { exact: true }).isVisible())
+                assert(await page.getByText('沿用 2026-09-20 · 美股盤前注意 · 正式版；今日正式版尚未產出。', { exact: true }).isVisible())
                 assert(await page.getByRole('region', { name: '盤前班次' }).locator('li').nth(1).getByText(/資訊截至 未提供/).isVisible())
                 const overflowAction = page.getByText('加碼', { exact: true })
                 assert.equal(await overflowAction.count(), 1)
