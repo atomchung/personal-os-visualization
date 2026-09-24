@@ -7,7 +7,7 @@ import { Chip } from "@/components/ui/chip"
 import { PageHeader } from "@/components/ui/page-header"
 import { MarketIndicators } from "./MarketIndicators"
 import {
-  actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, openActionItems,
+  actionStatusLabel, actionStatusNote, groupBriefRows, openActionItems, todayActionPlan,
   sourceTimestamp,
 } from "@/lib/investmentFormat"
 import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
@@ -101,15 +101,26 @@ function ContinuationList({ items, compact = false, olderCount = 0, onOpenWork }
   </div>
 }
 
-function todayFollowups(b: InvestmentBrief, today?: InvestmentTodayView): string[] {
-  const baseline = b.action_items?.length ? b.action_items.map(item => item.text) : b.actions
-  const intraday = today?.updates.map(item => item.action).filter(Boolean) ?? []
-  return briefActions([...intraday, ...baseline])
-    .map(text => text.replace(/[*_`~]/g, "").trim())
-    .filter(text => !/^補研究[：:]/.test(text))
-    .map(text => todayText(text.replace(/^(?:繼續觀察|觀察|行動)[：:]\s*/, "")))
-    .filter(Boolean)
-    .slice(0, 2)
+function TodayActionRow({ entry, brief }: {
+  entry: ReturnType<typeof todayActionPlan>["actions"][number]
+  brief: InvestmentBrief
+}) {
+  const formalVersion = brief.session ? BRIEF_SESSION_LABELS[brief.session] : "版次未標示"
+  return <li className="flex min-w-0 flex-col gap-1">
+    <p className="text-body leading-relaxed text-ink-2"><InlineText text={todayText(entry.text.replace(/^(?:補研究|补研究)(?:[：:]|\s)+/, ""))} /></p>
+    <p className="text-caption text-ink-3">{entry.origin === "update" ? `盤中更新 · ${sourceTimestamp(entry.date)}` : `正式簡報 · ${entry.date ?? "日期未提供"} · ${formalVersion}`}</p>
+    <details>
+      <summary className="cursor-pointer py-1 text-caption text-ink-3">查看來源</summary>
+      <div className="flex flex-col gap-1 pt-1 text-caption text-ink-3">
+        <p>來源：{entry.source ?? "未提供"}</p>
+        {entry.origin === "update" ? <p className="break-all">更新 ID：{entry.id ?? "未提供"}</p> : <>
+          {entry.id ? <p>行動 ID：{entry.id}</p> : null}
+          <p>簡報截止：{sourceTimestamp(brief.source_cutoff)}</p>
+          <p>簡報產出：{sourceTimestamp(brief.generated_at)}</p>
+        </>}
+      </div>
+    </details>
+  </li>
 }
 
 type TodayBriefRows = {
@@ -160,9 +171,9 @@ function TodayStoryCard({ story, theses, risks }: {
 }
 
 /** Reading structure only. Meaning, order, changes and event links come from the source. */
-function TodayBrief({ b, today }: { b: InvestmentBrief; today?: InvestmentTodayView }) {
+function TodayBrief({ b, today, readFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed: boolean }) {
   const version = b.session ? BRIEF_SESSION_LABELS[b.session] : null
-  const followups = todayFollowups(b, today)
+  const actionPlan = todayActionPlan(b, today, readFailed)
   const updates = today?.updates ?? []
   const stories = buildTodayStories(b.date, b.events, updates)
   const theses = groupBriefRows(b.thesis_changes, b.events.length)
@@ -192,7 +203,16 @@ function TodayBrief({ b, today }: { b: InvestmentBrief; today?: InvestmentTodayV
       <SectionHeading>今天怎麼做</SectionHeading>
       <Card className="min-w-0 p-4 sm:p-5">
         {today?.decision_summary ? <p className="mb-3 text-body font-medium leading-relaxed text-ink"><InlineText text={todayText(today.decision_summary)} /></p> : null}
-        {followups.length ? <ul className="flex list-disc flex-col gap-2 pl-5 text-body leading-relaxed text-ink-2">{followups.map((item, index) => <li key={index}><InlineText text={item} /></li>)}</ul> : <p className="text-body text-ink-3">目前沒有新的動作或特別注意事項。</p>}
+        {actionPlan.coverageMessage ? <p role="status" className="mb-3 text-caption leading-relaxed text-warn">{actionPlan.coverageMessage}</p> : null}
+        {actionPlan.actions.length ? <ul className="flex min-w-0 flex-col gap-3">{actionPlan.actions.slice(0, 2).map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul> : <p className="text-body text-ink-3">{actionPlan.emptyMessage}</p>}
+        {actionPlan.actions.length > 2 ? <details className="mt-3 border-t border-line-soft pt-2 text-caption text-ink-3">
+          <summary className="cursor-pointer py-1">另有 {actionPlan.actions.length - 2} 項行動</summary>
+          <ul className="mt-2 flex min-w-0 flex-col gap-3">{actionPlan.actions.slice(2).map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul>
+        </details> : null}
+        {actionPlan.research.length ? <details className="mt-3 border-t border-line-soft pt-2 text-caption text-ink-3">
+          <summary className="cursor-pointer py-1">補研究項目 · {actionPlan.research.length} 項</summary>
+          <ul className="mt-2 flex min-w-0 flex-col gap-3">{actionPlan.research.map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul>
+        </details> : null}
         {b.headline ? <details className="mt-4 border-t border-line-soft pt-3 text-caption text-ink-3"><summary className="cursor-pointer py-1">晨報判斷</summary><div className="max-w-[960px] pt-2 text-body leading-relaxed text-ink-2"><ReadingText text={b.headline} /></div></details> : null}
         {b.source?.limitations.length || b.envelope?.limitations.length ? <details className="mt-3 border-t border-line-soft pt-3 text-caption text-ink-3"><summary className="cursor-pointer py-1">資料完整度</summary>
           {b.envelope?.producer ? <p className="mt-2">產出方式：{b.envelope.producer}</p> : null}
@@ -289,7 +309,7 @@ export function InvestmentPage() {
     <div id="investment-panel-today" role="tabpanel" aria-labelledby="investment-tab-today" hidden={view !== "today"} className={view === "today" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
       {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次內容。" : ""}請按更新資料重試。</p> : null}
       {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
-      {b ? <TodayBrief b={b} today={query.data?.today} /> : null}
+      {b ? <TodayBrief b={b} today={query.data?.today} readFailed={query.isError} /> : null}
       <MarketIndicators />
     </div>
     <div id="investment-panel-thesis" role="tabpanel" aria-labelledby="investment-tab-thesis" hidden={view !== "thesis"} className={view === "thesis" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
