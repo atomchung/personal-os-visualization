@@ -77,9 +77,9 @@ jobs:
               assert(await thesis.getByText(/合成測試：證據尚未映射到五層/).isVisible())
               const challengeSourceDisclosure = thesis.getByText('訊號日期與來源', { exact: true }).first()
               await challengeSourceDisclosure.click()
-              assert(await thesis.getByText('訊號日期： 未提供', { exact: true }).isVisible(),
+              assert(await thesis.getByText(/訊號日期：\s*未提供/).isVisible(),
                 `${name}: an unknown signal date must stay unknown`)
-              assert(await thesis.getByText('文件更新日： 2026-09-19', { exact: true }).isVisible(),
+              assert(await thesis.getByText(/文件更新日：\s*2026-09-19/).isVisible(),
                 `${name}: document update must be separately labelled`)
               assert(await thesis.getByText(/demo\/synthetic-challenge-signal\.md.*第 15 行/).isVisible(),
                 `${name}: challenge signal must retain its own source line`)
