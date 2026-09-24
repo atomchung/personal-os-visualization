@@ -1,4 +1,4 @@
-import type { ActionItemStatus, InvestmentActionItem, InvestmentBrief, InvestmentTodayView } from "./investment"
+import type { ActionItemStatus, InvestmentActionItem, InvestmentBrief, InvestmentTodayView } from "./investment.ts"
 
 const VALUE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const CHANGE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "exceptZero" })
@@ -7,6 +7,14 @@ const DAY_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", m
 const DATE_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" })
 const SOURCE_TIME_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
 export const NARRATIVE_FALSIFIER_UNAVAILABLE_COPY = "此讀取資料未提供獨立的明確推翻條件欄位；挑戰訊號不等同於推翻條件。"
+export const BRIEF_SESSION_METADATA = {
+  "tw-open-prep": { label: "台股盤前注意", targetTime: "08:00" },
+  "us-open-prep": { label: "美股盤前注意", targetTime: "21:15" },
+} as const
+export type BriefSession = keyof typeof BRIEF_SESSION_METADATA
+export const BRIEF_SESSION_LABELS: Record<string, string> = Object.fromEntries(
+  Object.entries(BRIEF_SESSION_METADATA).map(([session, metadata]) => [session, metadata.label]),
+)
 const PILLAR_ID_BY_LAYER_ID: Record<string, string> = {
   L0: "l0_hardware",
   L1: "l1_cloud",
@@ -74,6 +82,34 @@ export function sourceTimestamp(value: string | null | undefined): string {
   if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return `${value.replace("T", " ")}（未註明時區）`
   const parts = Object.fromEntries(SOURCE_TIME_FORMAT.formatToParts(timestamp).map(part => [part.type, part.value]))
   return `${parts.year}/${parts.month}/${parts.day} ${parts.hour}:${parts.minute} 台北`
+}
+
+export type BriefSessionRow = {
+  session: BriefSession
+  label: string
+  targetTime: string
+  matches: boolean
+  state: InvestmentBrief["state"] | null
+  date: string | null
+  generatedAt: string | null
+  sourceCutoff: string | null
+}
+
+/** A single selected brief belongs only to its producer-declared session. */
+export function briefSessionRows(brief: Pick<InvestmentBrief, "state" | "date" | "generated_at" | "source_cutoff" | "session">): BriefSessionRow[] {
+  return (Object.entries(BRIEF_SESSION_METADATA) as [BriefSession, typeof BRIEF_SESSION_METADATA[BriefSession]][]).map(([session, metadata]) => {
+    const matches = brief.session === session
+    return {
+      session,
+      label: metadata.label,
+      targetTime: metadata.targetTime,
+      matches,
+      state: matches ? brief.state : null,
+      date: matches ? brief.date : null,
+      generatedAt: matches ? brief.generated_at : null,
+      sourceCutoff: matches ? brief.source_cutoff : null,
+    }
+  })
 }
 
 /** Only a producer-confirmed direction may expose signed index changes. */

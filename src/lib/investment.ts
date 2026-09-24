@@ -358,7 +358,6 @@ export type InvestmentContext = {
 
 export type QuoteSession = "pre" | "regular" | "post" | "closed" | "futures"
 export const SESSION_LABELS: Record<QuoteSession, string> = { pre: "盤前", regular: "盤中", post: "盤後", closed: "收盤", futures: "期貨" }
-export const BRIEF_SESSION_LABELS: Record<string, string> = { "tw-open-prep": "台股開盤前版", "us-open-prep": "美股開盤前版" }
 
 export type InvestmentMarket = {
   fetched_at: string
