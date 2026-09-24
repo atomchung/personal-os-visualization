@@ -1,6 +1,6 @@
 /** Synthetic showcase fixture; never generated from a real API or private vault. */
 import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
-import type { InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistorySource, InvestmentMarket, InvestmentMarketPulse, InvestmentNarrative, InvestmentPending, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
+import type { InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistorySource, InvestmentMarket, InvestmentMarketPulse, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 
 export const DATE = investmentScenario.as_of
@@ -204,6 +204,63 @@ export const investment: InvestmentData = {
   weekly_watch: { state: "missing", date: null, source: null }, conditions: { state: "not_connected", message: "展示版未連接交易、帳戶或研究來源。" }, sources: [source],
 }
 
+const demoEvidenceSource: InvestmentNarrativeSource = {
+  path: "demo/synthetic-scorecard.md",
+  line: 1,
+  label: "合成範例",
+}
+const demoSupportSignalSource: InvestmentNarrativeSource = {
+  path: "demo/synthetic-support-signal.md",
+  line: 8,
+  label: "合成支持訊號",
+}
+const demoChallengeSignalSource: InvestmentNarrativeSource = {
+  path: "demo/synthetic-challenge-signal.md",
+  line: 15,
+  label: "合成挑戰訊號",
+}
+
+const demoEvidenceLayers: InvestmentNarrativeEvidenceLayer[] = [
+  ["L0", "Hardware", "Synthetic hardware provider", "Example: shipped capacity", "Only demonstrates realized hardware demand"],
+  ["L1", "Cloud", "Synthetic cloud operator", "Example: paid utilization", "Only demonstrates cloud workload use"],
+  ["L2", "Model", "Synthetic model provider", "Example: recurring model usage", "Only demonstrates model demand"],
+  ["L2.5", "App software", "Synthetic software vendor", "Example: retained paid users", "Only demonstrates application adoption"],
+  ["L3", "End user", "Synthetic customer", "Example: customer ROI", "Only demonstrates end-user value"],
+].map(([layer_id, label, who_earns, evidence_examples, what_it_proves]) => ({
+  layer_id, label, who_earns, evidence_examples, what_it_proves,
+  direction_state: "unknown",
+  supporting: [],
+  opposing: [],
+  unknown_reason: "合成展示資料沒有把正反訊號明確連到此層。",
+  source_date: null,
+  document_updated: null,
+  source: demoEvidenceSource,
+}))
+
+const demoDirectionalSignals: InvestmentNarrativeDirectionalSignal[] = [
+  {
+    direction: "supports", layer_id: null, priority: "示範", indicator: "Synthetic paid usage",
+    dispute: "Synthetic demand durability", text: "Synthetic example: recurring paid usage would support demand durability.",
+    source_channels: "合成資料", source_date: "2026-09-18", document_updated: "2026-09-20", source: demoSupportSignalSource,
+  },
+  {
+    direction: "challenges", layer_id: null, priority: "示範", indicator: "Synthetic customer return",
+    dispute: "Synthetic end-user value", text: "Synthetic example: source marks weak customer return as a challenge to end-user value.",
+    source_channels: "合成資料", source_date: null, document_updated: "2026-09-19", source: demoChallengeSignalSource,
+  },
+]
+
+const demoThesisEvidence: InvestmentNarrativeThesisEvidence = {
+  state: "partial",
+  layers: demoEvidenceLayers,
+  directional_signals: demoDirectionalSignals,
+  latest_recorded_change: {
+    date: null, judgment: null, key_evidence: null, later_verification: null,
+    state: "unknown", missing: ["展示資料沒有正式的日期化判斷與驗證記錄。"], source: null,
+  },
+  reason: "合成測試：證據尚未映射到五層，僅示範證據覆蓋狀態。",
+}
+
 export const investmentNarrative: InvestmentNarrative = {
   artifact: "personalos-investment-hub",
   schema_version: "1.0",
@@ -217,11 +274,11 @@ export const investmentNarrative: InvestmentNarrative = {
   today: { state: "unavailable", baseline: null, limitations: ["沒有合成事件關聯資料。"] },
   narratives: [{
     narrative_id: "ai-infrastructure-economics",
-    title: "AI infrastructure economics",
+    title: "合成 AI 基礎設施案例",
     status: "unknown",
     updated: null,
-    state: "unknown",
-    state_reason: "展示版沒有連接 Investment Note 的 narrative producer。",
+    state: "drift",
+    state_reason: "合成狀態示例：論點來源關聯互相衝突；僅用來示範 aggregate 狀態優先於證據覆蓋。",
     source: null,
     what_i_bet: {
       state: "unknown",
@@ -230,6 +287,7 @@ export const investmentNarrative: InvestmentNarrative = {
       reason: "展示資料不包含個人論點。",
     },
     current_tension: { state: "unknown", text: null, source: null, reason: "沒有已連接的 scorecard。" },
+    thesis_evidence: demoThesisEvidence,
     expressions: { state: "unknown", items: [], reason: "展示資料不包含個人持倉或 thesis links。" },
     latest_change: { state: "unknown", item: null, reason: "展示資料沒有 narrative_id/story_id 關聯。" },
     references: [null, null, null],

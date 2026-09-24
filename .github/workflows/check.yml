@@ -67,6 +67,30 @@ jobs:
                 `${name}: latest update must be the story heading`)
               assert(await page.getByText('星島設備發表新一代儲能產品（虛構）', { exact: true }).isVisible(),
                 `${name}: formal brief baseline must remain visible in the story card`)
+              const thesis = page.getByRole('region', { name: '我的論點｜五層證據' })
+              assert(await thesis.getByText('來源關聯不一致', { exact: true }).isVisible(),
+                `${name}: narrative aggregate drift must remain visible`)
+              assert(await thesis.getByText(/合成狀態示例：論點來源關聯互相衝突/).isVisible(),
+                `${name}: aggregate state reason must be visible without expanding sources`)
+              assert(await thesis.getByText('證據覆蓋：資料部分可用', { exact: true }).isVisible(),
+                `${name}: evidence coverage must remain distinct from aggregate narrative state`)
+              assert(await thesis.getByText(/合成測試：證據尚未映射到五層/).isVisible())
+              const challengeSourceDisclosure = thesis.getByText('訊號日期與來源', { exact: true }).first()
+              const challengeSignal = challengeSourceDisclosure.locator('xpath=ancestor::li[1]')
+              await challengeSourceDisclosure.click()
+              assert(await challengeSignal.getByText(/訊號日期：\s*未提供/).isVisible(),
+                `${name}: an unknown signal date must stay unknown`)
+              assert(await challengeSignal.getByText(/文件更新日：\s*2026-09-19/).isVisible(),
+                `${name}: document update must be separately labelled`)
+              assert(await challengeSignal.getByText(/demo\/synthetic-challenge-signal\.md.*第 15 行/).isVisible(),
+                `${name}: challenge signal must retain its own source line`)
+              await challengeSourceDisclosure.click()
+              const historyLink = thesis.getByRole('button', { name: '舊判斷回看', exact: true })
+              await historyLink.click()
+              assert.equal(await page.getByRole('tab', { name: '舊判斷回看', exact: true }).getAttribute('aria-selected'), 'true')
+              await page.getByRole('heading', { name: '回看舊判斷與後續結果', exact: true }).waitFor()
+              assert(await page.getByRole('heading', { name: '回看舊判斷與後續結果', exact: true }).isVisible())
+              await page.getByRole('tab', { name: '今日', exact: true }).click()
               const marketCard = page.locator('[aria-label="現在盤面與市場資金"]')
               assert.equal(await marketCard.count(), 1, `${name}: context and discovery must share one market card`)
               assert(await page.getByRole('heading', { name: '市場現在怎麼走', exact: true }).isVisible())
@@ -117,7 +141,7 @@ jobs:
             }
             // Modify only in-memory synthetic Responses. Do not rewrite generated fixtures,
             // introduce test routes into production, or use any private source material.
-            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'initial-error', 'refresh-error', 'quote-unavailable', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio']) {
+            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio']) {
               const page = await browser.newPage({ viewport: { width: 320, height: 740 } })
               const errors = []
               page.on('pageerror', error => errors.push(error.message))
@@ -125,6 +149,12 @@ jobs:
                 const original = Response.prototype.json
                 Response.prototype.json = async function () {
                   const data = await original.call(this)
+                  if (scenario === 'narrative-stale-partial' && data?.narratives?.[0]?.thesis_evidence) {
+                    data.narratives[0].state = 'stale'
+                    data.narratives[0].state_reason = '合成測試：論點來源較舊；僅示範 aggregate 狀態。'
+                    data.narratives[0].thesis_evidence.state = 'partial'
+                    data.narratives[0].thesis_evidence.reason = '合成測試：五層證據覆蓋仍不完整。'
+                  }
                   if (data?.brief) {
                     if (scenario === 'initial-error' || window.__failBrief) throw new Error('Synthetic read failure')
                     if (scenario === 'blank-summary') {
@@ -270,6 +300,13 @@ jobs:
               if (scenario === 'quote-unavailable') {
                 await page.getByText('未取得', { exact: true }).first().waitFor()
                 assert(await page.getByText('未取得', { exact: true }).first().isVisible())
+              }
+              if (scenario === 'narrative-stale-partial') {
+                const thesis = page.getByRole('region', { name: '我的論點｜五層證據' })
+                assert(await thesis.getByText('來源較舊', { exact: true }).isVisible())
+                assert(await thesis.getByText('合成測試：論點來源較舊；僅示範 aggregate 狀態。', { exact: true }).isVisible())
+                assert(await thesis.getByText('證據覆蓋：資料部分可用', { exact: true }).isVisible())
+                assert(await thesis.getByText('合成測試：五層證據覆蓋仍不完整。', { exact: true }).isVisible())
               }
               if (scenario === 'market-empty') {
                 assert(await page.getByText('本次完整掃描沒有符合條件的標的。', { exact: true }).isVisible())

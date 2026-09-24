@@ -165,6 +165,48 @@ export type InvestmentNarrativeLatestChangeItem = {
   source: InvestmentNarrativeSource
   state: InvestmentNarrativeState | null
 }
+export type InvestmentNarrativeEvidenceLayer = {
+  layer_id: string
+  label: string
+  who_earns: string
+  evidence_examples: string
+  what_it_proves: string
+  direction_state: InvestmentNarrativeState
+  supporting: string[]
+  opposing: string[]
+  unknown_reason: string | null
+  source_date: string | null
+  document_updated: string | null
+  source: InvestmentNarrativeSource | null
+}
+export type InvestmentNarrativeDirectionalSignal = {
+  direction: "supports" | "challenges"
+  layer_id: string | null
+  priority: string
+  indicator: string
+  dispute: string
+  text: string
+  source_channels: string
+  source_date: string | null
+  document_updated: string | null
+  source: InvestmentNarrativeSource | null
+}
+export type InvestmentNarrativeRecordedChange = {
+  date: string | null
+  judgment: string | null
+  key_evidence: string | null
+  later_verification: string | null
+  state: InvestmentNarrativeState
+  missing: string[]
+  source: InvestmentNarrativeSource | null
+}
+export type InvestmentNarrativeThesisEvidence = {
+  state: InvestmentNarrativeState
+  layers: InvestmentNarrativeEvidenceLayer[]
+  directional_signals: InvestmentNarrativeDirectionalSignal[]
+  latest_recorded_change: InvestmentNarrativeRecordedChange
+  reason: string | null
+}
 export type InvestmentNarrative = {
   artifact: "personalos-investment-hub"
   schema_version: string
@@ -195,6 +237,7 @@ export type InvestmentNarrative = {
       reason: string | null
     }
     current_tension: InvestmentNarrativeSection
+    thesis_evidence: InvestmentNarrativeThesisEvidence
     expressions: {
       state: InvestmentNarrativeState
       items: InvestmentNarrativeExpression[]

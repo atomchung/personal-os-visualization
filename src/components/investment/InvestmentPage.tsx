@@ -284,7 +284,7 @@ export function InvestmentPage() {
       {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次內容。" : ""}請按更新資料重試。</p> : null}
       {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
       {b ? <TodayBrief b={b} today={query.data?.today} /> : null}
-      <InvestmentNarrativeSection enabled={view === "today"} />
+      <InvestmentNarrativeSection enabled={view === "today"} onOpenHistory={() => openView("history")} />
       <MarketIndicators />
     </div>
     <div id="investment-panel-work" role="tabpanel" aria-labelledby="investment-tab-work" hidden={view !== "work"} className={view === "work" ? "flex min-w-0 flex-col gap-5" : "hidden"}>

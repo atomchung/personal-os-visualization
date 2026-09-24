@@ -6,7 +6,7 @@ import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { buildTodayStories, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, historyReadingOrder, recentActions, remainingActions, sourceTimestamp, quoteTime, workPanelView } from "../src/lib/investmentFormat.ts"
+import { actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, historyReadingOrder, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -108,14 +108,42 @@ test("Today does not present a brief baseline as current when the latest update 
   assert.equal(todayStoryHeadline(baselineOnly[0]), "Brief baseline")
 })
 
-test("the showcase keeps the personal narrative and holdings explicitly unknown", async () => {
+test("the showcase keeps personal content unknown while preserving aggregate narrative status", async () => {
   const request = createDemoRequest()
   const response = await request("/api/investment/narrative")
   const data = await response.json()
   assert.equal(data.state, "unavailable")
-  assert.equal(data.narratives[0].state, "unknown")
+  assert.equal(data.narratives[0].state, "drift")
   assert.equal(data.narratives[0].expressions.state, "unknown")
   assert.equal(data.narratives[0].expressions.items.length, 0)
+  const evidence = data.narratives[0].thesis_evidence
+  assert.deepEqual(evidence.layers.map((layer: { layer_id: string }) => layer.layer_id), ["L0", "L1", "L2", "L2.5", "L3"])
+  assert.equal(evidence.layers.every((layer: { direction_state: string; supporting: string[]; opposing: string[] }) => layer.direction_state === "unknown" && !layer.supporting.length && !layer.opposing.length), true)
+  assert.equal(evidence.state, "partial")
+  assert.match(data.narratives[0].state_reason, /合成狀態示例/)
+  assert.equal(narrativeDisplayState(data.narratives[0].state, evidence.state, data.state), "drift")
+  assert.equal(narrativeDisplayState("stale", "partial", "ready"), "stale")
+  assert.equal(narrativeDisplayState(undefined, evidence.state, data.state), "partial")
+  assert.deepEqual(new Set(evidence.directional_signals.map((signal: { direction: string }) => signal.direction)), new Set(["supports", "challenges"]))
+  const signalSections = narrativeSignalSections(evidence.directional_signals)
+  assert.equal(signalSections.challengeSignals.length, 1)
+  assert.equal(signalSections.supportSignals.length, 1)
+  assert.deepEqual(signalSections.explicitFalsifiers, [], "a challenge signal is not a recorded falsifier")
+  assert.match(NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, /此讀取資料未提供獨立的明確推翻條件欄位/)
+  assert.match(NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, /挑戰訊號不等同於推翻條件/)
+  const withRecordedFalsifier = narrativeSignalSections(evidence.directional_signals, ["Synthetic explicit invalidation rule"])
+  assert.equal(withRecordedFalsifier.challengeSignals.length, 1)
+  assert.deepEqual(withRecordedFalsifier.explicitFalsifiers, ["Synthetic explicit invalidation rule"])
+  const [supportSignal, challengeSignal] = evidence.directional_signals
+  assert.notEqual(supportSignal.source.path, challengeSignal.source.path)
+  assert.equal(supportSignal.source_date, "2026-09-18")
+  assert.equal(supportSignal.document_updated, "2026-09-20")
+  assert.equal(challengeSignal.source_date, null)
+  assert.equal(challengeSignal.document_updated, "2026-09-19")
+  assert.equal(sourceTimestamp(challengeSignal.source_date), "未提供")
+  assert.equal(evidence.directional_signals.every((signal: { layer_id: string | null }) => signal.layer_id === null), true)
+  assert.equal(evidence.latest_recorded_change.state, "unknown")
+  assert.equal(evidence.latest_recorded_change.date, null)
   assert.match(data.limitations[0], /不展示或推測個人論點與持倉/)
 })
 
