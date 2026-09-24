@@ -272,6 +272,8 @@ export type InvestmentMarket = {
   active: boolean
   items: {
     symbol: string
+    /** Producer-owned market membership; the UI must not infer it from a ticker or label. */
+    market: "tw" | "us"
     label: string
     /** Short ticker printed beside the label, or null when it is not the name the reader uses. */
     code: string | null
@@ -285,6 +287,26 @@ export type InvestmentMarket = {
     error: string | null
     source_url: string
   }[]
+}
+
+export type InvestmentMarketPulse = {
+  as_of: string | null
+  generated_at: string | null
+  source_cutoff: string | null
+  producer: string
+  state: "ready" | "partial" | "unavailable"
+  limitations: string[]
+  index: { label: string; value: number | null; change: number | null; change_pct: number | null }
+  breadth: {
+    combined: { up: number | null; down: number | null; flat: number | null; limit_up: number | null; limit_down: number | null }
+    advancer_ratio: number | null
+  }
+  turnover: { combined_stock: number | null }
+  themes: {
+    label: string
+    strongest: { theme: string; avg_change_pct: number | null }[]
+    weakest: { theme: string; avg_change_pct: number | null }[]
+  }
 }
 
 export type MarketExploreItem = {
@@ -540,6 +562,9 @@ export const getInvestmentActions = (signal?: AbortSignal) =>
 
 export const getInvestmentMarket = (signal?: AbortSignal, refresh = false) =>
   readInvestment<InvestmentMarket>(`/api/investment/market?refresh=${refresh}`, signal)
+
+export const getInvestmentPulse = (signal?: AbortSignal) =>
+  readInvestment<InvestmentMarketPulse>("/api/investment/pulse", signal, 75_000)
 
 /** Explore scans can be slow; only this getter uses the longer bound. */
 export const getMarketExplore = (signal?: AbortSignal, refresh = false) =>

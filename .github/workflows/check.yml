@@ -67,6 +67,26 @@ jobs:
                 `${name}: latest update must be the story heading`)
               assert(await page.getByText('星島設備發表新一代儲能產品（虛構）', { exact: true }).isVisible(),
                 `${name}: formal brief baseline must remain visible in the story card`)
+              const marketCard = page.locator('[aria-label="現在盤面與市場資金"]')
+              assert.equal(await marketCard.count(), 1, `${name}: context and discovery must share one market card`)
+              assert(await page.getByRole('heading', { name: '市場現在怎麼走', exact: true }).isVisible())
+              assert.equal(await page.getByRole('heading', { name: '市場資金在哪', exact: true }).count(), 1)
+              const twMarket = page.getByRole('tab', { name: '台股', exact: true })
+              const usMarket = page.getByRole('tab', { name: '美股', exact: true })
+              assert.equal(await twMarket.getAttribute('aria-selected'), 'true')
+              assert(await page.getByText(/資料日 .* · 產出於/).isVisible())
+              assert(await page.getByText(/報價時間/).first().isVisible())
+              await usMarket.click()
+              assert.equal(await usMarket.getAttribute('aria-selected'), 'true')
+              assert(await page.getByText(/美股 breadth、成交額與 sector／theme 摘要未提供/).isVisible())
+              assert(await page.getByText('目前部分掃描沒有可列標的；不能據此判定整個市場都沒有符合項目。', { exact: true }).isVisible())
+              await noOverflow(page, `${name}/US market`)
+              await twMarket.focus()
+              await page.keyboard.press('ArrowRight')
+              assert.equal(await usMarket.getAttribute('aria-selected'), 'true')
+              await page.keyboard.press('Home')
+              assert.equal(await twMarket.getAttribute('aria-selected'), 'true')
+              await noOverflow(page, `${name}/market keyboard`)
               const hero = await page.getByText('今天發生了什麼', { exact: true }).boundingBox()
               assert(hero && hero.y + hero.height < height, `${name}: key judgment must begin in first screen`)
               await page.screenshot({ path: `${output}/${name}.png`, fullPage: true })
@@ -97,7 +117,7 @@ jobs:
             }
             // Modify only in-memory synthetic Responses. Do not rewrite generated fixtures,
             // introduce test routes into production, or use any private source material.
-            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'initial-error', 'refresh-error', 'quote-unavailable']) {
+            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'initial-error', 'refresh-error', 'quote-unavailable', 'market-empty', 'market-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-mixed-dates']) {
               const page = await browser.newPage({ viewport: { width: 320, height: 740 } })
               const errors = []
               page.on('pageerror', error => errors.push(error.message))
@@ -132,6 +152,41 @@ jobs:
                       data.today = { state: 'unavailable', decision_summary: null, updates: [], limitations: [] }
                       for (const key of ['actions', 'events', 'event_notes', 'thesis_changes', 'thesis_notes', 'risks', 'risk_notes', 'upcoming', 'upcoming_notes', 'market_pulse', 'market_pulse_notes']) data.brief[key] = []
                     }
+                  }
+                  if (Array.isArray(data?.markets)) {
+                    if (scenario === 'market-initial-error' || (scenario === 'market-refresh-error' && window.__failMarketExplore)) throw new Error('Synthetic market explore failure')
+                    if (scenario === 'market-refresh-delayed' && window.__delayMarketExplore) await new Promise(resolve => setTimeout(resolve, 600))
+                    if (scenario === 'market-empty') {
+                      data.state = 'ready'
+                      data.cached = false
+                      for (const market of data.markets) {
+                        market.state = 'ready'
+                        for (const bucket of market.buckets) bucket.items = []
+                      }
+                    }
+                    if (scenario === 'market-unavailable') {
+                      data.state = 'unavailable'
+                      data.cached = false
+                      data.message = ''
+                      for (const market of data.markets) {
+                        market.state = 'unavailable'
+                        for (const bucket of market.buckets) bucket.items = []
+                      }
+                    }
+                    if (scenario === 'market-mixed-dates') {
+                      const tw = data.markets.find(market => market.market === 'tw')
+                      tw.as_of = '2001-02-03'
+                      tw.source_cutoff = '2001-02-03T13:30:00+08:00'
+                    }
+                  }
+                  if (scenario === 'market-mixed-dates' && data?.index && data?.breadth) {
+                    data.as_of = '2001-01-02'
+                    data.generated_at = '2001-03-04T12:00:00+08:00'
+                    data.source_cutoff = '2001-01-02T13:30:00+08:00'
+                  }
+                  if (scenario === 'market-mixed-dates' && Array.isArray(data?.items) && data.items.some(item => item && item.market)) {
+                    const tw = data.items.find(item => item.market === 'tw')
+                    tw.quoted_at = '2001-05-06T09:30:00+08:00'
                   }
                   if (scenario === 'quote-unavailable' && Array.isArray(data?.items) && data.items.some(item => item && 'quoted_at' in item)) {
                     const item = data.items.find(item => item && 'quoted_at' in item)
@@ -183,6 +238,36 @@ jobs:
               if (scenario === 'quote-unavailable') {
                 await page.getByText('未取得', { exact: true }).first().waitFor()
                 assert(await page.getByText('未取得', { exact: true }).first().isVisible())
+              }
+              if (scenario === 'market-empty') {
+                assert(await page.getByText('本次完整掃描沒有符合條件的標的。', { exact: true }).isVisible())
+                assert(await page.getByText('本次掃描沒有標的通過這個分類。', { exact: true }).isVisible())
+              }
+              if (scenario === 'market-unavailable') {
+                assert(await page.getByText('台股探索資料目前無法取得；不代表沒有符合標的。', { exact: true }).isVisible())
+              }
+              if (scenario === 'market-initial-error') {
+                await page.getByRole('alert').filter({ hasText: '市場探索這次無法取得' }).waitFor()
+                assert(await page.getByText('市場探索這次無法取得；目前無法判定是否有符合標的。', { exact: true }).isVisible())
+              }
+              if (scenario === 'market-refresh-error') {
+                await page.evaluate(() => { window.__failMarketExplore = true })
+                await page.getByRole('button', { name: '更新市場資料', exact: true }).click()
+                await page.getByRole('alert').filter({ hasText: '市場探索更新失敗' }).waitFor()
+                assert(await page.getByText('島嶼設備甲', { exact: true }).isVisible(), 'refresh failure must keep cached market candidates visible')
+                await page.getByRole('button', { name: '更新市場資料', exact: true }).waitFor()
+              }
+              if (scenario === 'market-refresh-delayed') {
+                await page.evaluate(() => { window.__delayMarketExplore = true })
+                await page.getByRole('button', { name: '更新市場資料', exact: true }).click()
+                assert(await page.getByText('合成台股指數', { exact: true }).isVisible(), 'slow discovery must not hide readable market context')
+                assert(await page.getByText('島嶼設備甲', { exact: true }).isVisible(), 'slow discovery must keep existing candidates visible')
+                await page.getByRole('button', { name: '更新市場資料', exact: true }).waitFor()
+              }
+              if (scenario === 'market-mixed-dates') {
+                assert(await page.getByText(/資料日 2001-01-02 · 產出於 2001\/03\/04 12:00 台北/).isVisible())
+                assert(await page.getByText(/報價時間 2001\/05\/06 09:30/).isVisible())
+                assert(await page.getByText(/資料日 2001-02-03 · 來源截止/).isVisible())
               }
               await page.screenshot({ path: `${output}/${scenario}.png`, fullPage: true })
               const layout = await noOverflow(page, scenario)

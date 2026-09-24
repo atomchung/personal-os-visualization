@@ -24,7 +24,7 @@ test("every page runs with no network; unknown routes and real symbols fail clos
   globalThis.fetch = () => { throw new Error("Unexpected network request") }
   try {
     const request = createDemoRequest()
-    for (const path of ["home", "cockpit", "focus", "time", "goals", "ideal", "health", "todos", "investment", "investment/narrative", "investment/actions", "investment/explore", "investment/market", "investment/watch", "investment/history", "investment/context", "investment/pending", "investment/work", "investment/momentum/universe", "investment/momentum/leaders", `investment/quote?symbol=${investmentScenario.symbol}`, `investment/momentum?symbol=${investmentScenario.symbol}`, `investment/source?id=${investmentScenario.source_id}`, `investment/history/source?id=${investmentScenario.history[0].id}`]) {
+    for (const path of ["home", "cockpit", "focus", "time", "goals", "ideal", "health", "todos", "investment", "investment/narrative", "investment/actions", "investment/explore", "investment/market", "investment/pulse", "investment/watch", "investment/history", "investment/context", "investment/pending", "investment/work", "investment/momentum/universe", "investment/momentum/leaders", `investment/quote?symbol=${investmentScenario.symbol}`, `investment/momentum?symbol=${investmentScenario.symbol}`, `investment/source?id=${investmentScenario.source_id}`, `investment/history/source?id=${investmentScenario.history[0].id}`]) {
       const result = await request(`/api/${path}`)
       assert.equal(result.status, 200, path)
       assert.equal(typeof await result.json(), "object", path)
@@ -243,6 +243,19 @@ test("market explore ranking is independent of holdings and preserves nulls", as
       }
     }
   }
+})
+
+test("market context carries explicit market membership and keeps each producer date", async () => {
+  const request = createDemoRequest()
+  const market = await (await request("/api/investment/market")).json()
+  const pulse = await (await request("/api/investment/pulse")).json()
+  const explore = await (await request("/api/investment/explore")).json()
+  assert.deepEqual(market.items.map((item: { market: string }) => item.market), ["tw", "us"])
+  assert.equal(pulse.as_of, explore.markets.find((item: { market: string }) => item.market === "us").as_of)
+  assert.notEqual(pulse.as_of, market.items.find((item: { market: string }) => item.market === "tw").quoted_at.slice(0, 10))
+  const us = explore.markets.find((item: { market: string }) => item.market === "us")
+  assert.equal(us.state, "partial")
+  assert.equal(us.buckets.every((bucket: { items: unknown[] }) => bucket.items.length === 0), true)
 })
 
 test("work panel view does not treat a failed fetch as an empty list", () => {

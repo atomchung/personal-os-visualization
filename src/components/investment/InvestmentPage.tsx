@@ -6,7 +6,6 @@ import { Card, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { PageHeader } from "@/components/ui/page-header"
 import { MarketIndicators } from "./MarketIndicators"
-import { MarketExplore } from "./MarketExplore"
 import {
   actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, openActionItems,
   sourceTimestamp,
@@ -19,7 +18,7 @@ import { InvestmentHistory } from "./InvestmentHistory"
 import { InvestmentNarrativeSection } from "./InvestmentNarrative"
 import { buildTodayStories, todayStoryHeadline, type TodayStory } from "@/lib/investmentToday"
 import {
-  BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentMarket,
+  BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentMarket, getInvestmentPulse,
   getInvestmentPending, getInvestmentHistory, getInvestmentContext,
   getInvestmentSource, getInvestmentWork,
   getInvestmentActions, getMarketExplore, getInvestmentNarrative,
@@ -236,16 +235,18 @@ export function InvestmentPage() {
     }
     try {
       if (view === "today") {
-        const [brief, market, explore, narrative] = await Promise.all([
+        const [brief, market, explore, pulse, narrative] = await Promise.all([
           run("簡報", ["investment"], () => getInvestment()),
           run("市場行情", ["investment-market"], () => getInvestmentMarket(undefined, true)),
           run("市場探索", ["investment-explore"], () => getMarketExplore(undefined, true)),
+          run("台股整體盤感", ["investment-pulse"], () => getInvestmentPulse()),
           run("我的論點", ["investment-narrative"], () => getInvestmentNarrative()),
         ])
         if (brief?.brief.state === "invalid" || brief?.brief.state === "missing") failures.push("簡報內容")
         if (brief?.brief.source?.limitations.length) failures.push("簡報部分段落")
         if (market?.state === "unavailable" || market?.state === "partial") failures.push("部分市場報價")
         if (explore?.state === "partial") failures.push("部分市場探索")
+        if (!pulse || pulse.state !== "ready") failures.push("台股整體盤感")
         if (narrative && narrative.state !== "ready") failures.push("我的論點部分來源")
         if (!narrative) failures.push("我的論點")
         await client.invalidateQueries({ queryKey: ["investment-source"], refetchType: "active" })
@@ -285,7 +286,6 @@ export function InvestmentPage() {
       {b ? <TodayBrief b={b} today={query.data?.today} /> : null}
       <InvestmentNarrativeSection enabled={view === "today"} />
       <MarketIndicators />
-      <MarketExplore />
     </div>
     <div id="investment-panel-work" role="tabpanel" aria-labelledby="investment-tab-work" hidden={view !== "work"} className={view === "work" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
       {actions.isError ? <p role="status" className="text-caption text-warn">待續行動這次讀不到。{actions.data ? "以下保留上次內容。" : ""}本機筆記仍可使用。</p> : null}
