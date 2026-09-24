@@ -209,7 +209,7 @@ function TodayBrief({ b, today, readFailed }: { b: InvestmentBrief; today?: Inve
     <section className="flex min-w-0 flex-col gap-3" aria-label="今天怎麼做">
       <SectionHeading>今天怎麼做</SectionHeading>
       <Card className="min-w-0 p-4 sm:p-5">
-        {today?.decision_summary ? <p className="mb-3 text-body font-medium leading-relaxed text-ink"><InlineText text={todayBriefText(today.decision_summary, today.updates[0] ? taipeiCalendarDate(today.updates[0].observed_at) : b.date)} /></p> : null}
+        {today?.decision_summary ? <p className="mb-3 text-body font-medium leading-relaxed text-ink"><InlineText text={todayBriefText(today.decision_summary, today.decision_summary_date ?? null)} /></p> : null}
         {actionPlan.coverageMessage ? <p role="status" className="mb-3 text-caption leading-relaxed text-warn">{actionPlan.coverageMessage}</p> : null}
         {actionPlan.actions.length ? <ul className="flex min-w-0 flex-col gap-3">{actionPlan.actions.slice(0, 2).map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul> : <p className="text-body text-ink-3">{actionPlan.emptyMessage}</p>}
         {actionPlan.actions.length > 2 ? <details className="mt-3 border-t border-line-soft pt-2 text-caption text-ink-3">

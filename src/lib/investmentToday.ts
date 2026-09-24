@@ -29,7 +29,12 @@ export function anchorRelativeDay(text: string, sourceDate: string | null): stri
     .replace(/今天台股/g, datedMarketDay("台股"))
     .replace(/美股今天/g, datedMarketDay("美股"))
     .replace(/今天美股/g, datedMarketDay("美股"))
+    .replace(/台股今日/g, datedMarketDay("台股"))
+    .replace(/今日台股/g, datedMarketDay("台股"))
+    .replace(/美股今日/g, datedMarketDay("美股"))
+    .replace(/今日美股/g, datedMarketDay("美股"))
     .replace(/今天/g, `${sourceDate} 當日`)
+    .replace(/今日/g, `${sourceDate} 當日`)
 }
 
 /** Resolve an observed timestamp to its Taiwan calendar date for the UI. */

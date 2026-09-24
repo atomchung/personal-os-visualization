@@ -95,6 +95,8 @@ export type InvestmentTodayUpdate = {
 export type InvestmentTodayView = {
   state: "ready" | "partial" | "unavailable"
   decision_summary: string | null
+  /** Source date for relative wording in decision_summary; null when the producer cannot establish it. */
+  decision_summary_date?: string | null
   updates: InvestmentTodayUpdate[]
   limitations: string[]
 }
