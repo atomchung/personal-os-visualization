@@ -1,13 +1,13 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { createDemoRequest } from "../src/demo/transport.ts"
-import { investment as syntheticInvestment } from "../src/demo/fixtures.ts"
+import { investment as syntheticInvestment, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
 import { investmentScenario } from "../src/demo/generated/investment-scenario.ts"
 import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { buildTodayStories, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, historyReadingOrder, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, todayActionPlan, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, historyReadingOrder, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, todayActionPlan, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -18,6 +18,25 @@ test("the shared information architecture keeps frequent entry points and domain
   assert.deepEqual(NAV_GROUPS.map((group) => group.label), ["常用", "推進", "回看"])
   assert.deepEqual(NAV_GROUPS[0].items.map((item) => item.key), ["today", "investment"])
   assert.equal(NAV_GROUPS[0].items.every((item) => item.frequent === true), true)
+})
+
+test("Taiwan index direction stays neutral unless the producer confirms it", () => {
+  const { confirmed, needsReview, previousSessionPartial } = pulseIntegrityScenarios
+  assert.equal(confirmed.index.direction_check?.status, "confirmed")
+  assert.deepEqual(marketIndexDirectionDisplay("confirmed", confirmed.index.change, confirmed.index.change_pct), {
+    state: "confirmed", change: 120, changePercent: 0.55,
+  })
+  assert.equal(needsReview.index.change, 120, "synthetic raw value is intentionally still positive")
+  assert.deepEqual(marketIndexDirectionDisplay(needsReview.index.direction_check?.status, needsReview.index.change, needsReview.index.change_pct), {
+    state: "needs_review", change: null, changePercent: null,
+  })
+  assert.deepEqual(marketIndexDirectionDisplay(undefined, 120, 0.55), {
+    state: "unknown", change: null, changePercent: null,
+  })
+  assert.notEqual(previousSessionPartial.as_of, previousSessionPartial.requested_date)
+  assert.equal(previousSessionPartial.source_dates?.twse, previousSessionPartial.as_of)
+  assert.equal(previousSessionPartial.source_dates?.tpex, null)
+  assert.equal(previousSessionPartial.state, "partial")
 })
 
 test("every page runs with no network; unknown routes and real symbols fail closed", async () => {

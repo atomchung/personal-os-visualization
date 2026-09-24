@@ -108,7 +108,24 @@ jobs:
               const twMarket = page.getByRole('tab', { name: '台股', exact: true })
               const usMarket = page.getByRole('tab', { name: '美股', exact: true })
               assert.equal(await twMarket.getAttribute('aria-selected'), 'true')
-              assert(await page.getByText(/資料日 .* · 產出於/).isVisible())
+              const taiwanPulse = page.locator('[aria-label="台股整體盤感"]')
+              assert(await taiwanPulse.getByText(/資料交易日 .*本頁讀取於 .*產出於/).isVisible(),
+                `${name}: market date, local page read, and producer time must be separate`)
+              assert(await taiwanPulse.getByText('漲跌方向待核對', { exact: true }).isVisible(),
+                `${name}: unverified direction must have a neutral explicit state`)
+              assert(!(await taiwanPulse.innerText()).includes('漲跌 120 點（+0.55%）'),
+                `${name}: unverified index changes must not be presented as a directional conclusion`)
+              const pulseIntegrityDetails = taiwanPulse.locator('details')
+              const pulseIntegrityDisclosure = taiwanPulse.locator('details > summary')
+              await pulseIntegrityDisclosure.focus()
+              await page.keyboard.press('Space')
+              assert(await taiwanPulse.getByText(/TWSE 日結原值：21,880 點；漲跌 120 點/).isVisible(),
+                `${name}: source-specific TWSE value must remain inspectable`)
+              assert(await taiwanPulse.getByText(/盤後量價原值：21,880 點；漲跌 -120 點/).isVisible(),
+                `${name}: conflicting source-specific value must remain inspectable`)
+              await page.keyboard.press('Space')
+              assert.equal(await pulseIntegrityDetails.getAttribute('open'), null,
+                `${name}: disclosure must collapse by keyboard`)
               assert(await page.getByText(/報價時間/).first().isVisible())
               await usMarket.click()
               assert.equal(await usMarket.getAttribute('aria-selected'), 'true')
@@ -265,6 +282,8 @@ jobs:
                   }
                   if (scenario === 'market-mixed-dates' && data?.index && data?.breadth) {
                     data.as_of = '2001-01-02'
+                    data.requested_date = '2001-01-03'
+                    data.source_dates = { twse: '2001-01-02', tpex: '2001-01-03' }
                     data.generated_at = '2001-03-04T12:00:00+08:00'
                     data.source_cutoff = '2001-01-02T13:30:00+08:00'
                   }
@@ -433,7 +452,8 @@ jobs:
                 await page.getByRole('button', { name: '更新市場資料', exact: true }).waitFor()
               }
               if (scenario === 'market-mixed-dates') {
-                assert(await page.getByText(/資料日 2001-01-02 · 產出於 2001\/03\/04 12:00 台北/).isVisible())
+                assert(await page.getByText(/資料交易日 2001-01-02 · 要求日期 2001-01-03 · 本頁讀取於 .* · 產出於 2001\/03\/04 12:00 台北/).isVisible())
+                assert(await page.getByText('各來源行情日：TWSE 2001-01-02 · TPEx 2001-01-03', { exact: true }).isVisible())
                 assert(await page.getByText(/報價時間 2001\/05\/06 09:30/).isVisible())
                 assert(await page.getByText(/資料日 2001-02-03 · 來源截止/).isVisible())
               }
