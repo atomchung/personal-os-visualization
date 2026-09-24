@@ -7,6 +7,24 @@ const DAY_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", m
 const DATE_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" })
 const SOURCE_TIME_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
 export const NARRATIVE_FALSIFIER_UNAVAILABLE_COPY = "此讀取資料未提供獨立的明確推翻條件欄位；挑戰訊號不等同於推翻條件。"
+const PILLAR_ID_BY_LAYER_ID: Record<string, string> = {
+  L0: "l0_hardware",
+  L1: "l1_cloud",
+  L2: "l2_models",
+  "L2.5": "l2_5_application_software",
+  L3: "l3_end_buyers",
+}
+
+export function unlinkedRowsWithoutLayerCard<
+  Row extends { pillar_id?: string | null },
+  Layer extends { layer_id?: string; pillar_id?: string | null },
+>(rows: Row[] | null | undefined, layers: Layer[]): Row[] {
+  const displayedPillarIds = new Set(layers.flatMap(layer => {
+    const pillarId = layer.pillar_id || (layer.layer_id ? PILLAR_ID_BY_LAYER_ID[layer.layer_id] : undefined)
+    return pillarId ? [pillarId] : []
+  }))
+  return (rows ?? []).filter(row => !row.pillar_id || !displayedPillarIds.has(row.pillar_id))
+}
 
 /** Taipei clock time; never mistake the same month/day in another year for today. */
 export function quoteTime(value: string | null, now = new Date()): string {

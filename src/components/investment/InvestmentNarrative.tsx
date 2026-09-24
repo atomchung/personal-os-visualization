@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Card, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { DEMO_MODE } from "@/lib/transport"
-import { NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeDisplayState, narrativeSignalSections, sourceTimestamp } from "@/lib/investmentFormat"
+import { NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeDisplayState, narrativeSignalSections, sourceTimestamp, unlinkedRowsWithoutLayerCard } from "@/lib/investmentFormat"
 import {
   getInvestmentNarrative,
   type InvestmentNarrative,
@@ -57,7 +57,7 @@ function uniqueSources(sources: Array<InvestmentNarrativeSource | null | undefin
 const LAYER_STATE_COPY = {
   ready: { label: "證據可讀", tone: "mute" as const },
   partial: { label: "部分資料待確認", tone: "warn" as const },
-  stale: { label: "來源較舊", tone: "warn" as const },
+  stale: { label: "此層來源較舊", tone: "warn" as const },
   conflict: { label: "關聯互相矛盾", tone: "bad" as const },
   unknown: { label: "證據狀態未知", tone: "mute" as const },
 }
@@ -284,8 +284,8 @@ function ScorecardReview({ update }: { update?: InvestmentNarrativeScorecardUpda
 
 function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narrative: InvestmentNarrative["narratives"][number] }) {
   const evidence = narrative.thesis_evidence
-  const unlinkedEvidence = evidence.unlinked_evidence ?? []
-  const unlinkedPlayers = evidence.unlinked_players ?? []
+  const unlinkedEvidence = unlinkedRowsWithoutLayerCard(evidence.unlinked_evidence, evidence.layers)
+  const unlinkedPlayers = unlinkedRowsWithoutLayerCard(evidence.unlinked_players, evidence.layers)
   // The current producer contract has no dedicated falsifier field.
   const { challengeSignals, supportSignals, explicitFalsifiers } = narrativeSignalSections(evidence.directional_signals)
   const sources = uniqueSources([
@@ -315,9 +315,9 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
       </div>
       {evidence.layers.length ? <ol className="flex min-w-0 flex-col">{evidence.layers.map(layer => <LayerEvidenceCard key={layer.layer_id} layer={layer} />)}</ol> : <p className="text-body text-ink-3">來源尚未提供可辨識的五層結構。</p>}
       {unlinkedEvidence.length || unlinkedPlayers.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
-        <summary className="cursor-pointer py-1">尚未連到特定層的資料</summary>
+        <summary className="cursor-pointer py-1">未顯示在五層卡片的資料</summary>
         <div className="flex min-w-0 flex-col gap-2 pt-2">
-          <p>來源沒有提供足夠關聯，無法安全放入特定層；以下保留原始列，不依股票代號或文字猜測。</p>
+          <p>下列資料未能安全顯示在上方五層卡片；保留來源提供的層級代碼與限制，不推測證據方向。</p>
           <IntegrityRows title="未連結的證據資料" rows={unlinkedEvidence} />
           <IntegrityRows title="未連結的玩家關係" rows={unlinkedPlayers} />
         </div>

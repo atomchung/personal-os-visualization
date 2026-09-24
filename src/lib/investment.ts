@@ -169,7 +169,7 @@ export type InvestmentNarrativeEvidenceState = "ready" | "unknown" | "stale" | "
 export type InvestmentNarrativeEvidencePolarity = "supports" | "challenges" | "unknown"
 export type InvestmentNarrativeLayerRow = {
   evidence_id?: string
-  pillar_id?: string
+  pillar_id?: string | null
   entity_id?: string
   player?: string
   evidence_date?: string
@@ -194,7 +194,7 @@ export type InvestmentNarrativeLayerPlayer = {
 export type InvestmentNarrativeLayerEvidenceItem = string | InvestmentNarrativeLayerRow
 export type InvestmentNarrativeEvidenceLayer = {
   layer_id: string
-  pillar_id?: string
+  pillar_id?: string | null
   label: string
   who_earns: string
   evidence_examples: string

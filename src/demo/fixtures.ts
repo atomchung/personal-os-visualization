@@ -260,7 +260,12 @@ const demoEvidenceLayers: InvestmentNarrativeEvidenceLayer[] = [
       recorded_at: "2026-09-19", source: demoEvidenceSource,
     }],
     evidence: [], supporting: [], opposing: [], unknown: [], conflicts: [],
-    unlinked_evidence: [], unlinked_players: [],
+    unlinked_evidence: [],
+    unlinked_players: [{
+      pillar_id: "l1_cloud", entity_id: "TICKER", player: "合成雲端服務商",
+      recorded_at: "2026-09-19", state: "unlinked",
+      limitations: ["合成例：玩家 ID 不符合穩定識別格式。"], source: demoEvidenceSource,
+    }],
     limitations: ["此層已有明確玩家關係，但尚無明確連結的日期化公開證據。"],
     unknown_reason: "已記錄這一層的參與者，但沒有明確連結的公開證據。",
     source_date: null, document_updated: "2026-09-20", source: demoEvidenceSource,
@@ -393,11 +398,20 @@ const demoThesisEvidence: InvestmentNarrativeThesisEvidence = {
     entity_id: "synthetic-unmapped-company", player: "合成公司", evidence_date: "2026-09-18",
     state: "unlinked", limitations: ["pillar_id 不在既定五層內；保留為全域未連結資料。"],
     source: demoEvidenceSource,
+  }, {
+    evidence_id: "synthetic-invalid-player-link", pillar_id: "l3_end_buyers",
+    entity_id: "TICKER", player: "合成買方", source_url: "https://example.com/synthetic/unlinked",
+    state: "unlinked", limitations: ["合成回歸：此列雖在頂層陣列重複回傳，但屬 L3，應只在 L3 顯示。"],
+    source: demoEvidenceSource,
   }],
   unlinked_players: [{
     pillar_id: "unmapped_pillar", entity_id: "synthetic-unmapped-player",
     player: "合成參與者", recorded_at: "2026-09-18", state: "unlinked",
     limitations: ["pillar_id 不在既定五層內；不猜測對應層級。"], source: demoEvidenceSource,
+  }, {
+    pillar_id: "l1_cloud", entity_id: "TICKER", player: "合成雲端服務商",
+    recorded_at: "2026-09-19", state: "unlinked",
+    limitations: ["合成回歸：此列屬 L1，應只在 L1 顯示。"], source: demoEvidenceSource,
   }],
   scorecard_update: {
     updated_at: "2026-09-20",
