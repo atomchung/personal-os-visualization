@@ -145,7 +145,8 @@ export function MarketExplore({ market, embedded = false }: { market: "tw" | "us
   const pending = query.isPending && !data
   const selected = data?.markets.find(item => item.market === market)
   const unavailable = data?.state === "unavailable" || selected?.state === "unavailable"
-  const previousSnapshot = lastUsableMarkets[market]
+  const producerCachedSnapshot = data?.cached && selected?.state !== "unavailable" ? selected : undefined
+  const previousSnapshot = lastUsableMarkets[market] ?? producerCachedSnapshot
   const usingPreviousSnapshot = unavailable && Boolean(previousSnapshot)
   const displayedMarket = unavailable ? previousSnapshot : selected
   const priorSnapshot = Boolean((query.isError && data) || usingPreviousSnapshot)

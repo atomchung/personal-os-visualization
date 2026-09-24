@@ -117,7 +117,7 @@ jobs:
             }
             // Modify only in-memory synthetic Responses. Do not rewrite generated fixtures,
             // introduce test routes into production, or use any private source material.
-            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'initial-error', 'refresh-error', 'quote-unavailable', 'market-empty', 'market-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio']) {
+            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'initial-error', 'refresh-error', 'quote-unavailable', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio']) {
               const page = await browser.newPage({ viewport: { width: 320, height: 740 } })
               const errors = []
               page.on('pageerror', error => errors.push(error.message))
@@ -164,6 +164,17 @@ jobs:
                       const us = data.markets.find(market => market.market === 'us')
                       us.state = 'ready'
                       us.buckets[0].items = [{ symbol: 'SYNTH-US-CONTEXT', label: '合成美股探索甲', price: 123, change_1d_pct: 1, change_7d_pct: 2, activity: { label: 'relative_volume', value: 1.2 }, rsi14: null, vs_50ma_pct: null, rs_benchmark_1m_pp: null, rs_benchmark_window: null, researched: false }]
+                    }
+                    if (scenario === 'market-cached-unavailable') {
+                      data.state = 'unavailable'
+                      data.cached = true
+                      data.message = 'Synthetic market snapshot is cached'
+                      const tw = data.markets.find(market => market.market === 'tw')
+                      tw.as_of = '2001-02-03'
+                      tw.source_cutoff = '2001-02-03T13:30:00+08:00'
+                      const us = data.markets.find(market => market.market === 'us')
+                      us.state = 'unavailable'
+                      for (const bucket of us.buckets) bucket.items = []
                     }
                     if (scenario === 'market-empty') {
                       data.state = 'ready'
@@ -262,6 +273,12 @@ jobs:
               }
               if (scenario === 'market-unavailable') {
                 assert(await page.getByText('台股探索資料目前無法取得；不代表沒有符合標的。', { exact: true }).isVisible())
+              }
+              if (scenario === 'market-cached-unavailable') {
+                assert(await page.getByText('目前無法取得新的台股探索結果；以下是先前快照。', { exact: true }).isVisible())
+                assert(await page.getByText('島嶼設備甲', { exact: true }).isVisible(), 'initial cached-unavailable response must retain its producer-supplied candidate')
+                assert(await page.getByText('先前快照', { exact: true }).isVisible(), 'producer-supplied cached data must be labelled as prior')
+                assert(await page.getByText(/資料日 2001-02-03 · 來源截止/).isVisible(), 'cached snapshot must retain its original date and cutoff')
               }
               if (scenario === 'market-initial-error') {
                 await page.getByRole('alert').filter({ hasText: '市場探索這次無法取得' }).waitFor()
