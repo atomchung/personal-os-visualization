@@ -1,4 +1,4 @@
-import type { ActionItemStatus, InvestmentActionItem } from "./investment"
+import type { ActionItemStatus, InvestmentActionItem, InvestmentBrief, InvestmentTodayView } from "./investment"
 
 const VALUE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const CHANGE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "exceptZero" })
@@ -68,6 +68,76 @@ export function briefActions(actions: readonly string[]): string[] {
     seen.add(key)
     return true
   })
+}
+
+export type TodayActionEntry = {
+  key: string
+  text: string
+  origin: "update" | "brief"
+  date: string | null
+  source: string | null
+  id: string | null
+}
+
+export type TodayActionPlan = {
+  actions: TodayActionEntry[]
+  research: TodayActionEntry[]
+  coverageMessage: string | null
+  emptyMessage: string
+}
+
+/** Keep every next step reachable and make an empty list meaningful only when
+ * both the current formal brief and the current-day update feed are complete. */
+export function todayActionPlan(
+  brief: InvestmentBrief,
+  today?: InvestmentTodayView,
+  readFailed = false,
+): TodayActionPlan {
+  const actions: TodayActionEntry[] = []
+  const research: TodayActionEntry[] = []
+  const seen = new Set<string>()
+  const add = (input: Omit<TodayActionEntry, "key" | "kind">) => {
+    const normalized = input.text.replace(/[*_`~]/g, "").trim()
+    const text = normalized.replace(/^(?:繼續觀察|觀察|行動)[：:]\s*/, "").trim()
+    if (!text || !briefActions([text]).length || seen.has(text)) return
+    seen.add(text)
+    const isResearch = /^(?:補研究|补研究)(?:[：:]|\s|$)/.test(text)
+    const entry = { ...input, key: `${input.origin}:${input.id ?? text}`, text }
+    ;(isResearch ? research : actions).push(entry)
+  }
+  for (const update of today?.updates ?? []) {
+    if (update.action.trim()) add({ text: update.action, origin: "update", date: update.observed_at, source: update.source_path || null, id: update.id })
+  }
+  if (brief.action_items?.length) {
+    for (const item of brief.action_items) {
+      add({ text: item.text, origin: "brief", date: item.date || brief.date, source: item.source || brief.source?.title || "正式簡報", id: item.id })
+    }
+  } else {
+    for (const [index, text] of brief.actions.entries()) {
+      add({ text, origin: "brief", date: brief.date, source: brief.source?.title || "正式簡報", id: `legacy-${index + 1}` })
+    }
+  }
+
+  const limitations = [...new Set([...(brief.source?.limitations ?? []), ...(brief.envelope?.limitations ?? []), ...(today?.limitations ?? [])].filter(Boolean))]
+  let coverageMessage: string | null = null
+  if (readFailed) coverageMessage = "這次更新讀取失敗；以下保留上次資料，不能確認是否有新增行動。"
+  else if (brief.state === "missing" || brief.source?.state === "missing") coverageMessage = "今日簡報來源尚未取得，無法確認完整的下一步行動。"
+  else if (brief.state === "invalid" || brief.source?.state === "invalid") coverageMessage = "今日簡報部分內容未能辨識；空白欄位不代表沒有行動。"
+  else if (brief.state === "stale" || brief.source?.state === "stale") coverageMessage = "目前是較早的簡報；不能用空白欄位判定最新行動。"
+  else if (brief.envelope?.completeness === "partial") coverageMessage = "今日簡報資料不完整；空白欄位不代表沒有行動。"
+  else if (brief.envelope?.completeness === "unavailable") coverageMessage = "無法確認今日簡報資料是否完整。"
+  else if (today?.state === "partial") coverageMessage = "盤中更新資料不完整；空白欄位不代表沒有新增行動。"
+  else if (today?.state === "unavailable") coverageMessage = "目前無法確認簡報後是否有新增行動。"
+  else if (!today) coverageMessage = "尚未取得今日更新狀態；目前只列出簡報中的行動。"
+  else if (brief.state !== "current" || brief.envelope?.completeness !== "ready" || (brief.source && brief.source.state !== "current")) coverageMessage = "簡報來源未明示完整度；空白欄位不代表沒有行動。"
+  else if (limitations.length) coverageMessage = "來源列有尚未完成的資料項目；請展開查看。"
+
+  const emptyMessage = coverageMessage
+    ? "目前未讀到可確認的立即行動。"
+    : research.length
+      ? `已確認沒有列出立即行動；另有 ${research.length} 項補研究，請展開查看。`
+      : "已確認本版簡報與今日更新沒有列出下一步行動。"
+  return { actions, research, coverageMessage, emptyMessage }
 }
 
 /** Keep structured next steps in source order; drop only pure no-information labels. */

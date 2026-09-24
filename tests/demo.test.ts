@@ -1,12 +1,13 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { createDemoRequest } from "../src/demo/transport.ts"
+import { investment as syntheticInvestment } from "../src/demo/fixtures.ts"
 import { investmentScenario } from "../src/demo/generated/investment-scenario.ts"
 import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { buildTodayStories, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, historyReadingOrder, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, workPanelView } from "../src/lib/investmentFormat.ts"
+import { actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, historyReadingOrder, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, todayActionPlan, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -215,6 +216,56 @@ test("brief actions remove only exact duplicates and pure no-information labels"
   const original = [...input]
   assert.deepEqual(briefActions(input), ["觀察 5%", "觀察 6%", "不加碼", "加碼", "沒有新資訊，但仍需驗證需求。"])
   assert.deepEqual(input, original, "presentation must not mutate the source")
+})
+
+test("Today action availability distinguishes confirmed empty from missing or incomplete coverage", () => {
+  const brief = { ...syntheticInvestment.brief, state: "current" as const, actions: [], action_items: [], source: null, envelope: { ...syntheticInvestment.brief.envelope!, completeness: "ready" as const, limitations: [] } }
+  const ready = { state: "ready" as const, decision_summary: null, updates: [], limitations: [] }
+  assert.equal(todayActionPlan(brief, ready).coverageMessage, null)
+  assert.equal(todayActionPlan(brief, ready).emptyMessage, "已確認本版簡報與今日更新沒有列出下一步行動。")
+
+  const missing = todayActionPlan({ ...brief, state: "missing" }, ready)
+  const invalid = todayActionPlan({ ...brief, state: "invalid" }, ready)
+  const stale = todayActionPlan({ ...brief, state: "stale" }, ready)
+  const partial = todayActionPlan({ ...brief, envelope: { ...brief.envelope!, completeness: "partial" } }, ready)
+  const unknown = todayActionPlan(brief)
+  assert.match(missing.coverageMessage ?? "", /尚未取得/)
+  assert.match(invalid.coverageMessage ?? "", /未能辨識/)
+  assert.match(stale.coverageMessage ?? "", /較早/)
+  assert.match(partial.coverageMessage ?? "", /不完整/)
+  assert.match(unknown.coverageMessage ?? "", /尚未取得今日更新狀態/)
+  assert.equal(new Set([missing.coverageMessage, invalid.coverageMessage, stale.coverageMessage, partial.coverageMessage, unknown.coverageMessage]).size, 5)
+})
+
+test("Today actions preserve update provenance, keep overflow reachable, and retain research items", () => {
+  const brief = { ...syntheticInvestment.brief, state: "current" as const, actions: [], source: null, envelope: { ...syntheticInvestment.brief.envelope!, completeness: "ready" as const, limitations: [] }, action_items: [
+    { id: "brief-1", text: "盤後檢查量能", status: "open" as const, tickers: [], evidence: [], artifact_id: "brief-1", source: "daily-brief", date: "2026-09-24" },
+    { id: "brief-2", text: "第二項正式行動", status: "open" as const, tickers: [], evidence: [], artifact_id: "brief-2", source: "daily-brief", date: "2026-09-24" },
+    { id: "brief-3", text: "第三項正式行動", status: "open" as const, tickers: [], evidence: [], artifact_id: "brief-3", source: "daily-brief", date: "2026-09-24" },
+    { id: "brief-4", text: "補研究：核對下一份公開財報", status: "open" as const, tickers: [], evidence: [], artifact_id: "brief-4", source: "daily-brief", date: "2026-09-24" },
+  ] }
+  const today = { state: "ready" as const, decision_summary: null, limitations: [], updates: [{
+    id: "update-1", observed_at: "2026-09-24T15:10:00+08:00", summary: "", portfolio_impact: "", action: "先觀察收盤量能", relevance: [], source_path: "wiki/morning/demo.md",
+  }] }
+  const plan = todayActionPlan(brief, today)
+  assert.deepEqual(plan.actions.map(item => item.text), ["先觀察收盤量能", "盤後檢查量能", "第二項正式行動", "第三項正式行動"])
+  assert.equal(plan.actions[0]?.origin, "update")
+  assert.equal(plan.actions[0]?.date, "2026-09-24T15:10:00+08:00")
+  assert.equal(plan.actions[0]?.source, "wiki/morning/demo.md")
+  assert.equal(plan.research.length, 1)
+  assert.equal(plan.research[0]?.text, "補研究：核對下一份公開財報")
+
+  const researchOnly = todayActionPlan({ ...brief, action_items: [brief.action_items[3]!] }, { ...today, updates: [] })
+  assert.equal(researchOnly.actions.length, 0)
+  assert.equal(researchOnly.emptyMessage, "已確認沒有列出立即行動；另有 1 項補研究，請展開查看。")
+})
+
+test("Today action query failures remain visible even when cached steps exist", () => {
+  const brief = { ...syntheticInvestment.brief, state: "current" as const, actions: ["保留快取行動"], action_items: [], source: null, envelope: { ...syntheticInvestment.brief.envelope!, completeness: "ready" as const, limitations: [] } }
+  const plan = todayActionPlan(brief, { state: "ready", decision_summary: null, updates: [], limitations: [] }, true)
+  assert.equal(plan.actions[0]?.text, "保留快取行動")
+  assert.match(plan.coverageMessage ?? "", /這次更新讀取失敗/)
+  assert.match(plan.emptyMessage, /未讀到可確認/)
 })
 
 test("every thesis and risk survives missing, malformed or out-of-range event references exactly once", () => {
