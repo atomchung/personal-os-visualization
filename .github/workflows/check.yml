@@ -241,7 +241,8 @@ jobs:
               }
               if (scenario === 'market-empty') {
                 assert(await page.getByText('本次完整掃描沒有符合條件的標的。', { exact: true }).isVisible())
-                assert(await page.getByText('本次掃描沒有標的通過這個分類。', { exact: true }).isVisible())
+                assert.equal(await page.getByText('本次掃描沒有標的通過這個分類。', { exact: true }).count(), 3,
+                  'complete-empty scan must keep all three empty discovery buckets visible')
               }
               if (scenario === 'market-unavailable') {
                 assert(await page.getByText('台股探索資料目前無法取得；不代表沒有符合標的。', { exact: true }).isVisible())
