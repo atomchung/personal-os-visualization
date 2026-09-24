@@ -143,7 +143,10 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
     <article className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
       <SubsectionHeading>五層證據</SubsectionHeading>
       <p className="text-caption leading-relaxed text-ink-3">支持與反證只在來源明確連到該層時列出；沒有連結就保留未知，不代表該層沒有證據。</p>
-      <StateNote state={evidence.state} reason={evidence.reason} />
+      <div className="flex min-w-0 flex-col gap-1" aria-label="五層證據覆蓋狀態">
+        <p className="text-caption font-medium text-ink-2">證據覆蓋：{STATE_COPY[evidence.state].label}</p>
+        <StateNote state={evidence.state} reason={evidence.reason} />
+      </div>
       {evidence.layers.length ? <ol className="flex min-w-0 flex-col">{evidence.layers.map(layer => <LayerEvidenceCard key={layer.layer_id} layer={layer} />)}</ol> : <p className="text-body text-ink-3">來源尚未提供可辨識的五層結構。</p>}
     </article>
 
