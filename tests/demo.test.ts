@@ -88,6 +88,26 @@ test("Today keeps same-story evidence together and preserves producer update ord
   assert.deepEqual(duplicateBriefEvents[0].events.map(item => item.event.event), ["Brief event", "Second brief row"])
 })
 
+test("Today does not present a brief baseline as current when the latest update has no summary", () => {
+  const event = {
+    story_id: "shared-story",
+    event: "Brief baseline",
+    market_reaction: "",
+    interpretation: "",
+    impact: "",
+    today: "",
+  }
+  for (const summary of ["", "   "]) {
+    const stories = buildTodayStories("2026-09-21", [event], [
+      { id: "newest", story_id: "shared-story", observed_at: "2026-09-21T15:00:00+08:00", summary, portfolio_impact: "更正為 2%，原判斷需下修。", action: "", relevance: [], source_path: "new.md" },
+    ])
+    assert.equal(todayStoryHeadline(stories[0]), "最新摘要未提供")
+    assert.equal(stories[0].events[0].event.event, "Brief baseline")
+  }
+  const baselineOnly = buildTodayStories("2026-09-21", [event], [])
+  assert.equal(todayStoryHeadline(baselineOnly[0]), "Brief baseline")
+})
+
 test("the showcase keeps the personal narrative and holdings explicitly unknown", async () => {
   const request = createDemoRequest()
   const response = await request("/api/investment/narrative")

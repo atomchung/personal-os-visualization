@@ -57,5 +57,8 @@ export function buildTodayStories(
 
 /** The newest producer-ordered update is the current story state. */
 export function todayStoryHeadline(story: TodayStory): string {
-  return story.updates[0]?.summary.trim() || story.events[0]?.event.event.trim() || "今日事件"
+  if (story.updates.length) {
+    return story.updates[0].summary.trim() || "最新摘要未提供"
+  }
+  return story.events[0]?.event.event.trim() || "今日事件"
 }

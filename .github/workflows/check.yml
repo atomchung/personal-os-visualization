@@ -97,7 +97,7 @@ jobs:
             }
             // Modify only in-memory synthetic Responses. Do not rewrite generated fixtures,
             // introduce test routes into production, or use any private source material.
-            for (const scenario of ['unlinked-long', 'missing', 'initial-error', 'refresh-error', 'quote-unavailable']) {
+            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'initial-error', 'refresh-error', 'quote-unavailable']) {
               const page = await browser.newPage({ viewport: { width: 320, height: 740 } })
               const errors = []
               page.on('pageerror', error => errors.push(error.message))
@@ -107,6 +107,10 @@ jobs:
                   const data = await original.call(this)
                   if (data?.brief) {
                     if (scenario === 'initial-error' || window.__failBrief) throw new Error('Synthetic read failure')
+                    if (scenario === 'blank-summary') {
+                      data.today.updates[0].summary = '   '
+                      data.today.updates[0].portfolio_impact = '更正為 2%，原判斷需下修。'
+                    }
                     if (scenario === 'unlinked-long') {
                       data.brief.state = 'stale'
                       data.brief.source_cutoff = null
@@ -155,6 +159,12 @@ jobs:
                 assert.equal(await page.getByText('加碼', { exact: true }).count(), 0)
                 assert.equal(await page.getByText('尚未結束的行動', { exact: true }).count(), 0)
                 assert.equal(await page.getByText('繼續研究', { exact: true }).count(), 0)
+              }
+              if (scenario === 'blank-summary') {
+                assert(await page.getByRole('heading', { name: '最新摘要未提供', exact: true }).isVisible())
+                assert(await page.getByText('更正為 2%，原判斷需下修。', { exact: true }).isVisible())
+                assert(await page.getByText('正式簡報基線', { exact: true }).isVisible())
+                assert(await page.getByText('星島設備發表新一代儲能產品（虛構）', { exact: true }).isVisible())
               }
               if (scenario === 'missing') {
                 assert(await page.getByText('尚未取得可讀的今日變化。', { exact: true }).isVisible())
