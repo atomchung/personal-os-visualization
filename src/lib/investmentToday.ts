@@ -14,6 +14,45 @@ export type TodayStory = {
 }
 
 /**
+ * Source-owned prose is anchored to its own market/session date, not the date
+ * the reader happens to open the page. Missing or malformed dates stay
+ * relative rather than inventing a session date.
+ */
+export function anchorRelativeDay(text: string, sourceDate: string | null): string {
+  if (!sourceDate || !/^\d{4}-\d{2}-\d{2}$/.test(sourceDate)) return text
+  const parsed = new Date(`${sourceDate}T00:00:00.000Z`)
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== sourceDate) return text
+
+  const datedMarketDay = (market: string) => `${sourceDate} ${market}交易日`
+  return text
+    .replace(/台股今天/g, datedMarketDay("台股"))
+    .replace(/今天台股/g, datedMarketDay("台股"))
+    .replace(/美股今天/g, datedMarketDay("美股"))
+    .replace(/今天美股/g, datedMarketDay("美股"))
+    .replace(/台股今日/g, datedMarketDay("台股"))
+    .replace(/今日台股/g, datedMarketDay("台股"))
+    .replace(/美股今日/g, datedMarketDay("美股"))
+    .replace(/今日美股/g, datedMarketDay("美股"))
+    .replace(/今天/g, `${sourceDate} 當日`)
+    .replace(/今日/g, `${sourceDate} 當日`)
+}
+
+/** Resolve an observed timestamp to its Taiwan calendar date for the UI. */
+export function taipeiCalendarDate(value: string | null | undefined): string | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return null
+  const timestamp = new Date(value)
+  if (!Number.isFinite(timestamp.getTime())) return null
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(timestamp).map(part => [part.type, part.value]))
+  return `${parts.year}-${parts.month}-${parts.day}`
+}
+
+export function staleBriefStatusText(date: string | null, sessionLabel: string | null, cutoff: string): string {
+  return `目前沿用 ${date ?? "日期未提供"} · ${sessionLabel ?? "版次未標示"}；資訊截至 ${cutoff}。`
+}
+
+/**
  * Join only on explicit producer-owned identity. Brief events without an ID
  * and updates without an ID stay independent; wording and tickers are never
  * used to infer that two entries describe the same story.

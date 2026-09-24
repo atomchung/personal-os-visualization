@@ -171,6 +171,7 @@ export const investment: InvestmentData = {
   today: {
     state: "ready",
     decision_summary: "今天不需要因這則新訊號調整部位。",
+    decision_summary_date: DATE,
     limitations: [],
     updates: [{
       id: "news:demo-intraday-1",
