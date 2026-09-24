@@ -7,7 +7,7 @@ import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { buildTodayStories, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, historyReadingOrder, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, todayActionPlan, workPanelView } from "../src/lib/investmentFormat.ts"
+import { actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, historyReadingOrder, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, todayActionPlan, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -119,7 +119,39 @@ test("the showcase keeps personal content unknown while preserving aggregate nar
   assert.equal(data.narratives[0].expressions.items.length, 0)
   const evidence = data.narratives[0].thesis_evidence
   assert.deepEqual(evidence.layers.map((layer: { layer_id: string }) => layer.layer_id), ["L0", "L1", "L2", "L2.5", "L3"])
-  assert.equal(evidence.layers.every((layer: { direction_state: string; supporting: string[]; opposing: string[] }) => layer.direction_state === "unknown" && !layer.supporting.length && !layer.opposing.length), true)
+  const hardware = evidence.layers[0]
+  assert.equal(hardware.direction_state, "supports")
+  assert.equal(hardware.supporting[0].evidence_date, "2026-09-18")
+  assert.equal(hardware.supporting[0].source_url, "https://example.com/synthetic/hardware-shipment")
+  const cloud = evidence.layers[1]
+  assert.equal(cloud.players[0].player, "合成雲端服務商甲")
+  assert.equal(cloud.evidence.length, 0)
+  assert.equal(cloud.link_state, "unlinked")
+  assert.equal(cloud.state, "unknown")
+  assert.equal(cloud.unlinked_players.length, 1, "a malformed player row with a known pillar stays in its layer")
+  const model = evidence.layers[2]
+  assert.equal(model.opposing[0].polarity, "challenges")
+  assert.equal(model.opposing[0].state, "stale")
+  const app = evidence.layers[3]
+  assert.equal(app.unknown[0].polarity, "unknown")
+  const endUser = evidence.layers[4]
+  assert.equal(endUser.conflicts.length, 4)
+  assert.equal(endUser.players.length, 0, "ambiguous player names stay suppressed from linked relations")
+  assert.equal(endUser.evidence.length, 0, "conflicting evidence is not promoted into a directional group")
+  assert.equal(endUser.conflicts.filter((row: { evidence_id?: string }) => row.evidence_id === "synthetic-duplicate-evidence").length, 2)
+  assert.equal(endUser.unlinked_evidence.length, 1)
+  assert.equal(endUser.unlinked_evidence[0].state, "unlinked")
+  assert.equal(evidence.unlinked_evidence.length, 2, "the producer may repeat a layer-linked gap in its top-level index")
+  assert.deepEqual(unlinkedRowsWithoutLayerCard(evidence.unlinked_evidence, evidence.layers).map(row => row.evidence_id), ["synthetic-unmapped-evidence"])
+  assert.deepEqual(unlinkedRowsWithoutLayerCard(evidence.unlinked_evidence, evidence.layers.slice(0, 4)).map(row => row.evidence_id), ["synthetic-unmapped-evidence", "synthetic-invalid-player-link"], "a known pillar remains in the global data section if its layer card is missing")
+  assert.equal(evidence.unlinked_players.length, 2, "the producer may repeat a layer-linked player gap in its top-level index")
+  assert.deepEqual(unlinkedRowsWithoutLayerCard(evidence.unlinked_players, evidence.layers).map(row => row.player), ["合成參與者"])
+  assert.deepEqual(unlinkedRowsWithoutLayerCard(evidence.unlinked_players, evidence.layers.filter(layer => layer.layer_id !== "L1")).map(row => row.player), ["合成參與者", "合成雲端服務商"], "a player gap remains visible if its layer card is missing")
+  assert.equal(evidence.scorecard_update.status, "evidence_pending_review")
+  assert.equal(evidence.scorecard_update.updated_at, "2026-09-20")
+  assert.equal(evidence.scorecard_update.document_updated_at, "2026-09-20")
+  assert.equal(evidence.scorecard_update.state, "partial", "same-day review and evidence remain unordered at date precision")
+  assert.equal(evidence.scorecard_update.scope.length, 5)
   assert.equal(evidence.state, "partial")
   assert.match(data.narratives[0].state_reason, /合成狀態示例/)
   assert.equal(narrativeDisplayState(data.narratives[0].state, evidence.state, data.state), "drift")
