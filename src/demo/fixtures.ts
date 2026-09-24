@@ -6,6 +6,10 @@ import { investmentScenario } from "./generated/investment-scenario.ts"
 export const DATE = investmentScenario.as_of
 export const STAMP = `${DATE}T12:00:00+08:00`
 const PREVIOUS_DATE = new Date(Date.parse(`${DATE}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
+const NEXT_DATE = new Date(Date.parse(`${DATE}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
+const BRIEF_GENERATED_AT = `${DATE}T21:30:00+08:00`
+const BRIEF_SOURCE_CUTOFF = `${DATE}T21:15:00+08:00`
+const UPDATE_OBSERVED_AT = `${NEXT_DATE}T00:27:00+08:00`
 export const WEEK = "2026-W38"
 
 export function createState() {
@@ -135,7 +139,7 @@ export const health: HealthData = {
   history: { strength_log: [{ date: "2026-09-17", exercise: "臥推（虛構）", set_number: 1, weight_kg: 40, assist_kg: null, reps: 8, rpe: null, slow_negative: false, notes: "合成範例" }], pullup_assist_trend: [{ date: "2026-09-10", assist_kg: 30, max_reps: 6 }, { date: "2026-09-17", assist_kg: 25, max_reps: 6 }] },
 }
 
-const source = { id: investmentScenario.source_id, title: investmentScenario.source_title, date: DATE, generated_at: STAMP, source_cutoff: STAMP, age_days: 0, state: "current" as const, limitations: ["由私人情境規格重新生成，並非市場資訊"], url: null }
+const source = { id: investmentScenario.source_id, title: investmentScenario.source_title, date: DATE, generated_at: BRIEF_GENERATED_AT, source_cutoff: BRIEF_SOURCE_CUTOFF, age_days: 0, state: "current" as const, limitations: ["由私人情境規格重新生成，並非市場資訊"], url: null }
 const openActionItem: InvestmentActionItem = {
   id: "ai:demo-deliver-questions",
   text: investmentScenario.action,
@@ -167,7 +171,7 @@ const closedActionItem: InvestmentActionItem = {
   date: "2026-09-13",
 }
 export const investment: InvestmentData = {
-  as_of: STAMP,
+  as_of: UPDATE_OBSERVED_AT,
   today: {
     state: "ready",
     decision_summary: "今天不需要因這則新訊號調整部位。",
@@ -176,15 +180,15 @@ export const investment: InvestmentData = {
     updates: [{
       id: "news:demo-intraday-1",
       story_id: "demo-storage-event",
-      observed_at: `${DATE}T15:10:00+08:00`,
-      summary: "盤中價格反應確認早盤事件有被市場交易，但幅度仍不足以改變原判斷。",
+      observed_at: UPDATE_OBSERVED_AT,
+      summary: "隔夜價格反應確認前一版事件有被市場交易，但幅度仍不足以改變原判斷。",
       portfolio_impact: "原本的核心假設不變；這次更新只提高對後續量能確認的優先級。",
       action: "收盤前再看一次量能是否延續，不因單一盤中波動追價。",
       relevance: ["new-price-discovery", "action-watch-change"],
       source_path: `wiki/morning/${DATE}_news.md`,
     }],
   },
-  brief: { state: "current", date: DATE, generated_at: STAMP, source_cutoff: STAMP, session: null,
+  brief: { state: "current", date: DATE, generated_at: BRIEF_GENERATED_AT, source_cutoff: BRIEF_SOURCE_CUTOFF, session: "us-open-prep",
     headline: investmentScenario.headline,
     market_pulse: [{ variable: investmentScenario.market_index.label, latest: `${investmentScenario.market_index.value.toLocaleString()} · +${investmentScenario.market_index.change_percent}%`, meaning: investmentScenario.market_index.meaning }], market_pulse_notes: [],
     events: [{ story_id: "demo-storage-event", event: investmentScenario.event_text, market_reaction: investmentScenario.market_reaction, interpretation: investmentScenario.interpretation, impact: "新增待查證事項", today: `先讀${investmentScenario.next_check}說明` }], event_notes: [],
@@ -195,8 +199,8 @@ export const investment: InvestmentData = {
       artifact: "daily-brief",
       id: investmentScenario.source_id,
       as_of: DATE,
-      generated_at: STAMP,
-      source_cutoff: STAMP,
+      generated_at: BRIEF_GENERATED_AT,
+      source_cutoff: BRIEF_SOURCE_CUTOFF,
       producer: "synthetic-demo",
       completeness: "ready",
       limitations: [],

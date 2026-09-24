@@ -60,10 +60,20 @@ jobs:
               page.on('request', request => { if (!request.url().startsWith(origin)) externalRequests.push(request.url()) })
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
               await page.getByText('今天發生了什麼', { exact: true }).waitFor()
+              const briefSessions = page.getByRole('region', { name: '盤前班次' })
+              const briefSessionRows = briefSessions.locator('li')
+              assert.equal(await briefSessionRows.count(), 2)
+              assert.match(await briefSessionRows.nth(0).innerText(), /台股盤前注意.*目標 08:00 台北/)
+              assert.match(await briefSessionRows.nth(1).innerText(), /美股盤前注意.*目標 21:15 台北/)
+              assert(await briefSessionRows.nth(0).getByText('本次資料未提供這個班次的正式簡報。', { exact: true }).isVisible(), `${name}: unmatched session must not inherit the selected brief`)
+              assert.match(await briefSessionRows.nth(1).innerText(), /報告日 2026-09-20 · 實際產出 2026\/09\/20 21:30 台北 · 資訊截至 2026\/09\/20 21:15 台北/)
+              assert(await briefSessions.getByText(/目標時段不代表自動產出或送達/).isVisible())
+              assert(await briefSessions.getByText(/更新承接這份正式簡報/).isVisible())
               assert(await page.getByText(/^最新盤中觀察/).isVisible())
+              assert(await page.getByText('最近更新 2026/09/21 00:27 台北', { exact: true }).isVisible(), `${name}: cross-midnight update must use its own Taiwan observation date`)
               assert.equal(await page.locator('[aria-label="今天發生了什麼"] article').count(), 1,
                 `${name}: matching brief event and update must share one story card`)
-              assert(await page.getByRole('heading', { name: /盤中價格反應確認早盤事件/ }).isVisible(),
+              assert(await page.getByRole('heading', { name: /隔夜價格反應確認前一版事件/ }).isVisible(),
                 `${name}: latest update must be the story heading`)
               assert(await page.getByText('星島設備發表新一代儲能產品（虛構）', { exact: true }).isVisible(),
                 `${name}: formal brief baseline must remain visible in the story card`)
@@ -170,7 +180,7 @@ jobs:
             }
             // Modify only in-memory synthetic Responses. Do not rewrite generated fixtures,
             // introduce test routes into production, or use any private source material.
-            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio']) {
+            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times']) {
               const page = await browser.newPage({ viewport: { width: 320, height: 740 } })
               const errors = []
               page.on('pageerror', error => errors.push(error.message))
@@ -227,6 +237,23 @@ jobs:
                       data.brief.source = null
                       data.brief.envelope = { ...data.brief.envelope, completeness: 'ready', limitations: [] }
                       data.today = { state: 'ready', decision_summary: null, updates: [], limitations: [] }
+                    }
+                    if (scenario === 'session-tw') {
+                      data.brief.session = 'tw-open-prep'
+                      data.brief.generated_at = `${data.brief.date}T08:20:00+08:00`
+                      data.brief.source_cutoff = `${data.brief.date}T08:00:00+08:00`
+                      data.brief.envelope.generated_at = data.brief.generated_at
+                      data.brief.envelope.source_cutoff = data.brief.source_cutoff
+                    }
+                    if (scenario === 'session-stale-us') {
+                      data.brief.state = 'stale'
+                      data.brief.source.state = 'stale'
+                    }
+                    if (scenario === 'session-missing') data.brief.session = null
+                    if (scenario === 'session-malformed-times') {
+                      data.brief.date = '2026-02-30'
+                      data.brief.generated_at = '2026-09-25T99:99:99Z'
+                      data.brief.source_cutoff = null
                     }
                   }
                   if (Array.isArray(data?.markets)) {
@@ -310,6 +337,23 @@ jobs:
                 }
               }, scenario)
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
+              if (scenario.startsWith('session-')) {
+                const sessions = page.getByRole('region', { name: '盤前班次' })
+                if (scenario === 'session-tw') {
+                  assert.match(await sessions.locator('li').nth(0).innerText(), /報告日 2026-09-20 · 實際產出 2026\/09\/20 08:20 台北 · 資訊截至 2026\/09\/20 08:00 台北/)
+                  assert.match(await sessions.locator('li').nth(1).innerText(), /美股盤前注意.*目標 21:15 台北/)
+                  assert(await sessions.locator('li').nth(1).getByText('本次資料未提供這個班次的正式簡報。', { exact: true }).isVisible())
+                }
+                if (scenario === 'session-stale-us') {
+                  assert(await page.getByRole('status').filter({ hasText: '目前沿用 2026-09-20 · 美股盤前注意' }).isVisible())
+                }
+                if (scenario === 'session-missing') {
+                  assert.equal(await sessions.getByText('本次資料未提供這個班次的正式簡報。', { exact: true }).count(), 2)
+                }
+                if (scenario === 'session-malformed-times') {
+                  assert.match(await sessions.locator('li').nth(1).innerText(), /報告日 時間未能辨識 · 實際產出 時間未能辨識 · 資訊截至 未提供/)
+                }
+              }
               if (scenario === 'unlinked-long') {
                 await page.getByText('其他判斷變化', { exact: true }).click()
                 const todayPanel = page.locator('#investment-panel-today')
@@ -321,7 +365,7 @@ jobs:
                 assert.equal(await page.getByText('觀察 5%', { exact: true }).count(), 1)
                 assert(await page.getByText('收盤前再看一次量能是否延續，不因單一盤中波動追價。', { exact: true }).isVisible())
                 assert(await page.getByText('今天怎麼做', { exact: true }).isVisible())
-                assert(await page.getByText(/正式簡報截至 未提供/).isVisible())
+                assert(await page.getByRole('region', { name: '盤前班次' }).locator('li').nth(1).getByText(/資訊截至 未提供/).isVisible())
                 const overflowAction = page.getByText('加碼', { exact: true })
                 assert.equal(await overflowAction.count(), 1)
                 assert.equal(await overflowAction.isVisible(), false, 'overflow actions remain reachable without crowding the first screen')

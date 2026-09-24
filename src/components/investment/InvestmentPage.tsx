@@ -7,7 +7,7 @@ import { Chip } from "@/components/ui/chip"
 import { PageHeader } from "@/components/ui/page-header"
 import { MarketIndicators } from "./MarketIndicators"
 import {
-  actionStatusLabel, actionStatusNote, groupBriefRows, openActionItems, todayActionPlan,
+  actionStatusLabel, actionStatusNote, briefSessionRows, BRIEF_SESSION_LABELS, groupBriefRows, openActionItems, todayActionPlan,
   sourceTimestamp,
 } from "@/lib/investmentFormat"
 import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
@@ -19,7 +19,7 @@ import { InvestmentNarrativeSection } from "./InvestmentNarrative"
 import { InvestmentThesis } from "./InvestmentThesis"
 import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline, type TodayStory } from "@/lib/investmentToday"
 import {
-  BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentMarket, getInvestmentPulse,
+  getInvestment, getInvestmentWatch, getInvestmentMarket, getInvestmentPulse,
   getInvestmentPending, getInvestmentHistory, getInvestmentContext,
   getInvestmentSource, getInvestmentWork,
   getInvestmentActions, getMarketExplore, getInvestmentNarrative,
@@ -177,6 +177,23 @@ function TodayStoryCard({ story, theses, risks, briefDate }: {
   </article>
 }
 
+function TodayBriefSessions({ brief, hasUpdates }: { brief: InvestmentBrief; hasUpdates: boolean }) {
+  const rows = briefSessionRows(brief)
+  return <section aria-label="盤前班次" className="flex min-w-0 flex-col gap-2">
+    <p className="text-caption font-medium text-ink-3">盤前注意</p>
+    <p className="text-caption leading-relaxed text-ink-3">日期與時間均以台灣時間呈現。目標時段不代表自動產出或送達；共享資料未提供排程狀態。</p>
+    <ul className="divide-y divide-line-soft border-y border-line-soft">
+      {rows.map(row => <li key={row.session} className="flex min-w-0 flex-col gap-1 py-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+        <p className="shrink-0 text-body font-medium text-ink-2">{row.label} <span className="text-caption font-normal text-ink-3">· 目標 {row.targetTime} 台北</span></p>
+        {row.matches
+          ? <p className="min-w-0 text-caption leading-relaxed text-ink-3">報告日 {sourceTimestamp(row.date)} · 實際產出 {sourceTimestamp(row.generatedAt)} · 資訊截至 {sourceTimestamp(row.sourceCutoff)}</p>
+          : <p className="text-caption text-ink-3">本次資料未提供這個班次的正式簡報。</p>}
+      </li>)}
+    </ul>
+    {hasUpdates ? <p className="text-caption leading-relaxed text-ink-3">下方更新承接這份正式簡報；每筆更新會標示自己的觀察時間。</p> : null}
+  </section>
+}
+
 /** Reading structure only. Meaning, order, changes and event links come from the source. */
 function TodayBrief({ b, today, readFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed: boolean }) {
   const version = b.session ? BRIEF_SESSION_LABELS[b.session] : null
@@ -188,11 +205,9 @@ function TodayBrief({ b, today, readFailed }: { b: InvestmentBrief; today?: Inve
   const hasUnlinked = theses.unlinked.length > 0 || risks.unlinked.length > 0 || b.thesis_notes.length > 0 || b.risk_notes.length > 0
   const envelopeIncomplete = b.envelope && b.envelope.completeness !== "ready"
   return <section aria-label="今日簡報" className="flex min-w-0 flex-col gap-6 break-words">
+    <TodayBriefSessions brief={b} hasUpdates={updates.length > 0} />
     <section aria-label="今天發生了什麼" className="flex min-w-0 flex-col gap-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <SectionHeading>今天發生了什麼</SectionHeading>
-        <span className="text-caption text-ink-3">{b.date ?? "日期未提供"}{version ? ` · ${version}` : " · 版次未標示"} · {updates.length ? "正式簡報截至" : "資料截至"} {sourceTimestamp(b.source_cutoff)}</span>
-      </div>
+      <SectionHeading>今天發生了什麼</SectionHeading>
       {b.state === "stale" ? <p role="status" className="text-caption text-warn">{staleBriefStatusText(b.date, version, sourceTimestamp(b.source_cutoff))}</p> : null}
       {b.state === "invalid" ? <p role="status" className="text-caption text-warn">這份簡報部分內容未能辨識，已保留可讀段落與完整原文。</p> : null}
       {envelopeIncomplete ? <p role="status" className="text-caption text-warn">{b.envelope?.completeness === "partial" ? "這份簡報資料不完整；細節可在下方來源展開查看。" : "這份簡報的資料包目前無法確認是否完整。"}</p> : null}

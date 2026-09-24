@@ -7,7 +7,7 @@ import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, historyReadingOrder, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, todayActionPlan, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyReadingOrder, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, todayActionPlan, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -79,7 +79,39 @@ test("Today prose uses the source session date across midnight and preserves unk
   assert.equal(taipeiCalendarDate("2026-09-24T18:30:00Z"), "2026-09-25", "UTC evening timestamps must use the Taiwan calendar date")
   assert.equal(taipeiCalendarDate("2026-09-24T23:00:00-04:00"), "2026-09-25")
   assert.equal(taipeiCalendarDate("2026-09-24T18:30:00"), null, "a timezone-free timestamp must not invent a Taiwan date")
-  assert.equal(staleBriefStatusText("2026-09-24", "美股開盤前版", "2026/09/24 21:30 台北"), "目前沿用 2026-09-24 · 美股開盤前版；資訊截至 2026/09/24 21:30 台北。")
+  assert.equal(staleBriefStatusText("2026-09-24", "美股盤前注意", "2026/09/24 21:15 台北"), "目前沿用 2026-09-24 · 美股盤前注意；資訊截至 2026/09/24 21:15 台北。")
+})
+
+test("brief session rows expose provenance only for the producer-declared session", () => {
+  const brief = syntheticInvestment.brief
+  const usRows = briefSessionRows(brief)
+  assert.deepEqual(usRows.map(({ label, targetTime, matches }) => ({ label, targetTime, matches })), [
+    { label: "台股盤前注意", targetTime: "08:00", matches: false },
+    { label: "美股盤前注意", targetTime: "21:15", matches: true },
+  ])
+  assert.deepEqual(usRows[0], {
+    session: "tw-open-prep", label: "台股盤前注意", targetTime: "08:00", matches: false,
+    state: null, date: null, generatedAt: null, sourceCutoff: null,
+  })
+  assert.equal(usRows[1]?.date, brief.date)
+  assert.equal(usRows[1]?.generatedAt, brief.generated_at)
+  assert.equal(usRows[1]?.sourceCutoff, brief.source_cutoff)
+
+  const twRows = briefSessionRows({ ...brief, session: "tw-open-prep", state: "stale" })
+  assert.equal(twRows[0]?.matches, true)
+  assert.equal(twRows[0]?.state, "stale")
+  assert.equal(twRows[1]?.matches, false)
+
+  const missingSessionRows = briefSessionRows({ ...brief, session: null })
+  assert.equal(missingSessionRows.some(row => row.matches), false)
+  assert(missingSessionRows.every(row => row.date === null && row.generatedAt === null && row.sourceCutoff === null))
+})
+
+test("synthetic formal brief and later update keep their Taiwan-time chronology across midnight", () => {
+  assert.equal(syntheticInvestment.brief.session, "us-open-prep")
+  assert.equal(sourceTimestamp(syntheticInvestment.brief.generated_at), "2026/09/20 21:30 台北")
+  assert.equal(sourceTimestamp(syntheticInvestment.brief.source_cutoff), "2026/09/20 21:15 台北")
+  assert.equal(sourceTimestamp(syntheticInvestment.today?.updates[0]?.observed_at), "2026/09/21 00:27 台北")
 })
 
 test("Today groups brief events and updates only by producer-owned story identity", async () => {
