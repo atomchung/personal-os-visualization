@@ -5,7 +5,7 @@ import { investmentScenario } from "../src/demo/generated/investment-scenario.ts
 import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
-import { buildTodayStories } from "../src/lib/investmentToday.ts"
+import { buildTodayStories, todayStoryHeadline } from "../src/lib/investmentToday.ts"
 import { actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, historyReadingOrder, recentActions, remainingActions, sourceTimestamp, quoteTime, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
@@ -54,6 +54,8 @@ test("Today groups brief events and updates only by producer-owned story identit
   assert.equal(stories[0].story_id, "demo-storage-event")
   assert.equal(stories[0].events.length, 1)
   assert.equal(stories[0].updates.length, 1)
+  assert.equal(todayStoryHeadline(stories[0]), data.today.updates[0].summary)
+  assert.equal(stories[0].events[0].event.event, data.brief.events[0].event)
 
   const missingIdentity = buildTodayStories(data.brief.date, data.brief.events, [{
     ...data.today.updates[0], story_id: null,
@@ -78,6 +80,8 @@ test("Today keeps same-story evidence together and preserves producer update ord
   ])
   assert.equal(stories.length, 1)
   assert.deepEqual(stories[0].updates.map(item => item.id), ["newest", "older"])
+  assert.equal(todayStoryHeadline(stories[0]), "new")
+  assert.equal(stories[0].events[0].event.event, "Brief event")
 
   const duplicateBriefEvents = buildTodayStories("2026-09-21", [event, { ...event, event: "Second brief row" }], [])
   assert.equal(duplicateBriefEvents.length, 1)

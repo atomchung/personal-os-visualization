@@ -17,7 +17,7 @@ import { InvestmentWorkPanel } from "./InvestmentWork"
 import { PendingBoard } from "./InvestmentPending"
 import { InvestmentHistory } from "./InvestmentHistory"
 import { InvestmentNarrativeSection } from "./InvestmentNarrative"
-import { buildTodayStories, type TodayStory } from "@/lib/investmentToday"
+import { buildTodayStories, todayStoryHeadline, type TodayStory } from "@/lib/investmentToday"
 import {
   BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentMarket,
   getInvestmentPending, getInvestmentHistory, getInvestmentContext,
@@ -122,15 +122,17 @@ function TodayStoryCard({ story, theses, risks }: {
   theses: TodayBriefRows["theses"]
   risks: TodayBriefRows["risks"]
 }) {
-  const primaryEvent = story.events[0]?.event
   const latestUpdate = story.updates[0]
-  const heading = primaryEvent?.event || latestUpdate?.summary || "今日事件"
+  const heading = todayStoryHeadline(story)
   const latestImpact = latestUpdate?.portfolio_impact.trim()
   const latestAction = latestUpdate?.action.trim()
   const hasSources = story.updates.length > 0 || Boolean(story.story_id)
   return <article className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
-      <SubsectionHeading><InlineText text={todayText(heading)} /></SubsectionHeading>
+      <div className="min-w-0">
+        {latestUpdate ? <p className="text-caption font-medium text-ink-3">目前狀態</p> : null}
+        <SubsectionHeading><InlineText text={todayText(heading)} /></SubsectionHeading>
+      </div>
       {latestUpdate ? <span className="shrink-0 text-caption text-ink-3">最近更新 {sourceTimestamp(latestUpdate.observed_at)}</span> : null}
     </div>
     {story.updates.map((item, index) => <div key={item.id} className="flex min-w-0 flex-col gap-2">
@@ -140,7 +142,8 @@ function TodayStoryCard({ story, theses, risks }: {
       {item.action ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">現在要注意：</span><InlineText text={todayText(item.action)} /></p> : null}
     </div>)}
     {story.events.map(({ event, event_index }, index) => <div key={event_index} className="flex min-w-0 flex-col gap-2">
-      {index > 0 ? <p className="text-body font-medium leading-relaxed text-ink"><InlineText text={todayText(event.event)} /></p> : null}
+      <p className="text-caption font-medium text-ink-3">{index === 0 ? "正式簡報基線" : "同故事中的另一份正式簡報"}</p>
+      {event.event.trim() !== heading.trim() ? <p className="text-body font-medium leading-relaxed text-ink"><InlineText text={todayText(event.event)} /></p> : null}
       {event.market_reaction ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報市場反應：</span><InlineText text={todayText(event.market_reaction)} /></p> : null}
       {event.interpretation ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報市場解讀：</span><InlineText text={todayText(event.interpretation)} /></p> : null}
       {event.impact && event.impact.trim() !== latestImpact ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報基線的持倉影響：</span><InlineText text={todayText(event.impact)} /></p> : null}

@@ -54,3 +54,8 @@ export function buildTodayStories(
 
   return stories
 }
+
+/** The newest producer-ordered update is the current story state. */
+export function todayStoryHeadline(story: TodayStory): string {
+  return story.updates[0]?.summary.trim() || story.events[0]?.event.event.trim() || "今日事件"
+}

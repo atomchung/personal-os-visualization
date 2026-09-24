@@ -63,6 +63,10 @@ jobs:
               assert(await page.getByText(/^最新盤中觀察/).isVisible())
               assert.equal(await page.locator('[aria-label="今天發生了什麼"] article').count(), 1,
                 `${name}: matching brief event and update must share one story card`)
+              assert(await page.getByRole('heading', { name: /盤中價格反應確認早盤事件/ }).isVisible(),
+                `${name}: latest update must be the story heading`)
+              assert(await page.getByText('星島設備發表新一代儲能產品（虛構）', { exact: true }).isVisible(),
+                `${name}: formal brief baseline must remain visible in the story card`)
               const hero = await page.getByText('今天發生了什麼', { exact: true }).boundingBox()
               assert(hero && hero.y + hero.height < height, `${name}: key judgment must begin in first screen`)
               await page.screenshot({ path: `${output}/${name}.png`, fullPage: true })
