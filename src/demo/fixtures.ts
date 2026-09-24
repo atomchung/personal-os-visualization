@@ -209,6 +209,16 @@ const demoEvidenceSource: InvestmentNarrativeSource = {
   line: 1,
   label: "合成範例",
 }
+const demoSupportSignalSource: InvestmentNarrativeSource = {
+  path: "demo/synthetic-support-signal.md",
+  line: 8,
+  label: "合成支持訊號",
+}
+const demoChallengeSignalSource: InvestmentNarrativeSource = {
+  path: "demo/synthetic-challenge-signal.md",
+  line: 15,
+  label: "合成挑戰訊號",
+}
 
 const demoEvidenceLayers: InvestmentNarrativeEvidenceLayer[] = [
   ["L0", "Hardware", "Synthetic hardware provider", "Example: shipped capacity", "Only demonstrates realized hardware demand"],
@@ -231,24 +241,24 @@ const demoDirectionalSignals: InvestmentNarrativeDirectionalSignal[] = [
   {
     direction: "supports", layer_id: null, priority: "示範", indicator: "Synthetic paid usage",
     dispute: "Synthetic demand durability", text: "Synthetic example: recurring paid usage would support demand durability.",
-    source_channels: "合成資料", source_date: null, document_updated: null, source: demoEvidenceSource,
+    source_channels: "合成資料", source_date: "2026-09-18", document_updated: "2026-09-20", source: demoSupportSignalSource,
   },
   {
     direction: "challenges", layer_id: null, priority: "示範", indicator: "Synthetic customer return",
     dispute: "Synthetic end-user value", text: "Synthetic example: source marks weak customer return as a challenge to end-user value.",
-    source_channels: "合成資料", source_date: null, document_updated: null, source: demoEvidenceSource,
+    source_channels: "合成資料", source_date: null, document_updated: "2026-09-19", source: demoChallengeSignalSource,
   },
 ]
 
 const demoThesisEvidence: InvestmentNarrativeThesisEvidence = {
-  state: "unknown",
+  state: "partial",
   layers: demoEvidenceLayers,
   directional_signals: demoDirectionalSignals,
   latest_recorded_change: {
     date: null, judgment: null, key_evidence: null, later_verification: null,
     state: "unknown", missing: ["展示資料沒有正式的日期化判斷與驗證記錄。"], source: null,
   },
-  reason: "這些是合成展示內容，不是 Investment Note 的正式論點證據。",
+  reason: "合成測試：證據尚未映射到五層，僅示範證據覆蓋狀態。",
 }
 
 export const investmentNarrative: InvestmentNarrative = {
@@ -267,8 +277,8 @@ export const investmentNarrative: InvestmentNarrative = {
     title: "合成 AI 基礎設施案例",
     status: "unknown",
     updated: null,
-    state: "unknown",
-    state_reason: "展示版沒有連接 Investment Note 的 narrative producer。",
+    state: "drift",
+    state_reason: "合成狀態示例：論點來源關聯互相衝突；僅用來示範 aggregate 狀態優先於證據覆蓋。",
     source: null,
     what_i_bet: {
       state: "unknown",

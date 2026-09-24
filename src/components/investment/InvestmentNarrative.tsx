@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Card, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { DEMO_MODE } from "@/lib/transport"
-import { NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeSignalSections, sourceTimestamp } from "@/lib/investmentFormat"
+import { NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeDisplayState, narrativeSignalSections, sourceTimestamp } from "@/lib/investmentFormat"
 import {
   getInvestmentNarrative,
   type InvestmentNarrative,
@@ -84,6 +84,15 @@ function DirectionalSignal({ signal }: { signal: InvestmentNarrativeDirectionalS
     <p className="text-body leading-relaxed text-ink-2"><InlineText text={signal.text} /></p>
     <p className="text-caption text-ink-3">{signal.indicator} · {signal.dispute}</p>
     <p className="text-caption text-ink-3">{signal.layer_id ? `明確連結至 ${signal.layer_id}` : "尚未連結特定層"}</p>
+    <details className="text-caption text-ink-3">
+      <summary className="cursor-pointer py-1">訊號日期與來源</summary>
+      <div className="flex min-w-0 flex-col gap-1 pt-1">
+        <p>來源渠道：{signal.source_channels || "未提供"}</p>
+        <p>訊號日期：{sourceTimestamp(signal.source_date)}</p>
+        <p>文件更新日：{sourceTimestamp(signal.document_updated)}</p>
+        <ul className="flex flex-col gap-1"><SourceReference source={signal.source} /></ul>
+      </div>
+    </details>
   </li>
 }
 
@@ -178,10 +187,11 @@ export function InvestmentNarrativeSection({ enabled, onOpenHistory }: { enabled
   })
   const data = query.data
   const narrative = data?.narratives[0]
-  const state: DisplayState = query.isError ? "unavailable" : narrative?.thesis_evidence.state ?? data?.state ?? "unknown"
+  const state: DisplayState = query.isError ? "unavailable" : narrativeDisplayState(narrative?.state, narrative?.thesis_evidence.state, data?.state) ?? "unknown"
   return <section aria-label="我的論點｜五層證據" className="flex min-w-0 flex-col gap-3 break-words">
     <SectionHeading aside={<StateChip state={state} />}>我的論點｜五層證據</SectionHeading>
     <p className="text-caption leading-relaxed text-ink-3">依序看五層證據、目前訊號、日期與來源、最近一次明確記錄；資料完整度不代表論點成立。要回找當時判斷、後續結果與已記錄心得，請到 <Button variant="link" className="inline min-h-0 px-0 py-0 align-baseline" onClick={onOpenHistory}>舊判斷回看</Button>。交易紀錄核對是另一項工作；PersonalOS 目前沒有對應入口。</p>
+    {narrative ? <StateNote state={narrative.state} reason={narrative.state_reason} /> : null}
     {DEMO_MODE ? <p className="text-caption text-ink-3">展示內容全為合成範例；個人論點與持倉保持未知。</p> : null}
     {query.isPending && !data ? <p role="status" className="text-body text-ink-3">正在讀取論點來源；讀取完成前不顯示健康狀態。</p> : null}
     {query.isError ? <p role="alert" className="text-caption text-warn">這次論點來源讀取失敗。{data ? "以下保留上次讀取結果。" : "目前無法確認論點狀態。"}請按更新資料重試。</p> : null}

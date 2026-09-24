@@ -35,6 +35,14 @@ export function narrativeSignalSections<T extends { direction: "supports" | "cha
   }
 }
 
+export function narrativeDisplayState<T extends string>(
+  narrativeState: T | null | undefined,
+  evidenceState: T | null | undefined,
+  dataState: T | null | undefined,
+): T | null | undefined {
+  return narrativeState ?? evidenceState ?? dataState
+}
+
 /** Preserve date-only precision and upstream unknown; never substitute a fetch time. */
 export function sourceTimestamp(value: string | null | undefined): string {
   if (!value || value === "unknown") return "未提供"
