@@ -365,7 +365,7 @@ jobs:
                 assert.equal(await page.getByText('觀察 5%', { exact: true }).count(), 1)
                 assert(await page.getByText('收盤前再看一次量能是否延續，不因單一盤中波動追價。', { exact: true }).isVisible())
                 assert(await page.getByText('今天怎麼做', { exact: true }).isVisible())
-                assert(await page.getByText(/正式簡報截至 未提供/).isVisible())
+                assert(await page.getByRole('region', { name: '盤前班次' }).locator('li').nth(1).getByText(/資訊截至 未提供/).isVisible())
                 const overflowAction = page.getByText('加碼', { exact: true })
                 assert.equal(await overflowAction.count(), 1)
                 assert.equal(await overflowAction.isVisible(), false, 'overflow actions remain reachable without crowding the first screen')
