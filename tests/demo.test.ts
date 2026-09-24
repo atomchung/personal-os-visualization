@@ -5,6 +5,7 @@ import { investmentScenario } from "../src/demo/generated/investment-scenario.ts
 import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
+import { buildTodayStories } from "../src/lib/investmentToday.ts"
 import { actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, historyReadingOrder, recentActions, remainingActions, sourceTimestamp, quoteTime, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
@@ -44,6 +45,43 @@ test("Today projection keeps intraday delta inside the daily flow", async () => 
   assert.equal(data.today.updates.length, 1)
   assert.equal(data.today.updates[0].relevance.includes("new-price-discovery"), true)
   assert.match(data.today.updates[0].source_path, /^wiki\/morning\//)
+})
+
+test("Today groups brief events and updates only by producer-owned story identity", async () => {
+  const data = await (await createDemoRequest()("/api/investment")).json()
+  const stories = buildTodayStories(data.brief.date, data.brief.events, data.today.updates)
+  assert.equal(stories.length, 1)
+  assert.equal(stories[0].story_id, "demo-storage-event")
+  assert.equal(stories[0].events.length, 1)
+  assert.equal(stories[0].updates.length, 1)
+
+  const missingIdentity = buildTodayStories(data.brief.date, data.brief.events, [{
+    ...data.today.updates[0], story_id: null,
+  }])
+  assert.equal(missingIdentity.length, 2)
+  assert.equal(missingIdentity[0].updates.length, 0)
+  assert.equal(missingIdentity[1].events.length, 0)
+})
+
+test("Today keeps same-story evidence together and preserves producer update order", () => {
+  const event = {
+    story_id: "shared-story",
+    event: "Brief event",
+    market_reaction: "",
+    interpretation: "",
+    impact: "",
+    today: "",
+  }
+  const stories = buildTodayStories("2026-09-21", [event], [
+    { id: "newest", story_id: "shared-story", observed_at: "2026-09-21T15:00:00+08:00", summary: "new", portfolio_impact: "", action: "", relevance: [], source_path: "new.md" },
+    { id: "older", story_id: "shared-story", observed_at: "2026-09-21T14:00:00+08:00", summary: "older", portfolio_impact: "", action: "", relevance: [], source_path: "old.md" },
+  ])
+  assert.equal(stories.length, 1)
+  assert.deepEqual(stories[0].updates.map(item => item.id), ["newest", "older"])
+
+  const duplicateBriefEvents = buildTodayStories("2026-09-21", [event, { ...event, event: "Second brief row" }], [])
+  assert.equal(duplicateBriefEvents.length, 1)
+  assert.deepEqual(duplicateBriefEvents[0].events.map(item => item.event.event), ["Brief event", "Second brief row"])
 })
 
 test("the showcase keeps the personal narrative and holdings explicitly unknown", async () => {
