@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
@@ -119,6 +120,7 @@ function MarketBoard({ market, embedded = false, priorSnapshot = false }: { mark
 }
 
 export function MarketExplore({ market, embedded = false }: { market: "tw" | "us"; embedded?: boolean }) {
+  const [lastUsableMarkets, setLastUsableMarkets] = useState<Partial<Record<"tw" | "us", MarketExploreMarket>>>({})
   const query = useQuery({
     queryKey: ["investment-explore"],
     queryFn: ({ signal }) => getMarketExplore(signal),
@@ -128,11 +130,25 @@ export function MarketExplore({ market, embedded = false }: { market: "tw" | "us
     refetchOnReconnect: false,
   })
   const data = query.data
+  useEffect(() => {
+    if (!data || data.state === "unavailable") return
+    setLastUsableMarkets(current => {
+      let next = current
+      for (const item of data.markets) {
+        if (item.state === "unavailable" || current[item.market] === item) continue
+        if (next === current) next = { ...current }
+        next[item.market] = item
+      }
+      return next
+    })
+  }, [data])
   const pending = query.isPending && !data
   const selected = data?.markets.find(item => item.market === market)
-  const hasItems = selected?.buckets.some(bucket => bucket.items.length > 0) ?? false
-  const priorSnapshot = Boolean(data && (query.isError || (data.cached && hasItems && (data.state === "unavailable" || selected?.state === "unavailable"))))
   const unavailable = data?.state === "unavailable" || selected?.state === "unavailable"
+  const previousSnapshot = lastUsableMarkets[market]
+  const usingPreviousSnapshot = unavailable && Boolean(previousSnapshot)
+  const displayedMarket = unavailable ? previousSnapshot : selected
+  const priorSnapshot = Boolean((query.isError && data) || usingPreviousSnapshot)
   const caption = data?.note?.trim() || "市場線索，不是基本面證據、持倉排名或買賣建議。"
 
   return (
@@ -141,10 +157,10 @@ export function MarketExplore({ market, embedded = false }: { market: "tw" | "us
       {pending ? <p role="status" className="text-body text-ink-3">整理市場資金線索中…</p> : null}
       {query.isError && !data ? <p role="alert" className="text-body text-warn">市場探索這次無法取得；目前無法判定是否有符合標的。</p> : null}
       {query.isError && data ? <p role="alert" className="text-body text-warn">市場探索更新失敗，以下保留上次讀取內容；不是最新結果。</p> : null}
-      {unavailable && !priorSnapshot ? <p role="status" className="text-body text-warn">{selected ? `${MARKET_LABEL[market]}探索資料目前無法取得；不代表沒有符合標的。` : data?.message || "市場探索資料目前無法取得；不代表沒有符合標的。"}</p> : null}
-      {unavailable && priorSnapshot ? <p role="status" className="text-body text-warn">目前無法取得新的{MARKET_LABEL[market]}探索結果；以下是先前快照。</p> : null}
+      {unavailable && !usingPreviousSnapshot ? <p role="status" className="text-body text-warn">{selected ? `${MARKET_LABEL[market]}探索資料目前無法取得；不代表沒有符合標的。` : data?.message || "市場探索資料目前無法取得；不代表沒有符合標的。"}</p> : null}
+      {usingPreviousSnapshot ? <p role="status" className="text-body text-warn">目前無法取得新的{MARKET_LABEL[market]}探索結果；以下是先前快照。</p> : null}
       {data && !selected && !unavailable ? <p role="status" className="text-body text-warn">資料沒有回傳{MARKET_LABEL[market]}探索結果；無法判定是否有符合標的。</p> : null}
-      {selected && (!unavailable || priorSnapshot) ? <MarketBoard market={selected} embedded={embedded} priorSnapshot={priorSnapshot} /> : null}
+      {displayedMarket && (!unavailable || usingPreviousSnapshot) ? <MarketBoard market={displayedMarket} embedded={embedded} priorSnapshot={priorSnapshot} /> : null}
       <p className="text-micro text-ink-3">{DEMO_MODE ? "數字全部由展示資料提供，沒有掃描真實市場。" : "候選名單由來源排序；這是市場線索，不是買賣建議。"}</p>
     </section>
   )

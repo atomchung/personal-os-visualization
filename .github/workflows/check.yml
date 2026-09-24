@@ -117,7 +117,7 @@ jobs:
             }
             // Modify only in-memory synthetic Responses. Do not rewrite generated fixtures,
             // introduce test routes into production, or use any private source material.
-            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'initial-error', 'refresh-error', 'quote-unavailable', 'market-empty', 'market-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-mixed-dates']) {
+            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'initial-error', 'refresh-error', 'quote-unavailable', 'market-empty', 'market-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio']) {
               const page = await browser.newPage({ viewport: { width: 320, height: 740 } })
               const errors = []
               page.on('pageerror', error => errors.push(error.message))
@@ -156,6 +156,15 @@ jobs:
                   if (Array.isArray(data?.markets)) {
                     if (scenario === 'market-initial-error' || (scenario === 'market-refresh-error' && window.__failMarketExplore)) throw new Error('Synthetic market explore failure')
                     if (scenario === 'market-refresh-delayed' && window.__delayMarketExplore) await new Promise(resolve => setTimeout(resolve, 600))
+                    if (scenario === 'market-refresh-unavailable' && window.__marketUnavailable) {
+                      data.state = 'partial'
+                      const tw = data.markets.find(market => market.market === 'tw')
+                      tw.state = 'unavailable'
+                      for (const bucket of tw.buckets) bucket.items = []
+                      const us = data.markets.find(market => market.market === 'us')
+                      us.state = 'ready'
+                      us.buckets[0].items = [{ symbol: 'SYNTH-US-CONTEXT', label: '合成美股探索甲', price: 123, change_1d_pct: 1, change_7d_pct: 2, activity: { label: 'relative_volume', value: 1.2 }, rsi14: null, vs_50ma_pct: null, rs_benchmark_1m_pp: null, rs_benchmark_window: null, researched: false }]
+                    }
                     if (scenario === 'market-empty') {
                       data.state = 'ready'
                       data.cached = false
@@ -183,6 +192,13 @@ jobs:
                     data.as_of = '2001-01-02'
                     data.generated_at = '2001-03-04T12:00:00+08:00'
                     data.source_cutoff = '2001-01-02T13:30:00+08:00'
+                  }
+                  if (scenario === 'market-known-breadth-no-ratio' && data?.index && data?.breadth) {
+                    data.state = 'partial'
+                    data.breadth.advancer_ratio = null
+                    data.breadth.combined.up = 7
+                    data.breadth.combined.down = 5
+                    data.breadth.combined.flat = 2
                   }
                   if (scenario === 'market-mixed-dates' && Array.isArray(data?.items) && data.items.some(item => item && item.market)) {
                     const tw = data.items.find(item => item.market === 'tw')
@@ -265,10 +281,33 @@ jobs:
                 assert(await page.getByText('島嶼設備甲', { exact: true }).isVisible(), 'slow discovery must keep existing candidates visible')
                 await page.getByRole('button', { name: '更新市場資料', exact: true }).waitFor()
               }
+              if (scenario === 'market-refresh-unavailable') {
+                await page.getByText('島嶼設備甲', { exact: true }).waitFor()
+                const priorDate = await page.getByText(/資料日 .* · 來源截止/).innerText()
+                await page.evaluate(() => { window.__marketUnavailable = true })
+                await page.getByRole('button', { name: '更新市場資料', exact: true }).click()
+                await page.getByText('目前無法取得新的台股探索結果；以下是先前快照。', { exact: true }).waitFor()
+                assert(await page.getByText('島嶼設備甲', { exact: true }).isVisible(), 'unavailable refresh must retain last usable Taiwan candidates')
+                assert(await page.getByText(priorDate, { exact: true }).isVisible(), 'fallback snapshot must retain its original date')
+                await page.getByRole('tab', { name: '美股', exact: true }).click()
+                assert(await page.getByText('合成美股探索甲', { exact: true }).isVisible(), 'successful US refresh must remain visible beside unavailable Taiwan data')
+                assert.equal(await page.getByText('目前無法取得新的美股探索結果；以下是先前快照。', { exact: true }).count(), 0)
+                await page.getByRole('button', { name: '更新市場資料', exact: true }).waitFor()
+              }
               if (scenario === 'market-mixed-dates') {
                 assert(await page.getByText(/資料日 2001-01-02 · 產出於 2001\/03\/04 12:00 台北/).isVisible())
                 assert(await page.getByText(/報價時間 2001\/05\/06 09:30/).isVisible())
                 assert(await page.getByText(/資料日 2001-02-03 · 來源截止/).isVisible())
+              }
+              if (scenario === 'market-known-breadth-no-ratio') {
+                const counts = page.getByLabel('台股漲跌家數')
+                assert(await counts.getByText('上漲家數', { exact: true }).isVisible())
+                assert(await counts.getByText('7', { exact: true }).isVisible())
+                assert(await counts.getByText('下跌家數', { exact: true }).isVisible())
+                assert(await counts.getByText('5', { exact: true }).isVisible())
+                assert(await counts.getByText('平盤家數', { exact: true }).isVisible())
+                assert(await counts.getByText('2', { exact: true }).isVisible())
+                assert(await page.getByText('漲方比例', { exact: true }).isVisible())
               }
               await page.screenshot({ path: `${output}/${scenario}.png`, fullPage: true })
               const layout = await noOverflow(page, scenario)

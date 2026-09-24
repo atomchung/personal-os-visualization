@@ -119,6 +119,11 @@ function TaiwanOverview({ data, pending, failed }: {
           <span className="text-ink-3">漲方比例</span><span className="text-right tabular-nums text-ink-2">{ratio(data.breadth.advancer_ratio)}</span>
           <span className="text-ink-3">漲停 / 跌停</span><span className="text-right tabular-nums text-ink-2">{number(data.breadth.combined.limit_up)} / {number(data.breadth.combined.limit_down)}</span>
           <span className="text-ink-3">上市櫃個股成交額</span><span className="text-right tabular-nums text-ink-2">{turnover(data.turnover.combined_stock)}</span>
+          <div aria-label="台股漲跌家數" className="col-span-2 grid grid-cols-3 gap-2 border-t border-line-soft pt-2 text-center">
+            <div><p className="text-ink-3">上漲家數</p><p className="tabular-nums text-ink-2">{number(data.breadth.combined.up)}</p></div>
+            <div><p className="text-ink-3">下跌家數</p><p className="tabular-nums text-ink-2">{number(data.breadth.combined.down)}</p></div>
+            <div><p className="text-ink-3">平盤家數</p><p className="tabular-nums text-ink-2">{number(data.breadth.combined.flat)}</p></div>
+          </div>
         </div>
       </div>
       <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2"><ThemeList title={`${data.themes.label} · 強`} rows={data.themes.strongest} /><ThemeList title={`${data.themes.label} · 弱`} rows={data.themes.weakest} /></div>
