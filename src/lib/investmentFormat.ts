@@ -6,6 +6,7 @@ const TIME_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", 
 const DAY_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", month: "2-digit", day: "2-digit" })
 const DATE_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" })
 const SOURCE_TIME_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+export const NARRATIVE_FALSIFIER_UNAVAILABLE_COPY = "此讀取資料未提供獨立的明確推翻條件欄位；挑戰訊號不等同於推翻條件。"
 
 /** Taipei clock time; never mistake the same month/day in another year for today. */
 export function quoteTime(value: string | null, now = new Date()): string {
@@ -21,6 +22,17 @@ export function quoteTime(value: string | null, now = new Date()): string {
 export function formatNumber(value: number | null, signed = false): string {
   if (value === null || !Number.isFinite(value)) return "—"
   return (signed ? CHANGE_FORMAT : VALUE_FORMAT).format(value)
+}
+
+export function narrativeSignalSections<T extends { direction: "supports" | "challenges" }>(
+  signals: T[],
+  explicitFalsifiers: string[] = [],
+) {
+  return {
+    challengeSignals: signals.filter(signal => signal.direction === "challenges"),
+    supportSignals: signals.filter(signal => signal.direction === "supports"),
+    explicitFalsifiers,
+  }
 }
 
 /** Preserve date-only precision and upstream unknown; never substitute a fetch time. */

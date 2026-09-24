@@ -1,12 +1,15 @@
 import { useQuery } from "@tanstack/react-query"
+import { Button } from "@/components/ui/button"
 import { Card, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { DEMO_MODE } from "@/lib/transport"
-import { sourceTimestamp } from "@/lib/investmentFormat"
+import { NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeSignalSections, sourceTimestamp } from "@/lib/investmentFormat"
 import {
   getInvestmentNarrative,
   type InvestmentNarrative,
-  type InvestmentNarrativeExpression,
+  type InvestmentNarrativeDirectionalSignal,
+  type InvestmentNarrativeEvidenceLayer,
+  type InvestmentNarrativeRecordedChange,
   type InvestmentNarrativeSource,
   type InvestmentNarrativeState,
 } from "@/lib/investment"
@@ -15,11 +18,11 @@ import { InlineText } from "./ReadingText"
 type DisplayState = InvestmentNarrativeState | "unavailable"
 
 const STATE_COPY: Record<DisplayState, { label: string; tone: "ok" | "warn" | "bad" | "mute" }> = {
-  ready: { label: "來源已對上", tone: "ok" },
+  ready: { label: "資料欄位齊備", tone: "mute" },
   partial: { label: "資料部分可用", tone: "warn" },
   stale: { label: "來源較舊", tone: "warn" },
   drift: { label: "來源關聯不一致", tone: "bad" },
-  unknown: { label: "狀態未知", tone: "mute" },
+  unknown: { label: "資料狀態未知", tone: "mute" },
   unavailable: { label: "目前無法取得", tone: "warn" },
 }
 
@@ -40,117 +43,131 @@ function SourceReference({ source }: { source: InvestmentNarrativeSource | null 
   return <li className="break-all">{source.label ? `${source.label} · ` : ""}{source.path}{source.line ? ` · 第 ${source.line} 行` : ""}</li>
 }
 
-function DecisionViewLink({ item }: { item: InvestmentNarrativeExpression }) {
-  const decision = item.decision_view
-  if (decision.state !== "ready" || !decision.decision_id) {
-    return <div className="flex flex-wrap items-center gap-2">
-      <StateChip state={decision.state} />
-      <span className="text-caption text-ink-3">{decision.reason || "現有 Decision View 尚不可用。"}</span>
-    </div>
+function uniqueSources(sources: Array<InvestmentNarrativeSource | null | undefined>) {
+  const byLocation = new Map<string, InvestmentNarrativeSource>()
+  for (const source of sources) {
+    if (source) byLocation.set(`${source.path}:${source.line ?? ""}`, source)
   }
-  const href = `/api/investment/decision-view?ticker=${encodeURIComponent(item.ticker)}&decision_id=${encodeURIComponent(decision.decision_id)}`
-  return <a
-    href={href}
-    target="_blank"
-    rel="noreferrer"
-    className="inline-flex min-h-8 items-center font-semibold text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-sys-blue"
-  >查看現有 Decision View · {decision.decision_id} ↗</a>
+  return [...byLocation.values()]
 }
 
-function ExpressionRow({ item }: { item: InvestmentNarrativeExpression }) {
-  const holdingState = item.holding_state === "ready" ? "ready" : "unknown"
-  const sources = [item.linkage.source, item.thesis_source, ...item.decision_view.sources]
-  return <li className="flex min-w-0 flex-col gap-2 border-t border-line-soft py-3 first:border-0 first:pt-0 last:pb-0">
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-body font-semibold text-ink">{item.ticker}</span>
-      <StateChip state={holdingState} />
-      {item.linkage.state !== "ready" ? <StateChip state={item.linkage.state} /> : null}
-      {item.holding_reason ? <span className="text-caption text-ink-3">{item.holding_reason}</span> : null}
+function LayerEvidenceCard({ layer }: { layer: InvestmentNarrativeEvidenceLayer }) {
+  return <li className="flex min-w-0 flex-col gap-3 border-t border-line-soft py-4 first:border-0 first:pt-0 last:pb-0">
+    <div className="flex min-w-0 flex-col gap-3">
+      <h4 className="text-body font-semibold text-ink">{layer.layer_id} · {layer.label}</h4>
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="text-caption font-medium text-ink-2">支持證據</p>
+          {layer.supporting.length ? <ul className="list-disc pl-5 text-body leading-relaxed text-ink-2">{layer.supporting.map((item, index) => <li key={index}><InlineText text={item} /></li>)}</ul> : <p className="text-caption leading-relaxed text-ink-3">未明確連結到此層。</p>}
+        </div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="text-caption font-medium text-ink-2">反證</p>
+          {layer.opposing.length ? <ul className="list-disc pl-5 text-body leading-relaxed text-ink-2">{layer.opposing.map((item, index) => <li key={index}><InlineText text={item} /></li>)}</ul> : <p className="text-caption leading-relaxed text-ink-3">未明確連結到此層。</p>}
+        </div>
+      </div>
     </div>
-    <DecisionViewLink item={item} />
-    {item.linkage.reason ? <StateNote state={item.linkage.state} reason={item.linkage.reason} /> : null}
-    {sources.some(Boolean) ? <details className="text-caption text-ink-3">
-      <summary className="cursor-pointer py-1">查看持倉與判斷來源</summary>
-      <ul className="flex flex-col gap-1 pt-1"><SourceReference source={item.linkage.source} /><SourceReference source={item.thesis_source} />{item.decision_view.sources.map((source, index) => <SourceReference key={`${source.path}:${index}`} source={source} />)}</ul>
-    </details> : null}
+    <details className="text-caption text-ink-3">
+      <summary className="cursor-pointer py-1">這層的背景與來源</summary>
+      <div className="flex flex-col gap-2 pt-2">
+        <p><span className="font-medium text-ink-2">價值鏈位置：</span>{layer.who_earns || "來源未提供"}</p>
+        <p><span className="font-medium text-ink-2">證據例：</span>{layer.evidence_examples || "來源未提供"}</p>
+        <p><span className="font-medium text-ink-2">可證明範圍：</span>{layer.what_it_proves || "來源未提供"}</p>
+        <p>證據日期：{sourceTimestamp(layer.source_date)} · 文件更新：{sourceTimestamp(layer.document_updated)}</p>
+        <ul className="flex flex-col gap-1"><SourceReference source={layer.source} /></ul>
+      </div>
+    </details>
   </li>
 }
 
+function DirectionalSignal({ signal }: { signal: InvestmentNarrativeDirectionalSignal }) {
+  return <li className="flex min-w-0 flex-col gap-1.5 border-t border-line-soft py-3 first:border-0 first:pt-0 last:pb-0">
+    <p className="text-body leading-relaxed text-ink-2"><InlineText text={signal.text} /></p>
+    <p className="text-caption text-ink-3">{signal.indicator} · {signal.dispute}</p>
+    <p className="text-caption text-ink-3">{signal.layer_id ? `明確連結至 ${signal.layer_id}` : "尚未連結特定層"}</p>
+  </li>
+}
+
+function SignalGroup({ title, signals, emptyLabel }: {
+  title: string
+  signals: InvestmentNarrativeDirectionalSignal[]
+  emptyLabel: string
+}) {
+  return <div className="flex min-w-0 flex-col gap-2">
+    <p className="text-caption font-medium text-ink-2">{title}</p>
+    {signals.length ? <ul className="flex min-w-0 flex-col">{signals.map((signal, index) => <DirectionalSignal key={`${signal.indicator}:${index}`} signal={signal} />)}</ul> : <p className="text-caption leading-relaxed text-ink-3">{emptyLabel}</p>}
+  </div>
+}
+
+function RecordedLearning({ record }: { record: InvestmentNarrativeRecordedChange }) {
+  const hasContent = Boolean(record.date || record.judgment || record.key_evidence || record.later_verification)
+  return <article className="flex min-w-0 flex-col gap-2 p-4 sm:p-5">
+    <SubsectionHeading>最近一次明確記錄的判斷與驗證</SubsectionHeading>
+    {!hasContent ? <p className="text-body text-ink-3">尚未記錄。這裡只讀 scorecard 時間線，不以最新新聞或事件代替 learning。</p> : <>
+      <p className="text-caption text-ink-3">{sourceTimestamp(record.date)}</p>
+      <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">當時判斷：</span>{record.judgment ? <InlineText text={record.judgment} /> : "尚未記錄"}</p>
+      <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">關鍵事實：</span>{record.key_evidence ? <InlineText text={record.key_evidence} /> : "尚未記錄"}</p>
+      <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">後續驗證：</span>{record.later_verification ? <InlineText text={record.later_verification} /> : "尚未記錄"}</p>
+    </>}
+    <StateNote state={record.state} reason={record.missing.length ? record.missing.join("；") : null} />
+  </article>
+}
+
 function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narrative: InvestmentNarrative["narratives"][number] }) {
-  const latest = narrative.latest_change
+  const evidence = narrative.thesis_evidence
+  // The current producer contract has no dedicated falsifier field.
+  const { challengeSignals, supportSignals, explicitFalsifiers } = narrativeSignalSections(evidence.directional_signals)
+  const sources = uniqueSources([
+    ...narrative.references,
+    ...evidence.layers.map(layer => layer.source),
+    ...evidence.directional_signals.map(signal => signal.source),
+    evidence.latest_recorded_change.source,
+  ])
   return <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
     <article className="flex min-w-0 flex-col gap-2 p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <SubsectionHeading>我在押什麼</SubsectionHeading>
-        <StateChip state={narrative.what_i_bet.state} />
-      </div>
-      <div className="flex min-w-0 flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-caption text-ink-3">AI 大故事</p>
-          <StateChip state={narrative.what_i_bet.narrative.state} />
-        </div>
-        {narrative.what_i_bet.narrative.text ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.what_i_bet.narrative.text} /></p> : <p className="text-body text-ink-3">尚未取得可讀的敘事內容。</p>}
-        <StateNote state={narrative.what_i_bet.narrative.state} reason={narrative.what_i_bet.narrative.reason} />
-      </div>
-      <div className="flex min-w-0 flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-caption text-ink-3">既有 owner thesis</p>
-          <StateChip state={narrative.what_i_bet.owner_thesis.state} />
-        </div>
-        {narrative.what_i_bet.owner_thesis.text ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.what_i_bet.owner_thesis.text} /></p> : <p className="text-body text-ink-3">尚未取得 owner thesis。</p>}
-        <StateNote state={narrative.what_i_bet.owner_thesis.state} reason={narrative.what_i_bet.owner_thesis.reason} />
-      </div>
-      <div className="flex min-w-0 flex-col gap-2 border-l-2 border-line pl-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <SubsectionHeading>當前關鍵張力</SubsectionHeading>
-          <StateChip state={narrative.current_tension.state} />
-        </div>
-        {narrative.current_tension.text ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.current_tension.text} /></p> : <p className="text-body text-ink-3">尚未取得來源中的關鍵張力。</p>}
-        <StateNote state={narrative.current_tension.state} reason={narrative.current_tension.reason} />
-      </div>
-      <StateNote state={narrative.what_i_bet.state} reason={narrative.what_i_bet.reason} />
+      <SubsectionHeading>我在押什麼</SubsectionHeading>
+      {narrative.title ? <p className="text-caption text-ink-3">{narrative.title}</p> : null}
+      {narrative.what_i_bet.narrative.text ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.what_i_bet.narrative.text} /></p> : null}
+      {narrative.what_i_bet.owner_thesis.text ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.what_i_bet.owner_thesis.text} /></p> : null}
+      {!narrative.what_i_bet.narrative.text && !narrative.what_i_bet.owner_thesis.text ? <p className="text-body text-ink-3">來源尚未提供可讀的論點；不補寫投資主張。</p> : null}
     </article>
 
-    <article className="flex min-w-0 flex-col gap-2 p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <SubsectionHeading>哪些持倉在表達這個故事</SubsectionHeading>
-        <StateChip state={narrative.expressions.state} />
-      </div>
-      {narrative.expressions.items.length ? <ul className="flex min-w-0 flex-col">{narrative.expressions.items.map(item => <ExpressionRow key={item.ticker} item={item} />)}</ul> : <p className="text-body text-ink-3">{narrative.expressions.reason || "目前無法確認哪些持倉表達這個故事。"}</p>}
-      <StateNote state={narrative.expressions.state} reason={narrative.expressions.reason} />
+    <article className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
+      <SubsectionHeading>五層證據</SubsectionHeading>
+      <p className="text-caption leading-relaxed text-ink-3">支持與反證只在來源明確連到該層時列出；沒有連結就保留未知，不代表該層沒有證據。</p>
+      <StateNote state={evidence.state} reason={evidence.reason} />
+      {evidence.layers.length ? <ol className="flex min-w-0 flex-col">{evidence.layers.map(layer => <LayerEvidenceCard key={layer.layer_id} layer={layer} />)}</ol> : <p className="text-body text-ink-3">來源尚未提供可辨識的五層結構。</p>}
     </article>
 
-    <article className="flex min-w-0 flex-col gap-2 p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <SubsectionHeading>最近哪一環變化，為什麼重要</SubsectionHeading>
-        <StateChip state={latest.state} />
+    <article className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
+      <SubsectionHeading>哪些訊號會支持或挑戰論點</SubsectionHeading>
+      {narrative.current_tension.text ? <div className="flex flex-col gap-1 border-l-2 border-line pl-3">
+        <p className="text-caption font-medium text-ink-2">目前張力</p>
+        <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.current_tension.text} /></p>
+      </div> : null}
+      <SignalGroup title="來源列出的挑戰訊號" signals={challengeSignals} emptyLabel="來源尚未列出明確的挑戰訊號。" />
+      <SignalGroup title="來源列出的支持訊號" signals={supportSignals} emptyLabel="來源尚未列出明確的支持訊號。" />
+      <div className="flex min-w-0 flex-col gap-1">
+        <p className="text-caption font-medium text-ink-2">明確推翻條件</p>
+        {explicitFalsifiers.length ? <ul className="list-disc pl-5 text-body leading-relaxed text-ink-2">{explicitFalsifiers.map((condition, index) => <li key={index}><InlineText text={condition} /></li>)}</ul> : <p className="text-caption leading-relaxed text-ink-3">{NARRATIVE_FALSIFIER_UNAVAILABLE_COPY}</p>}
       </div>
-      {latest.item ? <>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-body font-medium leading-relaxed text-ink"><InlineText text={latest.item.text || "事件文字未知"} /></p>
-          <span className="text-caption text-ink-3">{sourceTimestamp(latest.item.at)}</span>
-        </div>
-        {latest.item.why_important ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">為什麼重要：</span><InlineText text={latest.item.why_important} /></p> : <p className="text-body text-ink-3">來源尚未提供這次變化對判斷的影響；重要性未知。</p>}
-        {latest.item.market_reaction || latest.item.interpretation ? <details className="text-caption text-ink-3">
-          <summary className="cursor-pointer py-1">查看市場反應與來源判讀</summary>
-          <div className="flex flex-col gap-2 pt-1 text-body leading-relaxed text-ink-2">{latest.item.market_reaction ? <p><InlineText text={latest.item.market_reaction} /></p> : null}{latest.item.interpretation ? <p><InlineText text={latest.item.interpretation} /></p> : null}</div>
-        </details> : null}
-      </> : <p className="text-body text-ink-3">目前沒有明確關聯到這個故事的最新事件；不以文字相似推斷。</p>}
-      <StateNote state={latest.state} reason={latest.reason} />
+      {!evidence.directional_signals.length ? <p className="text-caption leading-relaxed text-ink-3">可用訊號缺失不等於反方不存在；不從文字或近期事件推測。</p> : null}
     </article>
 
     <details className="p-4 text-caption text-ink-3 sm:p-5">
-      <summary className="cursor-pointer">資料來源與完整度</summary>
+      <summary className="cursor-pointer">日期與來源</summary>
       <div className="flex flex-col gap-2 pt-2">
-        <p>論點：{narrative.narrative_id || "ID 未知"} · scorecard 更新：{sourceTimestamp(narrative.updated)} · 論點來源時間：{sourceTimestamp(data.source_cutoff)}</p>
-        <ul className="flex flex-col gap-1">{narrative.references.map((source, index) => source ? <SourceReference key={`${source.path}:${index}`} source={source} /> : null)}</ul>
+        <p>Scorecard 更新：{sourceTimestamp(narrative.updated)} · 頁面讀取資料截點：{sourceTimestamp(data.source_cutoff)}</p>
+        <p>文件更新日不代表每項訊號的發生日；來源沒有標日期時維持未知。</p>
+        <ul className="flex flex-col gap-1">{sources.map((source, index) => <SourceReference key={`${source.path}:${source.line ?? index}`} source={source} />)}</ul>
         {data.limitations.map((limitation, index) => <p key={index} className="text-warn">{limitation}</p>)}
       </div>
     </details>
+
+    <RecordedLearning record={evidence.latest_recorded_change} />
   </Card>
 }
 
-export function InvestmentNarrativeSection({ enabled }: { enabled: boolean }) {
+export function InvestmentNarrativeSection({ enabled, onOpenHistory }: { enabled: boolean; onOpenHistory: () => void }) {
   const query = useQuery({
     queryKey: ["investment-narrative"],
     queryFn: ({ signal }) => getInvestmentNarrative(signal),
@@ -161,21 +178,14 @@ export function InvestmentNarrativeSection({ enabled }: { enabled: boolean }) {
   })
   const data = query.data
   const narrative = data?.narratives[0]
-  const state: DisplayState = query.isError ? "unavailable" : data?.state ?? "unknown"
-  return <section aria-label="我的論點" className="flex min-w-0 flex-col gap-3 break-words">
-    <SectionHeading aside={<StateChip state={state} />}>我的論點</SectionHeading>
-    <p className="text-caption text-ink-3">沿著同一條論點脈絡讀：我在押什麼 → 關鍵張力 → 哪些持倉在表達 → 最近哪一環變化及其重要性。每一環都保留來源狀態。</p>
-    {DEMO_MODE ? <p className="text-caption text-ink-3">展示版只提供合成資料；個人論點與持倉保持未知。</p> : null}
+  const state: DisplayState = query.isError ? "unavailable" : narrative?.thesis_evidence.state ?? data?.state ?? "unknown"
+  return <section aria-label="我的論點｜五層證據" className="flex min-w-0 flex-col gap-3 break-words">
+    <SectionHeading aside={<StateChip state={state} />}>我的論點｜五層證據</SectionHeading>
+    <p className="text-caption leading-relaxed text-ink-3">依序看五層證據、目前訊號、日期與來源、最近一次明確記錄；資料完整度不代表論點成立。要回找當時判斷、後續結果與已記錄心得，請到 <Button variant="link" className="inline min-h-0 px-0 py-0 align-baseline" onClick={onOpenHistory}>舊判斷回看</Button>。交易紀錄核對是另一項工作；PersonalOS 目前沒有對應入口。</p>
+    {DEMO_MODE ? <p className="text-caption text-ink-3">展示內容全為合成範例；個人論點與持倉保持未知。</p> : null}
     {query.isPending && !data ? <p role="status" className="text-body text-ink-3">正在讀取論點來源；讀取完成前不顯示健康狀態。</p> : null}
     {query.isError ? <p role="alert" className="text-caption text-warn">這次論點來源讀取失敗。{data ? "以下保留上次讀取結果。" : "目前無法確認論點狀態。"}請按更新資料重試。</p> : null}
     {!query.isPending && !query.isError && !narrative ? <p role="status" className="text-body text-ink-3">目前沒有可讀的 AI narrative；來源未提供資料，不補寫論點。</p> : null}
-    {data && narrative ? <>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <SubsectionHeading>{narrative.title || "AI 大故事標題未提供"}</SubsectionHeading>
-        <span className="text-caption text-ink-3">論點來源時間 {sourceTimestamp(data.source_cutoff)}</span>
-      </div>
-      <StateNote state={narrative.state} reason={narrative.state_reason} />
-      <NarrativeContent data={data} narrative={narrative} />
-    </> : null}
+    {data && narrative ? <NarrativeContent data={data} narrative={narrative} /> : null}
   </section>
 }
