@@ -162,7 +162,7 @@ jobs:
               }
               if (scenario === 'blank-summary') {
                 assert(await page.getByRole('heading', { name: '最新摘要未提供', exact: true }).isVisible())
-                assert(await page.getByText('更正為 2%，原判斷需下修。', { exact: true }).isVisible())
+                assert(await page.getByText(/對判斷的影響：更正為 2%，原判斷需下修。/).isVisible())
                 assert(await page.getByText('正式簡報基線', { exact: true }).isVisible())
                 assert(await page.getByText('星島設備發表新一代儲能產品（虛構）', { exact: true }).isVisible())
               }
