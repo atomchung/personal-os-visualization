@@ -6,7 +6,7 @@ import { investmentScenario } from "../src/demo/generated/investment-scenario.ts
 import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
-import { buildTodayStories, todayStoryHeadline } from "../src/lib/investmentToday.ts"
+import { anchorRelativeDay, buildTodayStories, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
 import { actionStatusLabel, actionStatusNote, briefActions, groupBriefRows, historyReadingOrder, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, todayActionPlan, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
@@ -65,6 +65,16 @@ test("Today projection keeps intraday delta inside the daily flow", async () => 
   assert.equal(data.today.updates.length, 1)
   assert.equal(data.today.updates[0].relevance.includes("new-price-discovery"), true)
   assert.match(data.today.updates[0].source_path, /^wiki\/morning\//)
+})
+
+test("Today prose uses the source session date across midnight and preserves unknown dates", () => {
+  assert.equal(anchorRelativeDay("台股今天收盤後再確認；今天不追價。", "2026-09-24"), "2026-09-24 台股交易日收盤後再確認；2026-09-24 當日不追價。")
+  assert.equal(anchorRelativeDay("美股今天盤前留意指引。", "2026-09-24"), "2026-09-24 美股交易日盤前留意指引。")
+  assert.equal(anchorRelativeDay("今天觀察市場。", null), "今天觀察市場。")
+  assert.equal(anchorRelativeDay("今天觀察市場。", "2026-02-30"), "今天觀察市場。")
+  assert.equal(taipeiCalendarDate("2026-09-24T18:30:00Z"), "2026-09-25", "UTC evening timestamps must use the Taiwan calendar date")
+  assert.equal(taipeiCalendarDate("2026-09-24T23:00:00-04:00"), "2026-09-25")
+  assert.equal(taipeiCalendarDate("2026-09-24T18:30:00"), null, "a timezone-free timestamp must not invent a Taiwan date")
 })
 
 test("Today groups brief events and updates only by producer-owned story identity", async () => {
