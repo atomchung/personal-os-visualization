@@ -96,13 +96,19 @@ export function todayActionPlan(
   const actions: TodayActionEntry[] = []
   const research: TodayActionEntry[] = []
   const seen = new Set<string>()
-  const add = (input: Omit<TodayActionEntry, "key" | "kind">) => {
+  let sequence = 0
+  const add = (input: Omit<TodayActionEntry, "key">) => {
     const normalized = input.text.replace(/[*_`~]/g, "").trim()
     const text = normalized.replace(/^(?:繼續觀察|觀察|行動)[：:]\s*/, "").trim()
-    if (!text || !briefActions([text]).length || seen.has(text)) return
-    seen.add(text)
+    if (!text || !briefActions([text]).length) return
+    const identity = input.id
+      ? `${input.origin}:id:${input.id}`
+      : `${input.origin}:${input.source ?? ""}:${input.date ?? ""}:${normalized}`
+    if (seen.has(identity)) return
+    seen.add(identity)
     const isResearch = /^(?:補研究|补研究)(?:[：:]|\s|$)/.test(text)
-    const entry = { ...input, key: `${input.origin}:${input.id ?? text}`, text }
+    const entry = { ...input, key: `${input.origin}:${input.id ?? `legacy-${sequence}`}`, text }
+    sequence += 1
     ;(isResearch ? research : actions).push(entry)
   }
   for (const update of today?.updates ?? []) {
@@ -113,9 +119,7 @@ export function todayActionPlan(
       add({ text: item.text, origin: "brief", date: item.date || brief.date, source: item.source || brief.source?.title || "正式簡報", id: item.id })
     }
   } else {
-    for (const [index, text] of brief.actions.entries()) {
-      add({ text, origin: "brief", date: brief.date, source: brief.source?.title || "正式簡報", id: `legacy-${index + 1}` })
-    }
+    for (const text of brief.actions) add({ text, origin: "brief", date: brief.date, source: brief.source?.title || "正式簡報", id: null })
   }
 
   const limitations = [...new Set([...(brief.source?.limitations ?? []), ...(brief.envelope?.limitations ?? []), ...(today?.limitations ?? [])].filter(Boolean))]

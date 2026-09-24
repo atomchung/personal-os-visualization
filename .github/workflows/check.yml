@@ -153,7 +153,7 @@ jobs:
             }
             // Modify only in-memory synthetic Responses. Do not rewrite generated fixtures,
             // introduce test routes into production, or use any private source material.
-            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio']) {
+            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio']) {
               const page = await browser.newPage({ viewport: { width: 320, height: 740 } })
               const errors = []
               page.on('pageerror', error => errors.push(error.message))
@@ -194,6 +194,22 @@ jobs:
                       data.brief.envelope = null
                       data.today = { state: 'unavailable', decision_summary: null, updates: [], limitations: [] }
                       for (const key of ['actions', 'events', 'event_notes', 'thesis_changes', 'thesis_notes', 'risks', 'risk_notes', 'upcoming', 'upcoming_notes', 'market_pulse', 'market_pulse_notes']) data.brief[key] = []
+                    }
+                    if (scenario === 'actions-partial') {
+                      data.brief.state = 'current'
+                      data.brief.actions = []
+                      data.brief.action_items = []
+                      data.brief.source = null
+                      data.brief.envelope = { ...data.brief.envelope, completeness: 'partial', limitations: [] }
+                      data.today = { state: 'ready', decision_summary: null, updates: [], limitations: [] }
+                    }
+                    if (scenario === 'research-only') {
+                      data.brief.state = 'current'
+                      data.brief.actions = []
+                      data.brief.action_items = [{ id: 'synthetic-research-only', text: '補研究：核對合成公開資料', status: 'open', tickers: [], evidence: [], artifact_id: 'synthetic-brief', source: 'daily-brief', date: '2026-09-24' }]
+                      data.brief.source = null
+                      data.brief.envelope = { ...data.brief.envelope, completeness: 'ready', limitations: [] }
+                      data.today = { state: 'ready', decision_summary: null, updates: [], limitations: [] }
                     }
                   }
                   if (Array.isArray(data?.markets)) {
@@ -310,6 +326,24 @@ jobs:
                 assert(await thesisStatus.getByText('目前沒有可讀的論點變化；請先確認簡報來源完整。', { exact: true }).isVisible())
                 assert(await thesisStatus.getByText('目前沒有可讀的風險註記；請先確認簡報來源完整。', { exact: true }).isVisible())
                 assert.equal(await thesisStatus.getByText('已確認完整的簡報沒有列出論點變化。', { exact: true }).count(), 0)
+              }
+              if (scenario === 'actions-partial') {
+                const todayPanel = page.locator('#investment-panel-today')
+                assert(await todayPanel.getByRole('status').filter({ hasText: '今日簡報資料不完整' }).isVisible())
+                assert(await todayPanel.getByText('目前未讀到可確認的立即行動。', { exact: true }).isVisible())
+                assert.equal(await todayPanel.getByText('已確認本版簡報與今日更新沒有列出下一步行動。', { exact: true }).count(), 0)
+              }
+              if (scenario === 'research-only') {
+                const todayPanel = page.locator('#investment-panel-today')
+                assert(await todayPanel.getByText('已確認沒有列出立即行動；另有 1 項補研究，請展開查看。', { exact: true }).isVisible())
+                const researchSummary = todayPanel.getByText('補研究項目 · 1 項', { exact: true })
+                const researchItem = todayPanel.getByText('核對合成公開資料', { exact: true })
+                assert.equal(await researchItem.count(), 1)
+                assert.equal(await researchItem.isVisible(), false)
+                await researchSummary.click()
+                assert(await researchItem.isVisible())
+                await todayPanel.getByText('查看來源', { exact: true }).click()
+                assert(await todayPanel.getByText('來源：daily-brief', { exact: true }).isVisible())
               }
               if (scenario === 'initial-error') {
                 await page.getByRole('alert').filter({ hasText: '簡報讀取失敗' }).waitFor()

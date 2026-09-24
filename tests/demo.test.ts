@@ -255,6 +255,12 @@ test("Today actions preserve update provenance, keep overflow reachable, and ret
   assert.equal(plan.research.length, 1)
   assert.equal(plan.research[0]?.text, "補研究：核對下一份公開財報")
 
+  const repeatedText = todayActionPlan({ ...brief, action_items: [{
+    id: "action-b", text: "行動：核對公告", status: "open", tickers: [], evidence: [], artifact_id: "action-b", source: "formal-brief", date: "2026-09-23",
+  }] }, { ...today, updates: [{ ...today.updates[0]!, id: "update-a", action: "觀察：核對公告", observed_at: "2026-09-24T15:10:00+08:00", source_path: "wiki/morning/update-a.md" }] })
+  assert.deepEqual(repeatedText.actions.map(item => item.text), ["核對公告", "核對公告"])
+  assert.deepEqual(repeatedText.actions.map(item => [item.id, item.source]), [["update-a", "wiki/morning/update-a.md"], ["action-b", "formal-brief"]])
+
   const researchOnly = todayActionPlan({ ...brief, action_items: [brief.action_items[3]!] }, { ...today, updates: [] })
   assert.equal(researchOnly.actions.length, 0)
   assert.equal(researchOnly.emptyMessage, "已確認沒有列出立即行動；另有 1 項補研究，請展開查看。")
