@@ -119,7 +119,34 @@ test("the showcase keeps personal content unknown while preserving aggregate nar
   assert.equal(data.narratives[0].expressions.items.length, 0)
   const evidence = data.narratives[0].thesis_evidence
   assert.deepEqual(evidence.layers.map((layer: { layer_id: string }) => layer.layer_id), ["L0", "L1", "L2", "L2.5", "L3"])
-  assert.equal(evidence.layers.every((layer: { direction_state: string; supporting: string[]; opposing: string[] }) => layer.direction_state === "unknown" && !layer.supporting.length && !layer.opposing.length), true)
+  const hardware = evidence.layers[0]
+  assert.equal(hardware.direction_state, "supports")
+  assert.equal(hardware.supporting[0].evidence_date, "2026-09-18")
+  assert.equal(hardware.supporting[0].source_url, "https://example.com/synthetic/hardware-shipment")
+  const cloud = evidence.layers[1]
+  assert.equal(cloud.players[0].player, "合成雲端服務商甲")
+  assert.equal(cloud.evidence.length, 0)
+  assert.equal(cloud.link_state, "unlinked")
+  assert.equal(cloud.state, "unknown")
+  const model = evidence.layers[2]
+  assert.equal(model.opposing[0].polarity, "challenges")
+  assert.equal(model.opposing[0].state, "stale")
+  const app = evidence.layers[3]
+  assert.equal(app.unknown[0].polarity, "unknown")
+  const endUser = evidence.layers[4]
+  assert.equal(endUser.conflicts.length, 4)
+  assert.equal(endUser.players.length, 0, "ambiguous player names stay suppressed from linked relations")
+  assert.equal(endUser.evidence.length, 0, "conflicting evidence is not promoted into a directional group")
+  assert.equal(endUser.conflicts.filter((row: { evidence_id?: string }) => row.evidence_id === "synthetic-duplicate-evidence").length, 2)
+  assert.equal(endUser.unlinked_evidence.length, 1)
+  assert.equal(endUser.unlinked_evidence[0].state, "unlinked")
+  assert.equal(evidence.unlinked_evidence.length, 1, "unmapped evidence remains visible outside the five layers")
+  assert.equal(evidence.unlinked_players.length, 1, "unmapped player relations remain separate")
+  assert.equal(evidence.scorecard_update.status, "evidence_pending_review")
+  assert.equal(evidence.scorecard_update.updated_at, "2026-09-20")
+  assert.equal(evidence.scorecard_update.document_updated_at, "2026-09-20")
+  assert.equal(evidence.scorecard_update.state, "partial", "same-day review and evidence remain unordered at date precision")
+  assert.equal(evidence.scorecard_update.scope.length, 5)
   assert.equal(evidence.state, "partial")
   assert.match(data.narratives[0].state_reason, /合成狀態示例/)
   assert.equal(narrativeDisplayState(data.narratives[0].state, evidence.state, data.state), "drift")

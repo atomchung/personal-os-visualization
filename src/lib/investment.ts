@@ -165,15 +165,53 @@ export type InvestmentNarrativeLatestChangeItem = {
   source: InvestmentNarrativeSource
   state: InvestmentNarrativeState | null
 }
+export type InvestmentNarrativeEvidenceState = "ready" | "unknown" | "stale" | "partial" | "conflict"
+export type InvestmentNarrativeEvidencePolarity = "supports" | "challenges" | "unknown"
+export type InvestmentNarrativeLayerRow = {
+  evidence_id?: string
+  pillar_id?: string
+  entity_id?: string
+  player?: string
+  evidence_date?: string
+  source_type?: string
+  source_url?: string
+  polarity?: InvestmentNarrativeEvidencePolarity
+  explanation?: string
+  as_of?: string
+  recorded_at?: string
+  freshness?: "current" | "stale" | "unknown"
+  valid_until?: string | null
+  state?: InvestmentNarrativeEvidenceState | "unlinked"
+  limitations?: string[]
+  source?: InvestmentNarrativeSource | null
+}
+export type InvestmentNarrativeLayerPlayer = {
+  entity_id: string
+  player: string
+  recorded_at: string
+  source: InvestmentNarrativeSource | null
+}
+export type InvestmentNarrativeLayerEvidenceItem = string | InvestmentNarrativeLayerRow
 export type InvestmentNarrativeEvidenceLayer = {
   layer_id: string
+  pillar_id?: string
   label: string
   who_earns: string
   evidence_examples: string
   what_it_proves: string
-  direction_state: InvestmentNarrativeState
-  supporting: string[]
-  opposing: string[]
+  direction_state: "supports" | "challenges" | "mixed" | "unknown"
+  link_state?: "linked" | "unlinked"
+  state?: InvestmentNarrativeEvidenceState
+  players?: InvestmentNarrativeLayerPlayer[]
+  evidence?: InvestmentNarrativeLayerRow[]
+  supporting?: InvestmentNarrativeLayerEvidenceItem[]
+  opposing?: InvestmentNarrativeLayerEvidenceItem[]
+  challenging?: InvestmentNarrativeLayerEvidenceItem[]
+  unknown?: InvestmentNarrativeLayerEvidenceItem[]
+  conflicts?: InvestmentNarrativeLayerRow[]
+  unlinked_evidence?: InvestmentNarrativeLayerRow[]
+  unlinked_players?: InvestmentNarrativeLayerRow[]
+  limitations?: string[]
   unknown_reason: string | null
   source_date: string | null
   document_updated: string | null
@@ -204,8 +242,20 @@ export type InvestmentNarrativeThesisEvidence = {
   state: InvestmentNarrativeState
   layers: InvestmentNarrativeEvidenceLayer[]
   directional_signals: InvestmentNarrativeDirectionalSignal[]
+  scorecard_update?: InvestmentNarrativeScorecardUpdate | null
+  unlinked_evidence?: InvestmentNarrativeLayerRow[]
+  unlinked_players?: InvestmentNarrativeLayerRow[]
   latest_recorded_change: InvestmentNarrativeRecordedChange
   reason: string | null
+}
+export type InvestmentNarrativeScorecardUpdate = {
+  updated_at: string | null
+  status: "evidence_updated_thesis_changed" | "evidence_updated_thesis_unchanged" | "reviewed_thesis_changed" | "reviewed_thesis_unchanged" | "evidence_pending_review" | "not_reviewed" | "unknown"
+  scope: string[]
+  document_updated_at: string | null
+  state: InvestmentNarrativeState
+  reason: string | null
+  source: InvestmentNarrativeSource | null
 }
 export type InvestmentNarrative = {
   artifact: "personalos-investment-hub"

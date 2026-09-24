@@ -8,8 +8,11 @@ import {
   getInvestmentNarrative,
   type InvestmentNarrative,
   type InvestmentNarrativeDirectionalSignal,
+  type InvestmentNarrativeLayerEvidenceItem,
   type InvestmentNarrativeEvidenceLayer,
+  type InvestmentNarrativeLayerRow,
   type InvestmentNarrativeRecordedChange,
+  type InvestmentNarrativeScorecardUpdate,
   type InvestmentNarrativeSource,
   type InvestmentNarrativeState,
 } from "@/lib/investment"
@@ -51,21 +54,146 @@ function uniqueSources(sources: Array<InvestmentNarrativeSource | null | undefin
   return [...byLocation.values()]
 }
 
-function LayerEvidenceCard({ layer }: { layer: InvestmentNarrativeEvidenceLayer }) {
-  return <li className="flex min-w-0 flex-col gap-3 border-t border-line-soft py-4 first:border-0 first:pt-0 last:pb-0">
-    <div className="flex min-w-0 flex-col gap-3">
-      <h4 className="text-body font-semibold text-ink">{layer.layer_id} · {layer.label}</h4>
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="text-caption font-medium text-ink-2">支持證據</p>
-          {layer.supporting.length ? <ul className="list-disc pl-5 text-body leading-relaxed text-ink-2">{layer.supporting.map((item, index) => <li key={index}><InlineText text={item} /></li>)}</ul> : <p className="text-caption leading-relaxed text-ink-3">未明確連結到此層。</p>}
-        </div>
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="text-caption font-medium text-ink-2">反證</p>
-          {layer.opposing.length ? <ul className="list-disc pl-5 text-body leading-relaxed text-ink-2">{layer.opposing.map((item, index) => <li key={index}><InlineText text={item} /></li>)}</ul> : <p className="text-caption leading-relaxed text-ink-3">未明確連結到此層。</p>}
-        </div>
+const LAYER_STATE_COPY = {
+  ready: { label: "證據可讀", tone: "mute" as const },
+  partial: { label: "部分資料待確認", tone: "warn" as const },
+  stale: { label: "來源較舊", tone: "warn" as const },
+  conflict: { label: "關聯互相矛盾", tone: "bad" as const },
+  unknown: { label: "證據狀態未知", tone: "mute" as const },
+}
+const EVIDENCE_SOURCE_COPY: Record<string, string> = {
+  company_filing: "公司申報資料",
+  company_ir: "公司公告",
+  government_data: "政府資料",
+  public_research: "公開研究",
+  other_public: "其他公開來源",
+}
+
+function publicEvidenceHref(value?: string): URL | null {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === "https:" || url.protocol === "http:" ? url : null
+  } catch {
+    return null
+  }
+}
+
+function EvidenceRow({ item }: { item: InvestmentNarrativeLayerEvidenceItem }) {
+  if (typeof item === "string") return <li className="text-body leading-relaxed text-ink-2"><InlineText text={item} /></li>
+  const href = publicEvidenceHref(item.source_url)
+  const date = item.evidence_date ? sourceTimestamp(item.evidence_date) : "日期未提供"
+  const sourceType = item.source_type ? EVIDENCE_SOURCE_COPY[item.source_type] || item.source_type : "來源類型未提供"
+  const freshnessCopy = item.freshness === "current" ? "目前" : item.freshness === "stale" ? "較舊" : item.freshness === "unknown" ? "未確認" : null
+  return <li className="flex min-w-0 flex-col gap-2 border-t border-line-soft py-3 first:border-0 first:pt-0 last:pb-0">
+    <p className="text-body leading-relaxed text-ink-2">{item.explanation ? <InlineText text={item.explanation} /> : "來源未提供這筆資料與論點的關聯說明。"}</p>
+    <p className="text-caption text-ink-3">證據日期 {date} · {sourceType}{freshnessCopy ? ` · 新鮮度：${freshnessCopy}` : item.state === "stale" ? " · 新鮮度：較舊" : item.state === "unknown" ? " · 新鮮度：未確認" : ""}</p>
+    {href ? <a className="break-all text-caption text-ink-2 underline hover:text-ink" href={href.href} target="_blank" rel="noreferrer">開啟公開來源 · {href.host}</a> : <p className="text-caption text-ink-3">公開來源連結未提供或格式無效。</p>}
+    <details className="text-caption text-ink-3">
+      <summary className="cursor-pointer py-1">日期與資料列出處</summary>
+      <div className="flex min-w-0 flex-col gap-1 pt-1">
+        <p>來源資料截至：{sourceTimestamp(item.as_of)}</p>
+        <p>列入日期：{sourceTimestamp(item.recorded_at)}</p>
+        {item.valid_until ? <p>有效至：{sourceTimestamp(item.valid_until)}</p> : null}
+        {item.evidence_id ? <p>證據資料 ID：{item.evidence_id}</p> : null}
+        {item.entity_id ? <p>玩家 ID：{item.entity_id}</p> : null}
+        {item.freshness ? <p>來源新鮮度：{item.freshness}</p> : null}
+        {item.limitations?.length ? <ul className="list-disc pl-4 text-warn">{item.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul> : null}
+        <ul className="flex flex-col gap-1"><SourceReference source={item.source} /></ul>
       </div>
+    </details>
+  </li>
+}
+
+function EvidenceGroup({ title, items }: {
+  title: string
+  items: InvestmentNarrativeLayerEvidenceItem[]
+}) {
+  return <div className="flex min-w-0 flex-col gap-2">
+    <p className="text-caption font-medium text-ink-2">{title}</p>
+    <ul className="flex min-w-0 flex-col">{items.map((item, index) => <EvidenceRow key={typeof item === "string" ? `${title}:${index}` : item.evidence_id || `${title}:${index}`} item={item} />)}</ul>
+  </div>
+}
+
+function IntegrityRows({ title, rows }: { title: string; rows: InvestmentNarrativeLayerRow[] }) {
+  if (!rows.length) return null
+  return <details className="text-caption text-ink-3">
+    <summary className="cursor-pointer py-1">{title} · {rows.length} 筆</summary>
+    <ul className="flex min-w-0 flex-col gap-2 pt-2">{rows.map((row, index) => <li key={`${row.evidence_id || row.entity_id || title}:${index}`} className="flex min-w-0 flex-col gap-1 border-t border-line-soft pt-2 first:border-0 first:pt-0">
+      <p className="text-body text-ink-2">{row.player || row.explanation || row.evidence_id || "未命名資料列"}</p>
+      {row.evidence_id ? <p>證據資料 ID：{row.evidence_id}</p> : null}
+      {row.pillar_id ? <p>層級代碼：{row.pillar_id}</p> : null}
+      <p>玩家 ID：{row.entity_id || "未提供"}{row.recorded_at ? ` · 列入日期 ${sourceTimestamp(row.recorded_at)}` : ""}</p>
+      {row.evidence_date ? <p>證據日期：{sourceTimestamp(row.evidence_date)}</p> : null}
+      {row.source_url ? <p className="break-all">公開連結：{row.source_url}</p> : null}
+      {row.limitations?.length ? <ul className="list-disc pl-4 text-warn">{row.limitations.map((limitation, limitationIndex) => <li key={limitationIndex}>{limitation}</li>)}</ul> : null}
+      <ul className="flex flex-col gap-1"><SourceReference source={row.source} /></ul>
+    </li>)}</ul>
+  </details>
+}
+
+function PlayerRelations({ players }: { players: NonNullable<InvestmentNarrativeEvidenceLayer["players"]> }) {
+  if (!players.length) return null
+  return <div className="flex min-w-0 flex-col gap-1">
+    <p className="text-caption font-medium text-ink-2">明確記錄的玩家</p>
+    <ul className="flex min-w-0 flex-col gap-2">{players.map(player => <li key={player.entity_id} className="flex min-w-0 flex-col gap-1">
+      <p className="text-body leading-relaxed text-ink-2">{player.player}</p>
+      <details className="text-caption text-ink-3">
+        <summary className="cursor-pointer py-1">玩家關係出處</summary>
+        <div className="flex min-w-0 flex-col gap-1 pt-1">
+          <p>列入日期：{sourceTimestamp(player.recorded_at)}</p>
+          <p>玩家 ID：{player.entity_id}</p>
+          <ul className="flex flex-col gap-1"><SourceReference source={player.source} /></ul>
+        </div>
+      </details>
+    </li>)}</ul>
+  </div>
+}
+
+function layerEvidence(layer: InvestmentNarrativeEvidenceLayer, polarity: "supports" | "challenges" | "unknown") {
+  const explicit = polarity === "supports"
+    ? layer.supporting
+    : polarity === "challenges"
+      ? (layer.opposing?.length ? layer.opposing : layer.challenging)
+      : layer.unknown
+  return explicit?.length ? explicit : layer.evidence?.filter(item => item.polarity === polarity) ?? []
+}
+
+function LayerEvidenceCard({ layer }: { layer: InvestmentNarrativeEvidenceLayer }) {
+  const supporting = layerEvidence(layer, "supports")
+  const opposing = layerEvidence(layer, "challenges")
+  const unknown = layerEvidence(layer, "unknown")
+  const players = layer.players ?? []
+  const conflicts = layer.conflicts ?? []
+  const unlinkedEvidence = layer.unlinked_evidence ?? []
+  const unlinkedPlayers = layer.unlinked_players ?? []
+  const groups = [
+    { title: "支持證據", items: supporting },
+    { title: "挑戰證據", items: opposing },
+    { title: "方向未定", items: unknown },
+  ].filter(group => group.items.length)
+  const linkedEvidenceCount = supporting.length + opposing.length + unknown.length
+  const stateCopy = layer.state ? LAYER_STATE_COPY[layer.state] : null
+  return <li className="flex min-w-0 flex-col gap-3 border-t border-line-soft py-4 first:border-0 first:pt-0 last:pb-0">
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+      <h4 className="text-body font-semibold text-ink">{layer.layer_id} · {layer.label}</h4>
+      {stateCopy ? <Chip tone={stateCopy.tone}>{stateCopy.label}</Chip> : null}
     </div>
+    {layer.unknown_reason ? <p className="text-caption leading-relaxed text-ink-3">{layer.unknown_reason}</p> : null}
+    <PlayerRelations players={players} />
+    {linkedEvidenceCount ? <>
+      <p className="text-caption text-ink-3" aria-label="明確連結的資料列數">已連結資料列：支持 {supporting.length} · 挑戰 {opposing.length} · 方向未定 {unknown.length}</p>
+      <div className="grid min-w-0 gap-4 sm:grid-cols-2">{groups.map(group => <EvidenceGroup key={group.title} title={group.title} items={group.items} />)}</div>
+    </> : <p className="text-body leading-relaxed text-ink-3">
+      {layer.link_state === "unlinked"
+        ? "來源尚未提供可安全連結到此層的日期化公開證據；這不代表外部沒有相關資料，方向維持未知。"
+        : "來源目前沒有可安全連結到此層的日期化公開證據；方向維持未知，不能由此判定正反。"}
+    </p>}
+    {conflicts.length || unlinkedEvidence.length || unlinkedPlayers.length ? <div className="flex min-w-0 flex-col gap-1 border-t border-line-soft pt-2">
+      <IntegrityRows title="來源標示為衝突的資料" rows={conflicts} />
+      <IntegrityRows title="無法安全連結的證據資料" rows={unlinkedEvidence} />
+      <IntegrityRows title="無法安全連結的玩家關係" rows={unlinkedPlayers} />
+    </div> : null}
     <details className="text-caption text-ink-3">
       <summary className="cursor-pointer py-1">這層的背景與來源</summary>
       <div className="flex flex-col gap-2 pt-2">
@@ -121,14 +249,52 @@ function RecordedLearning({ record }: { record: InvestmentNarrativeRecordedChang
   </article>
 }
 
+const SCORECARD_REVIEW_STATUS_COPY: Record<InvestmentNarrativeScorecardUpdate["status"], string> = {
+  evidence_updated_thesis_changed: "證據已更新，論點有變更",
+  evidence_updated_thesis_unchanged: "證據已更新，論點維持",
+  reviewed_thesis_changed: "已覆核，論點有變更",
+  reviewed_thesis_unchanged: "已覆核，論點維持",
+  evidence_pending_review: "有新證據待覆核",
+  not_reviewed: "尚未覆核",
+  unknown: "無法確認覆核狀態",
+}
+const PILLAR_LABELS: Record<string, string> = {
+  l0_hardware: "L0 硬體供應",
+  l1_cloud: "L1 雲端算力",
+  l2_models: "L2 基礎模型",
+  l2_5_application_software: "L2.5 應用軟體",
+  l3_end_buyers: "L3 終端買方",
+}
+
+function scorecardScope(scope: string[]) {
+  return scope.map(pillar => PILLAR_LABELS[pillar] ?? pillar).join(" · ") || "未提供範圍"
+}
+
+function ScorecardReview({ update }: { update?: InvestmentNarrativeScorecardUpdate | null }) {
+  return <div className="flex min-w-0 flex-col gap-1 border-t border-line-soft pt-2">
+    <p className="font-medium text-ink-2">AI 論點覆核記錄</p>
+    <p>明確覆核日期：{sourceTimestamp(update?.updated_at)}</p>
+    <p>覆核結果：{update ? SCORECARD_REVIEW_STATUS_COPY[update.status] : "來源未提供明確記錄"}</p>
+    <p>覆核範圍：{scorecardScope(update?.scope ?? [])}</p>
+    <p>Scorecard 原始文件更新：{sourceTimestamp(update?.document_updated_at)}</p>
+    {update?.state ? <StateNote state={update.state} reason={update.reason} /> : <p className="text-caption text-ink-3">來源未提供可確認覆核日期、結果與範圍的資料。</p>}
+    <ul className="flex flex-col gap-1"><SourceReference source={update?.source} /></ul>
+  </div>
+}
+
 function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narrative: InvestmentNarrative["narratives"][number] }) {
   const evidence = narrative.thesis_evidence
+  const unlinkedEvidence = evidence.unlinked_evidence ?? []
+  const unlinkedPlayers = evidence.unlinked_players ?? []
   // The current producer contract has no dedicated falsifier field.
   const { challengeSignals, supportSignals, explicitFalsifiers } = narrativeSignalSections(evidence.directional_signals)
   const sources = uniqueSources([
     ...narrative.references,
     ...evidence.layers.map(layer => layer.source),
     ...evidence.directional_signals.map(signal => signal.source),
+    evidence.scorecard_update?.source,
+    ...unlinkedEvidence.map(row => row.source),
+    ...unlinkedPlayers.map(row => row.source),
     evidence.latest_recorded_change.source,
   ])
   return <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
@@ -148,6 +314,14 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
         <StateNote state={evidence.state} reason={evidence.reason} />
       </div>
       {evidence.layers.length ? <ol className="flex min-w-0 flex-col">{evidence.layers.map(layer => <LayerEvidenceCard key={layer.layer_id} layer={layer} />)}</ol> : <p className="text-body text-ink-3">來源尚未提供可辨識的五層結構。</p>}
+      {unlinkedEvidence.length || unlinkedPlayers.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
+        <summary className="cursor-pointer py-1">尚未連到特定層的資料</summary>
+        <div className="flex min-w-0 flex-col gap-2 pt-2">
+          <p>來源沒有提供足夠關聯，無法安全放入特定層；以下保留原始列，不依股票代號或文字猜測。</p>
+          <IntegrityRows title="未連結的證據資料" rows={unlinkedEvidence} />
+          <IntegrityRows title="未連結的玩家關係" rows={unlinkedPlayers} />
+        </div>
+      </details> : null}
     </article>
 
     <article className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
@@ -168,7 +342,9 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
     <details className="p-4 text-caption text-ink-3 sm:p-5">
       <summary className="cursor-pointer">日期與來源</summary>
       <div className="flex flex-col gap-2 pt-2">
-        <p>Scorecard 更新：{sourceTimestamp(narrative.updated)} · 頁面讀取資料截點：{sourceTimestamp(data.source_cutoff)}</p>
+        <ScorecardReview update={evidence.scorecard_update} />
+        <p>看板論點資料更新日：{sourceTimestamp(narrative.updated)}</p>
+        <p>看板資料產生時間：{sourceTimestamp(data.generated_at)} · 來源資料截點：{sourceTimestamp(data.source_cutoff)}</p>
         <p>文件更新日不代表每項訊號的發生日；來源沒有標日期時維持未知。</p>
         <ul className="flex flex-col gap-1">{sources.map((source, index) => <SourceReference key={`${source.path}:${source.line ?? index}`} source={source} />)}</ul>
         {data.limitations.map((limitation, index) => <p key={index} className="text-warn">{limitation}</p>)}
