@@ -1,9 +1,9 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { createDemoRequest } from "../src/demo/transport.ts"
-import { investment as syntheticInvestment, investmentHistory, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
+import { investment as syntheticInvestment, investmentHistory, investmentResearch, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
 import { investmentScenario } from "../src/demo/generated/investment-scenario.ts"
-import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
+import { researchForToday, splitCatalyst, watchDateWindow } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
@@ -44,7 +44,7 @@ test("every page runs with no network; unknown routes and real symbols fail clos
   globalThis.fetch = () => { throw new Error("Unexpected network request") }
   try {
     const request = createDemoRequest()
-    for (const path of ["home", "cockpit", "focus", "time", "goals", "ideal", "health", "todos", "investment", "investment/narrative", "investment/actions", "investment/explore", "investment/market", "investment/pulse", "investment/watch", "investment/history", "investment/context", "investment/pending", "investment/work", "investment/momentum/universe", "investment/momentum/leaders", `investment/quote?symbol=${investmentScenario.symbol}`, `investment/momentum?symbol=${investmentScenario.symbol}`, `investment/source?id=${investmentScenario.source_id}`, `investment/history/source?id=${encodeURIComponent(investmentHistory.history.items[0].id)}`]) {
+    for (const path of ["home", "cockpit", "focus", "time", "goals", "ideal", "health", "todos", "investment", "investment/narrative", "investment/actions", "investment/explore", "investment/market", "investment/pulse", "investment/research", `investment/research/detail?id=${encodeURIComponent(investmentResearch.research.items[0].id)}`, "investment/watch/read-model", "investment/history", "investment/context", "investment/pending/read-model", "investment/work", "investment/momentum/universe", "investment/momentum/leaders", `investment/quote?symbol=${investmentScenario.symbol}`, `investment/momentum?symbol=${investmentScenario.symbol}`, `investment/source?id=${investmentScenario.source_id}`, `investment/history/source?id=${encodeURIComponent(investmentHistory.history.items[0].id)}`]) {
       const result = await request(`/api/${path}`)
       assert.equal(result.status, 200, path)
       assert.equal(typeof await result.json(), "object", path)
@@ -55,6 +55,40 @@ test("every page runs with no network; unknown routes and real symbols fail clos
     for (const path of ["/api/not-implemented", "/api/investment/momentum?symbol=REAL", "/api/investment/source?id=private", "/api/investment/history/source?id=private", "http://localhost:8000/api/home", "https://example.com/api/home", "//localhost/api/home"]) assert.equal((await request(path)).status, 404, path)
     assert.equal((await request("/api/not-implemented", write({}))).status, 404)
   } finally { globalThis.fetch = original }
+})
+
+test("formal Research and legacy Watch retain separate typed producer envelopes", async () => {
+  const request = createDemoRequest()
+  const research = await (await request("/api/investment/research")).json()
+  assert.equal(research.artifact, "investment-research-index")
+  assert.equal(research.producer, "tools/research_view.py")
+  assert.equal(research.state, "partial")
+  assert.equal(research.source_cutoff, "unknown")
+  assert.equal(research.research.count, 1)
+  assert.equal(research.research.items[0].narrative_id, null)
+  assert.equal(research.research.items[0].decision_id, null)
+
+  const itemId = research.research.items[0].id
+  const detail = await (await request(`/api/investment/research/detail?id=${encodeURIComponent(itemId)}`)).json()
+  assert.equal(detail.artifact, "investment-research-detail")
+  assert.equal(detail.research.item.id, itemId)
+  assert.equal(typeof detail.research.detail.text, "string")
+  for (const id of ["source:research/private.md", "__proto__", "constructor"]) {
+    assert.equal((await request(`/api/investment/research/detail?id=${encodeURIComponent(id)}`)).status, 404, id)
+  }
+
+  const watch = await (await request("/api/investment/watch/read-model")).json()
+  assert.equal(watch.artifact, "investment-watch")
+  assert.equal(watch.state, "partial")
+  assert.equal(watch.source_cutoff, "unknown")
+  assert.ok(watch.watch.catalysts.length)
+  assert.notEqual(watch.artifact, research.artifact)
+
+  const pending = await (await request("/api/investment/pending/read-model")).json()
+  assert.equal(pending.artifact, "investment-pending")
+  assert.equal(pending.state, "partial")
+  assert.equal(pending.source_cutoff, "unknown")
+  assert.equal(typeof pending.pending.scope, "string")
 })
 
 test("Today projection keeps intraday delta inside the daily flow", async () => {
@@ -73,8 +107,8 @@ test("personal reminder dates and promotion remain stored under Research & Strat
   assert.equal(taipeiCalendarToday(new Date("2026-09-24T16:30:00Z")), today, "UTC evening maps to the next Taipei calendar day")
 
   const request = createDemoRequest()
-  const sourceWatch = await (await request("/api/investment/watch")).json()
-  assert.ok(sourceWatch.catalysts.length, "source-derived events remain in their separate watch response")
+  const sourceWatch = await (await request("/api/investment/watch/read-model")).json()
+  assert.ok(sourceWatch.watch.catalysts.length, "source-derived events remain in their separate watch response")
   assert.deepEqual((await (await request("/api/investment/work")).json()).items, [], "the empty personal list stays a confirmed empty list")
   const input = {kind: "watch", text: "合成個人提醒", expires_on: "2026-10-02"}
   const created = await (await request("/api/investment/work", write(input))).json()
@@ -320,6 +354,9 @@ test("history exposes the producer envelope and exact typed detail without infer
   assert.equal(detail.history.item.id, itemId)
   assert.equal(detail.history.item.outcome.state, "unknown")
   assert.equal(detail.history.source_text, investmentScenario.history[0].detail)
+  for (const id of ["private", "__proto__", "constructor"]) {
+    assert.equal((await request(`/api/investment/history/source?id=${encodeURIComponent(id)}`)).status, 404, id)
+  }
   const episode = history.history.items.find((item: { kind: string }) => item.kind === "decision_episode")
   const episodeDetail = await (await request(`/api/investment/history/source?id=${encodeURIComponent(episode.id)}`)).json()
   assert.equal(episodeDetail.history.item.id, episode.id)
@@ -586,6 +623,14 @@ test("today research prefers topics already named in the brief", () => {
   ]
   assert.deepEqual(researchForToday(research, "CXMT 與 MU 9/30 是近端裁判").map(item => item.topic), ["MU"])
   assert.deepEqual(researchForToday(research, "今日沒有對應標的").map(item => item.topic), ["GOOG", "MU", "AVGO"])
+})
+
+test("Watch date windows require a valid timestamp and use the Taipei calendar day", () => {
+  assert.deepEqual(watchDateWindow("2026-09-25T16:30:00Z"), { start: "2026-09-26", end: "2026-10-26" })
+  assert.deepEqual(watchDateWindow("2026-09-26"), { start: "2026-09-26", end: "2026-10-26" })
+  assert.equal(watchDateWindow("unknown"), null)
+  assert.equal(watchDateWindow("2026-02-30T00:00:00Z"), null)
+  assert.equal(watchDateWindow("2026-09-26T24:00:00Z"), null)
 })
 
 test("history reading order puts dated records first", () => {

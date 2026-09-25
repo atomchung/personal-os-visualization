@@ -121,14 +121,16 @@ export function PendingBoard() {
   return <section className="flex min-w-0 flex-col gap-3" aria-label="系統整理的提醒">
     <div className="flex flex-col gap-1">
       <SectionHeading>系統整理的提醒</SectionHeading>
-      <p className="text-caption text-ink-3">{data?.scope ?? "投資筆記整理的回看、待確認事項與每週觀察；看板只顯示，不寫回投資筆記。"}</p>
+      <p className="text-caption text-ink-3">{data?.pending.scope ?? "投資筆記整理的回看、待確認事項與每週觀察；看板只顯示，不寫回投資筆記。"}</p>
     </div>
     {query.isPending ? <p className="text-body text-ink-3">正在讀取舊判斷、待確認事項與每週觀察…</p> : null}
     {query.isError ? <p role="alert" className="text-body text-warn">系統提醒這次讀取失敗，請按更新全部重試。</p> : null}
     {data ? <>
-      <Revisit data={data.revisit}/>
-      <Gate data={data.gate}/>
-      <Weekly data={data.weekly}/>
+      <p className="break-words text-caption text-ink-3">producer：{data.producer} · 狀態：{data.state} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at}</p>
+      {data.state!=="ready"&&data.state!=="empty"?<div role="status" className="flex flex-col gap-1 text-caption text-warn">{data.limitations.map((note,index)=><p key={index}>{note}</p>)}</div>:null}
+      <Revisit data={data.pending.revisit}/>
+      <Gate data={data.pending.gate}/>
+      <Weekly data={data.pending.weekly}/>
     </> : null}
   </section>
 }

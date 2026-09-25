@@ -1,5 +1,5 @@
 /** Closed, browser-memory-only adapter. No network, storage, or live fallback. */
-import { cockpit, createState, DATE, focus, goals, health, home, ideal, investment, investmentActions, investmentContext, investmentHistory, investmentHistorySources, investmentNarrative, leaders, market, marketExplore, momentum, pending, pulse, quote, STAMP, timeData, todos, universe, watch } from "./fixtures.ts"
+import { cockpit, createState, DATE, focus, goals, health, home, ideal, investment, investmentActions, investmentContext, investmentHistory, investmentHistorySources, investmentNarrative, investmentResearch, investmentResearchDetails, leaders, market, marketExplore, momentum, pending, pulse, quote, STAMP, timeData, todos, universe, watch } from "./fixtures.ts"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 import { taipeiCalendarToday } from "../lib/investmentFormat.ts"
 import type { InvestmentWork } from "../lib/investment.ts"
@@ -55,14 +55,21 @@ export function createDemoRequest() {
         case "/api/investment/momentum":
           if (url.searchParams.get("symbol") !== "DEMO") return rejected("只有 DEMO 合成標的可用。", 404)
           return reply(path.endsWith("quote") ? quote : momentum)
-        case "/api/investment/watch": return reply(watch)
+        case "/api/investment/research": return reply(investmentResearch)
+        case "/api/investment/research/detail": {
+          const id=url.searchParams.get("id") ?? ""
+          const item=Object.prototype.hasOwnProperty.call(investmentResearchDetails,id)?investmentResearchDetails[id]:undefined
+          return item ? reply(item) : rejected("找不到這段合成 Research 來源。", 404)
+        }
+        case "/api/investment/watch/read-model": return reply(watch)
         case "/api/investment/history": return reply(investmentHistory)
         case "/api/investment/context": return reply(investmentContext)
         case "/api/investment/history/source": {
-          const item = investmentHistorySources[url.searchParams.get("id") ?? ""]
+          const id=url.searchParams.get("id") ?? ""
+          const item=Object.prototype.hasOwnProperty.call(investmentHistorySources,id)?investmentHistorySources[id]:undefined
           return item ? reply(item) : rejected("找不到這段合成歷史來源。", 404)
         }
-        case "/api/investment/pending": return reply(pending)
+        case "/api/investment/pending/read-model": return reply(pending)
         case "/api/investment/work": return reply({ items: state.investmentWork })
         case "/api/investment/source":
           if (url.searchParams.get("id") !== investmentScenario.source_id) return rejected("找不到這份合成來源。", 404)
