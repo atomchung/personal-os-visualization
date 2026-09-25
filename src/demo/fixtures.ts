@@ -1,6 +1,6 @@
 /** Synthetic showcase fixture; never generated from a real API or private vault. */
 import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
-import type { InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistorySource, InvestmentMarket, InvestmentMarketPulse, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
+import type { InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 
 export const DATE = investmentScenario.as_of
@@ -532,21 +532,118 @@ export const marketExplore: MarketExplore = {
   ],
 }
 
-export const investmentHistory: InvestmentHistory = {
-  state: "ready",
-  coverage: {
-    allowed_sources: [{ id: investmentScenario.source_id, path: investmentScenario.source_path, kind: "synthetic_story" }],
-    available_sources: [{ id: investmentScenario.source_id, path: investmentScenario.source_path, kind: "synthetic_story", bytes: investmentScenario.source_text.length, items: investmentScenario.history.length }],
-    missing_sources: [],
-    items: investmentScenario.history.length,
-    errors: [],
+const demoHistoryRow = investmentScenario.history[0]
+const investmentHistoryItem: InvestmentHistoryItem = {
+  id: `learning:${demoHistoryRow.id}`,
+  source_id: demoHistoryRow.id,
+  kind: "thesis_learning",
+  title: demoHistoryRow.title,
+  date: demoHistoryRow.date,
+  ticker: null,
+  narrative_id: null,
+  story_id: null,
+  evidence_ids: [],
+  decision_id: null,
+  outcome_state: "unknown",
+  learning_state: "unknown",
+  state: "partial",
+  missing: ["後續結果尚未記錄，結果保持未知。", "合成來源未提供 learning_role；分類保持未知。"],
+  source: {
+    path: investmentScenario.source_path,
+    line: demoHistoryRow.source.line_start,
+    line_end: demoHistoryRow.source.line_end,
+    label: "Scorecard 時間線項目（合成）",
   },
-  items: [...investmentScenario.history],
+  reason: demoHistoryRow.excerpt,
+  evidence: null,
+  outcome: { text: null, state: "unknown" },
+  learning: null,
+}
+const demoEpisodeRow = investmentScenario.history[2]
+const investmentDecisionEpisode: InvestmentHistoryItem = {
+  id: `episode:${demoEpisodeRow.id}`,
+  source_id: demoEpisodeRow.id,
+  kind: "decision_episode",
+  title: demoEpisodeRow.title,
+  date: demoEpisodeRow.date,
+  ticker: null,
+  narrative_id: null,
+  story_id: null,
+  evidence_ids: [],
+  decision_id: null,
+  outcome_state: "unknown",
+  learning_state: "unknown",
+  state: "partial",
+  missing: ["No recorded checkpoint outcome; outcome is unknown.", "No separate learning field is recorded; learning is unknown."],
+  source: { path: investmentScenario.source_path, label: "Decision View sidecar (synthetic)" },
+  reason: demoEpisodeRow.excerpt,
+  evidence: [{ path: investmentScenario.source_path, line: demoEpisodeRow.source.line_start }],
+  outcome: { text: null, state: "unknown" },
+  learning: null,
+  checkpoints: [{ date: null, what: null, outcome: { text: null, state: "unknown" }, source: null }],
+}
+const investmentUnindexedHistoryItem: InvestmentHistoryItem = {
+  id: null,
+  source_id: null,
+  kind: "thesis_learning",
+  title: "未建立穩定識別的時間線列（合成）",
+  date: null,
+  ticker: null,
+  narrative_id: null,
+  story_id: null,
+  evidence_ids: [],
+  decision_id: null,
+  outcome_state: "unknown",
+  learning_state: "unknown",
+  state: "partial",
+  missing: ["source row has no explicit learning_id; detail lookup is unavailable"],
+  source: { path: investmentScenario.source_path, line: 9, label: "Scorecard 時間線項目（合成）" },
 }
 
-export const investmentHistorySources: Record<string, InvestmentHistorySource> = Object.fromEntries(
-  investmentScenario.history.map((item) => [item.id, { ...item, text: item.detail }]),
-) as Record<string, InvestmentHistorySource>
+export const investmentHistory: InvestmentHistory = {
+  schema_version: "1.0",
+  artifact: "investment-history-index",
+  id: "history-index",
+  as_of: "unknown",
+  generated_at: STAMP,
+  source_cutoff: "unknown",
+  producer: "tools/history_view.py",
+  state: "partial",
+  limitations: ["合成歷史沒有共同 source_cutoff，也沒有 producer 明示的 learning_role 分類。"],
+  sources: [investmentScenario.source_path],
+  history: { items: [investmentHistoryItem, investmentDecisionEpisode, investmentUnindexedHistoryItem], count: 3 },
+}
+
+export const investmentHistorySources: Record<string, InvestmentHistoryDetail> = Object.fromEntries(
+  [
+    [investmentHistoryItem.id, {
+      schema_version: "1.0",
+      artifact: "investment-history-detail",
+      id: `history-detail:${investmentHistoryItem.id}`,
+      as_of: investmentHistoryItem.date ?? "unknown",
+      generated_at: STAMP,
+      source_cutoff: "unknown",
+      producer: "tools/history_view.py",
+      state: "partial",
+      limitations: investmentHistoryItem.missing,
+      sources: [investmentScenario.source_path],
+      history: { item: investmentHistoryItem, source_text: demoHistoryRow.detail },
+    }],
+    [investmentDecisionEpisode.id, {
+      schema_version: "1.0",
+      artifact: "investment-history-detail",
+      id: `history-detail:${investmentDecisionEpisode.id}`,
+      as_of: investmentDecisionEpisode.date ?? "unknown",
+      generated_at: STAMP,
+      source_cutoff: "unknown",
+      producer: "tools/history_view.py",
+      state: "partial",
+      limitations: investmentDecisionEpisode.missing,
+      sources: [investmentScenario.source_path],
+      history: { item: investmentDecisionEpisode, source_text: null },
+    }],
+  ],
+) as Record<string, InvestmentHistoryDetail>
 
 export const investmentContext: InvestmentContext = {
   schema_version: 1,
