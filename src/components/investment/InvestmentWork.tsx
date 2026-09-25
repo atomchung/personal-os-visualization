@@ -7,9 +7,10 @@ import { getInvestmentWork, addInvestmentWork, saveInvestmentWork, type Investme
 import { isCanonicalActionId, taipeiDateIso, workPanelView } from "@/lib/investmentFormat"
 import { ReadingText } from "./ReadingText"
 
-export function SourceQuestion({source}: {source: {id:string; topic:string; source:{path:string}}}) {
+export function SourceQuestion({source}: {source: {id:string; topic?:string; question?:string|null; title?:string|null; source:{path:string}}}) {
   const mutation=useWrite(addInvestmentWork,["investment-work"])
-  const [question,setQuestion]=useState(`${source.topic}：這份研究有哪些問題還需要確認？`)
+  const label=source.question?.trim()||source.topic?.trim()||source.title?.trim()||source.id
+  const [question,setQuestion]=useState(`${label}：這份研究有哪些問題還需要確認？`)
   return <div className="flex flex-col gap-2">
     <label className="flex flex-col gap-1 text-caption text-ink-3">我想確認的問題<input value={question} maxLength={500} onChange={e=>setQuestion(e.target.value)} className="min-w-0 rounded-sm border border-line bg-paper p-2 text-body text-ink"/></label>
     <div className="flex flex-wrap gap-2"><Button disabled={mutation.isPending||!question.trim()} onClick={()=>mutation.mutate({kind:"decision",text:question,source_id:source.id,source_label:source.source.path})}>加入待決策</Button><Button disabled={mutation.isPending||!question.trim()} onClick={()=>mutation.mutate({kind:"research",text:question,source_id:source.id,source_label:source.source.path})}>加入待研究</Button></div>
@@ -114,7 +115,7 @@ function WorkItem({item}: {item:InvestmentWork}) {
   </Card>
 }
 
-export function InvestmentWorkPanel({research}: {research: InvestmentWatch["research"]}) {
+export function InvestmentWorkPanel({research}: {research: InvestmentWatch["watch"]["research"]}) {
   const query=useQuery({queryKey:["investment-work"],queryFn:getInvestmentWork,refetchOnWindowFocus:false})
   const create=useWrite(addInvestmentWork,["investment-work"])
   const [kind,setKind]=useState<InvestmentWork["kind"]>("decision")

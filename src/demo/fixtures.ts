@@ -1,6 +1,6 @@
 /** Synthetic showcase fixture; never generated from a real API or private vault. */
 import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
-import type { InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
+import type { InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchDetail, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 
 export const DATE = investmentScenario.as_of
@@ -732,12 +732,55 @@ export const leaders: MomentumLeaders = { state: "ready", as_of: DATE, universe,
     { symbol: "DEMO-C", rank: 3, state: "partial", as_of: DATE, last_close: 17, return_20d_pct: 1.4, vs_5ma_pct: -0.2, vs_20ma_pct: 0.9, vs_50ma_pct: 1.1, rsi14: 58, macd: "flat", notes: [] },
   ] }
 const watchSource = { path: investmentScenario.source_path, label: "合成研究", section: "待查問題", updated: DATE, source_id: investmentScenario.source_id }
-export const watch: InvestmentWatch = { as_of: STAMP,
-  coverage: { scope: ["合成範例"], scanned_files: 1, omissions: [], errors: [], missing_catalysts: [] },
-  catalysts: [{ id: "demo-catalyst", topic: investmentScenario.label, label: investmentScenario.next_check, raw: `${investmentScenario.next_check_date}（合成日期）`, date: investmentScenario.next_check_date.slice(0, 7), date_precision: "month", estimated: true, bucket: "undated", source: watchSource }],
-  research: [{ id: "demo-research", topic: investmentScenario.label, title: investmentScenario.research_title, status: "觀察", purpose: "整理待查問題", excerpt: investmentScenario.research_excerpt, session_refs: [], source: watchSource }], session_followups: [] }
+export const investmentResearchItem = {
+  id: "source:research/synthetic_capacity_question.md",
+  kind: "research_note",
+  title: investmentScenario.research_title,
+  question: investmentScenario.question,
+  status: "open",
+  ticker: null,
+  narrative_id: null,
+  decision_id: null,
+  updated: DATE,
+  as_of: DATE,
+  state: "partial",
+  missing: ["Synthetic item has no canonical narrative or decision link."],
+  source: { path: investmentScenario.source_path, line: 4 },
+} satisfies InvestmentResearch["research"]["items"][number]
+export const investmentResearch: InvestmentResearch = {
+  schema_version: "1.0", artifact: "investment-research-index", id: "research-index",
+  as_of: DATE, generated_at: STAMP, source_cutoff: "unknown", producer: "tools/research_view.py",
+  state: "partial", limitations: ["Synthetic Research fixture has no producer cutoff."],
+  sources: [investmentScenario.source_path],
+  research: { items: [investmentResearchItem], count: 1 },
+}
+export const investmentResearchDetails: Record<string, InvestmentResearchDetail> = {
+  [investmentResearchItem.id]: {
+    schema_version: "1.0", artifact: "investment-research-detail", id: `research-detail:${investmentResearchItem.id}`,
+    as_of: DATE, generated_at: STAMP, source_cutoff: "unknown", producer: "tools/research_view.py",
+    state: "partial", limitations: investmentResearchItem.missing, sources: [investmentScenario.source_path],
+    research: { item: investmentResearchItem, detail: { text: investmentScenario.research_excerpt, what: investmentScenario.next_check } },
+  },
+}
+export const watch: InvestmentWatch = {
+  schema_version: "1.0", artifact: "investment-watch", id: "investment-watch:synthetic",
+  as_of: STAMP, generated_at: STAMP, source_cutoff: "unknown", producer: "PersonalOS.core.investment_watch",
+  state: "partial", limitations: ["Synthetic Watch fixture has no source cutoff."], sources: [investmentScenario.source_path],
+  watch: {
+    coverage: { scope: ["合成範例"], scanned_files: 1, omissions: [], errors: [], missing_catalysts: [] },
+    catalysts: [{ id: "demo-catalyst", topic: investmentScenario.label, label: investmentScenario.next_check, raw: `${investmentScenario.next_check_date}（合成日期）`, date: investmentScenario.next_check_date.slice(0, 7), date_precision: "month", estimated: true, bucket: "undated", source: watchSource }],
+    research: [{ id: "demo-research", topic: investmentScenario.label, title: investmentScenario.research_title, status: "觀察", purpose: "整理待查問題", excerpt: investmentScenario.research_excerpt, session_refs: [], source: watchSource }],
+    session_followups: [],
+  },
+}
 const block = { source: "合成資料", note: "展示案例", state: "ready" as const, message: "", limitations: ["未呼叫外部工具"] }
-export const pending: InvestmentPending = { as_of: STAMP, scope: "全合成展示",
-  revisit: { ...block, title: "待回顧", groups: [{ ticker: investmentScenario.symbol, label: investmentScenario.label, overdue_days: 0, items: [{ decision: investmentScenario.question, ticker: investmentScenario.symbol, horizon: 7, due: DATE, overdue_days: 0, status: "待查", candidate_runs: [] }] }], counts: { due_unmarked: 1, groups: 1 } },
-  gate: { ...block, title: "待決定", items: [], counts: { registered: 0, due: 0, later: 0 } },
-  weekly: { ...block, title: "範例週回顧", date: DATE, path: "synthetic/weekly", age_days: 0, alerts: [], action_items: [{ text: "整理兩個產品交付問題", done: false, detail: ["全合成案例"] }] } }
+export const pending: InvestmentPending = {
+  schema_version: "1.0", artifact: "investment-pending", id: "investment-pending:synthetic",
+  as_of: STAMP, generated_at: STAMP, source_cutoff: "unknown", producer: "PersonalOS.core.investment_pending",
+  state: "partial", limitations: ["Synthetic pending fixture has no source cutoff."], sources: [investmentScenario.source_path],
+  pending: { scope: "全合成展示",
+    revisit: { ...block, title: "待回顧", groups: [{ ticker: investmentScenario.symbol, label: investmentScenario.label, overdue_days: 0, items: [{ decision: investmentScenario.question, ticker: investmentScenario.symbol, horizon: 7, due: DATE, overdue_days: 0, status: "待查", candidate_runs: [] }] }], counts: { due_unmarked: 1, groups: 1 } },
+    gate: { ...block, title: "待決定", items: [], counts: { registered: 0, due: 0, later: 0 } },
+    weekly: { ...block, title: "範例週回顧", date: DATE, path: "synthetic/weekly", age_days: 0, alerts: [], action_items: [{ text: "整理兩個產品交付問題", done: false, detail: ["全合成案例"] }] },
+  },
+}

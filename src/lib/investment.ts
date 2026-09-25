@@ -325,6 +325,39 @@ export type InvestmentReadModelEnvelope = {
   sources: string[]
 }
 
+export type InvestmentResearchItem = {
+  id: string
+  kind: string
+  title: string | null
+  question: string | null
+  status: string
+  ticker: string | null
+  narrative_id: string | null
+  decision_id?: string | null
+  updated: string | null
+  as_of: string | null
+  source_cutoff?: string
+  state: "ready" | "partial" | "unavailable" | "conflict"
+  missing?: string[]
+  due?: string
+  source: { path: string; line?: number }
+}
+
+export type InvestmentResearch = InvestmentReadModelEnvelope & {
+  artifact: "investment-research-index"
+  id: "research-index"
+  research: { items: InvestmentResearchItem[]; count: number }
+}
+
+export type InvestmentResearchDetail = InvestmentReadModelEnvelope & {
+  artifact: "investment-research-detail"
+  research: {
+    item: InvestmentResearchItem | null
+    detail: { text?: string; what?: string; due?: string } | null
+    conflicts?: InvestmentResearchItem[]
+  }
+}
+
 export type InvestmentHistorySourceRef = {
   path: string
   line?: number
@@ -611,8 +644,9 @@ export type WatchSource = {
   source_id: string
 }
 
-export type InvestmentWatch = {
-  as_of: string
+export type InvestmentWatch = InvestmentReadModelEnvelope & {
+  artifact: "investment-watch"
+  watch: {
   coverage: {
     scope: string[]
     scanned_files: number
@@ -652,6 +686,7 @@ export type InvestmentWatch = {
     related_files: string[]
     source: WatchSource
   }[]
+  }
 }
 
 /** Read only local API data, with bounded requests and no server-body errors. */
@@ -764,7 +799,16 @@ export async function getStockQuote(symbol: string, signal?: AbortSignal, refres
 }
 
 export const getInvestmentWatch = (signal?: AbortSignal) =>
-  readInvestment<InvestmentWatch>("/api/investment/watch", signal)
+  readInvestment<InvestmentWatch>("/api/investment/watch/read-model", signal)
+
+export const getInvestmentResearch = (signal?: AbortSignal) =>
+  readInvestment<InvestmentResearch>("/api/investment/research", signal)
+
+export const getInvestmentResearchDetail = (itemId: string, signal?: AbortSignal) =>
+  readInvestment<InvestmentResearchDetail>(
+    `/api/investment/research/detail?id=${encodeURIComponent(itemId)}`,
+    signal,
+  )
 
 export const getInvestmentSource = (id: string, signal?: AbortSignal) =>
   readInvestment<InvestmentSourceText>(
@@ -826,16 +870,18 @@ export type PendingWeekly = PendingBlock & {
   action_items: { text: string; done: boolean; detail: string[] }[]
 }
 
-export type InvestmentPending = {
-  as_of: string
-  scope: string
-  revisit: PendingRevisit
-  gate: PendingGate
-  weekly: PendingWeekly
+export type InvestmentPending = InvestmentReadModelEnvelope & {
+  artifact: "investment-pending"
+  pending: {
+    scope: string
+    revisit: PendingRevisit
+    gate: PendingGate
+    weekly: PendingWeekly
+  }
 }
 
 export const getInvestmentPending = (signal?: AbortSignal) =>
-  readInvestment<InvestmentPending>("/api/investment/pending", signal)
+  readInvestment<InvestmentPending>("/api/investment/pending/read-model", signal)
 
 export type InvestmentWork = {
   id: string; kind: "decision" | "research" | "watch"; text: string;

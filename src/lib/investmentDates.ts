@@ -55,7 +55,7 @@ type TimelineItem = { key: string; date: string; estimated: boolean; topic: stri
 
 /** One list: registered events from the wiki and the brief's next-7-days rows, same day + same ticker folded into one line. */
 export function buildTimeline(data: InvestmentWatch, brief: InvestmentBrief | undefined, today: string, end: string): TimelineItem[] {
-  const items: TimelineItem[] = data.catalysts
+  const items: TimelineItem[] = data.watch.catalysts
     .filter(e=>e.date_precision==="day"&&e.date!==null&&e.date>=today&&e.date<=end)
     .map(e=>{const parts=splitCatalyst(e.raw); return {key:e.id,date:e.date!,estimated:e.estimated,topic:e.topic,title:parts.event||e.topic,verify:parts.verify||parts.event,raw:e.raw,sources:[`${e.source.path}${e.source.updated?` · ${e.source.updated}`:""}`]}})
   if (brief?.date) {
