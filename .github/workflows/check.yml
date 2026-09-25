@@ -61,8 +61,8 @@ jobs:
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
               await page.getByText('今天發生了什麼', { exact: true }).waitFor()
               const todayReminders = page.getByRole('region', { name: '今日個人提醒' })
-              await todayReminders.getByText('尚未新增個人提醒', { exact: true }).waitFor()
-              assert(await todayReminders.getByRole('button', { name: '新增提醒', exact: true }).isVisible(), `${name}: empty Today stays a compact add affordance`)
+              await todayReminders.locator('p').filter({ hasText: '尚未新增個人提醒。' }).waitFor()
+              assert(await todayReminders.getByRole('button', { name: '待關注', exact: true }).isVisible(), `${name}: empty Today stays a compact add affordance`)
               const briefSessions = page.getByRole('region', { name: '盤前班次' })
               const briefSessionRows = briefSessions.locator('li')
               assert.equal(await briefSessionRows.count(), 2)
@@ -78,12 +78,12 @@ jobs:
                 `${name}: matching brief event and update must share one story card`)
               assert(await page.getByRole('heading', { name: /隔夜價格反應確認前一版事件/ }).isVisible(),
                 `${name}: latest update must be the story heading`)
-              await todayReminders.getByRole('button', { name: '新增提醒', exact: true }).click()
+              await todayReminders.getByRole('button', { name: '待關注', exact: true }).click()
               const attentionTab = page.getByRole('tab', { name: '待關注', exact: true })
               assert.equal(await attentionTab.getAttribute('aria-selected'), 'true')
               const attentionPanel = page.locator('#investment-panel-month')
-              assert(await attentionPanel.getByRole('region', { name: '我的提醒' }).isVisible(), `${name}: personal reminders have a named group`)
-              assert(await attentionPanel.getByRole('region', { name: '研究與事件' }).isVisible(), `${name}: source-derived events have a separate named group`)
+              await attentionPanel.getByRole('region', { name: '我的提醒' }).waitFor({ state: 'visible' })
+              await attentionPanel.getByRole('region', { name: '研究與事件' }).waitFor({ state: 'visible' })
               await page.getByRole('tab', { name: '今日', exact: true }).click()
               assert(await page.getByText('星島設備發表新一代儲能產品（虛構）', { exact: true }).isVisible(),
                 `${name}: formal brief baseline must remain visible in the story card`)
@@ -169,6 +169,16 @@ jobs:
                 assert.equal(await tab.getAttribute('aria-selected'), 'true')
                 await noOverflow(page, `${name}/${label}`)
               }
+              const watchTab = page.getByRole('tab', { name: '待關注', exact: true })
+              await watchTab.click()
+              assert(await page.getByRole('heading', { name: '我的提醒', exact: true }).isVisible())
+              assert(await page.getByRole('heading', { name: '研究與事件', exact: true }).isVisible())
+              await page.getByRole('tab', { name: '今日', exact: true }).click()
+              const emptyStateReminderSection = page.locator('[aria-label="今日個人提醒"]')
+              const emptyReminderCopy = emptyStateReminderSection.locator('p').filter({ hasText: '尚未新增個人提醒。' })
+              await emptyReminderCopy.waitFor({ state: 'visible', timeout: 5000 })
+              assert.equal(await emptyStateReminderSection.locator('ul').count(), 0, `${name}: empty reminders must not render a list card`)
+              assert.equal(await emptyStateReminderSection.locator('input[type="date"]').count(), 0, `${name}: Today must not render the reminder form`)
               const today = page.getByRole('tab', { name: '今日', exact: true })
               await today.focus()
               await page.keyboard.press('ArrowRight')
@@ -195,11 +205,7 @@ jobs:
             reminderPage.on('request', request => { if (!request.url().startsWith(origin)) reminderExternalRequests.push(request.url()) })
             await reminderPage.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
             const todayReminders = reminderPage.getByRole('region', { name: '今日個人提醒' })
-            await todayReminders.getByText('尚未新增個人提醒', { exact: true }).waitFor()
-            await todayReminders.getByRole('button', { name: '新增提醒', exact: true }).click()
-            const attentionTab = reminderPage.getByRole('tab', { name: '待關注', exact: true })
-            const attentionPanel = reminderPage.locator('#investment-panel-month')
-            const reminderForm = attentionPanel.getByRole('form', { name: '新增個人提醒' })
+            await todayReminders.locator('p').filter({ hasText: '尚未新增個人提醒。' }).waitFor()
             const dates = await reminderPage.evaluate(() => {
               const parts = new Intl.DateTimeFormat('en', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
               const part = type => parts.find(item => item.type === type)?.value ?? ''
@@ -208,9 +214,20 @@ jobs:
               tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
               return { today, tomorrow: tomorrow.toISOString().slice(0, 10) }
             })
-            await reminderForm.getByRole('textbox', { name: '個人提醒內容' }).fill('合成未來個人提醒')
-            await reminderForm.getByLabel('個人提醒到期日期').fill(dates.tomorrow)
-            await reminderForm.getByRole('button', { name: '新增提醒', exact: true }).click()
+            await todayReminders.getByRole('button', { name: '待關注', exact: true }).click()
+            const attentionTab = reminderPage.getByRole('tab', { name: '待關注', exact: true })
+            await attentionTab.waitFor({ state: 'visible' })
+            await reminderPage.waitForFunction(() => document.querySelector('#investment-tab-month')?.getAttribute('aria-selected') === 'true')
+            const attentionPanel = reminderPage.locator('#investment-panel-month')
+            await attentionPanel.waitFor({ state: 'visible' })
+            const addReminderButton = attentionPanel.getByRole('button', { name: '新增提醒', exact: true })
+            await addReminderButton.waitFor({ state: 'visible' })
+            await addReminderButton.click()
+            const reminderInput = attentionPanel.locator('input[aria-label="新增個人提醒"]')
+            await reminderInput.waitFor({ state: 'visible' })
+            await reminderInput.fill('合成未來個人提醒')
+            await attentionPanel.locator('input[aria-label="個人提醒到期日"]').fill(dates.tomorrow)
+            await attentionPanel.getByRole('button', { name: '加入提醒', exact: true }).click()
             await attentionPanel.getByText('合成未來個人提醒', { exact: true }).waitFor()
             assert.equal(await todayReminders.getByText('合成未來個人提醒', { exact: true }).count(), 0, 'future reminders stay off Today by default')
             await attentionPanel.getByRole('button', { name: '加入今日', exact: true }).click()
@@ -219,9 +236,12 @@ jobs:
             await todayReminders.getByText('合成未來個人提醒', { exact: true }).waitFor()
             assert.equal(await todayReminders.getByText('交付說明會', { exact: false }).count(), 0, 'source-derived events do not become Today reminders')
             await attentionTab.click()
-            await reminderForm.getByRole('textbox', { name: '個人提醒內容' }).fill('合成今日到期提醒')
-            await reminderForm.getByLabel('個人提醒到期日期').fill(dates.today)
-            await reminderForm.getByRole('button', { name: '新增提醒', exact: true }).click()
+            await addReminderButton.waitFor({ state: 'visible' })
+            await addReminderButton.click()
+            await reminderInput.waitFor({ state: 'visible' })
+            await reminderInput.fill('合成今日到期提醒')
+            await attentionPanel.locator('input[aria-label="個人提醒到期日"]').fill(dates.today)
+            await attentionPanel.getByRole('button', { name: '加入提醒', exact: true }).click()
             await attentionPanel.getByText('合成今日到期提醒', { exact: true }).waitFor()
             await reminderPage.getByRole('tab', { name: '今日', exact: true }).click()
             await todayReminders.getByText('合成今日到期提醒', { exact: true }).waitFor()
@@ -233,7 +253,7 @@ jobs:
             await reminderPage.close()
             // Modify only in-memory synthetic Responses. Do not rewrite generated fixtures,
             // introduce test routes into production, or use any private source material.
-            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'reminders-read-error']) {
+            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility']) {
               const page = await browser.newPage({ viewport: { width: 320, height: 740 } })
               const errors = []
               page.on('pageerror', error => errors.push(error.message))
@@ -241,7 +261,21 @@ jobs:
                 const original = Response.prototype.json
                 Response.prototype.json = async function () {
                   const data = await original.call(this)
-                  if (scenario === 'reminders-read-error' && Array.isArray(data?.items) && data.items.length === 0) throw new Error('Synthetic reminders read failure')
+                  if (scenario === 'watch-read-error' && Object.keys(data ?? {}).length === 1 && Array.isArray(data?.items)) throw new Error('Synthetic reminder read failure')
+                  if (scenario === 'watch-eligibility' && Object.keys(data ?? {}).length === 1 && Array.isArray(data?.items)) {
+                    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).map(part => [part.type, part.value]))
+                    const today = `${parts.year}-${parts.month}-${parts.day}`
+                    const offsetDate = days => { const date = new Date(`${today}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + days); return date.toISOString().slice(0, 10) }
+                    const note = (id, kind, status, expires_on, promoted_to_today = false) => ({ id, kind, status, expires_on, promoted_to_today, text: `Synthetic ${id}`, source_id: '', source_label: '', conclusion: '', version: 1, updated_at: '' })
+                    data.items = [
+                      note('due-today', 'watch', 'open', today),
+                      note('promoted', 'watch', 'open', offsetDate(-1), true),
+                      note('future', 'watch', 'open', offsetDate(1)),
+                      note('expired', 'watch', 'open', offsetDate(-1)),
+                      note('completed', 'watch', 'done', today, true),
+                      note('research-event', 'research', 'open', today, true),
+                    ]
+                  }
                   if (scenario === 'narrative-stale-partial' && data?.narratives?.[0]?.thesis_evidence) {
                     data.narratives[0].state = 'stale'
                     data.narratives[0].state_reason = '合成測試：論點來源較舊；僅示範 aggregate 狀態。'
@@ -391,6 +425,21 @@ jobs:
                 }
               }, scenario)
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
+              if (scenario === 'watch-read-error') {
+                const todayReminders = page.locator('[aria-label="今日個人提醒"]')
+                const readFailureCopy = todayReminders.getByRole('alert').getByText('個人提醒讀取失敗，暫時無法確認今天是否有提醒。', { exact: true })
+                await readFailureCopy.waitFor({ state: 'visible', timeout: 5000 })
+                assert.equal(await todayReminders.locator('p').filter({ hasText: '尚未新增個人提醒。' }).count(), 0, 'a failed reminder read must not render the empty state')
+                await page.getByRole('tab', { name: '待關注', exact: true }).click()
+                const personalReminders = page.locator('[aria-label="我的提醒"]')
+                await personalReminders.getByRole('alert').waitFor({ state: 'visible', timeout: 5000 })
+                assert.equal(await personalReminders.getByText('目前沒有未到期或加入今日的個人提醒。', { exact: true }).count(), 0, 'a failed read must not look like a confirmed empty attention list')
+              }
+              if (scenario === 'watch-eligibility') {
+                const todayReminders = page.locator('[aria-label="今日個人提醒"]')
+                for (const id of ['due-today', 'promoted']) await todayReminders.getByText(`Synthetic ${id}`, { exact: true }).waitFor({ state: 'visible', timeout: 5000 })
+                for (const id of ['future', 'expired', 'completed', 'research-event']) assert.equal(await todayReminders.getByText(`Synthetic ${id}`, { exact: true }).count(), 0, `${id} must not appear on Today`)
+              }
               if (scenario.startsWith('session-')) {
                 const sessions = page.getByRole('region', { name: '盤前班次' })
                 if (scenario === 'session-tw') {
@@ -409,15 +458,6 @@ jobs:
                 if (scenario === 'session-malformed-times') {
                   assert.match(await sessions.locator('li').nth(1).innerText(), /報告日 時間未能辨識 · 實際產出 時間未能辨識 · 資訊截至 未提供/)
                 }
-              }
-              if (scenario === 'reminders-read-error') {
-                const todayReminders = page.getByRole('region', { name: '今日個人提醒' })
-                await todayReminders.getByRole('alert').waitFor()
-                assert.equal(await todayReminders.getByText('尚未新增個人提醒', { exact: true }).count(), 0, 'a failed read must not look like a confirmed empty Today list')
-                await page.getByRole('tab', { name: '待關注', exact: true }).click()
-                const personalReminders = page.getByRole('region', { name: '我的提醒' })
-                await personalReminders.getByRole('alert').waitFor()
-                assert.equal(await personalReminders.getByText('尚未新增個人提醒。', { exact: true }).count(), 0, 'a failed read must not look like a confirmed empty attention list')
               }
               if (scenario === 'unlinked-long') {
                 await page.getByText('其他判斷變化', { exact: true }).click()

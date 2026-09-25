@@ -801,9 +801,9 @@ export type InvestmentWork = {
   id: string; kind: "decision" | "research" | "watch"; text: string;
   source_id: string; source_label: string; status: "open" | "watching" | "done";
   conclusion: string; version: number; updated_at: string;
-  /** YYYY-MM-DD; present for personal watch reminders only. */
+  /** Only manual reminders use an expiry; legacy rows may omit it. */
   expires_on?: string;
-  /** Explicit user choice. Missing legacy values mean false, never infer from date or order. */
+  /** Explicitly promoted personal reminders remain visible on Today. */
   promoted_to_today?: boolean;
 }
 export const getInvestmentWork = () => readInvestment<{items: InvestmentWork[]}>("/api/investment/work")

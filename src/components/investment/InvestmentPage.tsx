@@ -12,7 +12,7 @@ import {
 } from "@/lib/investmentFormat"
 import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
 import { ReadingText, InlineText } from "./ReadingText"
-import { InvestmentReminderPanel, InvestmentWorkPanel } from "./InvestmentWork"
+import { InvestmentWorkPanel, InvestmentWatchNotes, TodayInvestmentWatchNotes } from "./InvestmentWork"
 import { PendingBoard } from "./InvestmentPending"
 import { InvestmentHistory } from "./InvestmentHistory"
 import { InvestmentNarrativeSection } from "./InvestmentNarrative"
@@ -333,10 +333,10 @@ export function InvestmentPage() {
       if (next !== null) { event.preventDefault(); openView(VIEWS[next][0]) }
     }}>{label}</Button>)}</nav>
     <div id="investment-panel-today" role="tabpanel" aria-labelledby="investment-tab-today" hidden={view !== "today"} className={view === "today" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
-      <InvestmentReminderPanel mode="today" enabled={view === "today"} onOpenAttention={() => openView("month")} />
       {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次內容。" : ""}請按更新資料重試。</p> : null}
       {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
       {b ? <TodayBrief b={b} today={query.data?.today} readFailed={query.isError} /> : null}
+      <TodayInvestmentWatchNotes onManage={() => openView("month")} />
       <MarketIndicators />
     </div>
     <div id="investment-panel-thesis" role="tabpanel" aria-labelledby="investment-tab-thesis" hidden={view !== "thesis"} className={view === "thesis" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
@@ -356,8 +356,8 @@ export function InvestmentPage() {
       <PendingBoard />
     </div>
     <div id="investment-panel-month" role="tabpanel" aria-labelledby="investment-tab-month" hidden={view !== "month"} className={view === "month" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
-      <InvestmentReminderPanel mode="attention" enabled={view === "month"} />
-      {watch.data ? <ResearchWatch data={watch.data} brief={b} /> : <p className="text-body text-ink-3">{watch.isError ? "研究與事件讀取失敗，請按更新資料。" : "正在讀取研究與事件…"}</p>}
+      <InvestmentWatchNotes />
+      {watch.data ? <ResearchWatch data={watch.data} brief={b} /> : <p className="text-body text-ink-3">{watch.isError ? "研究與事件資料讀取失敗，請按更新資料。" : "正在讀取研究與事件…"}</p>}
     </div>
     <div id="investment-panel-history" role="tabpanel" aria-labelledby="investment-tab-history" hidden={view !== "history"} className={view === "history" ? "flex min-w-0 flex-col gap-4" : "hidden"}>
       {history.isPending || context.isPending ? <p className="text-body text-ink-3">讀取歷史與研究脈絡中…</p> : null}

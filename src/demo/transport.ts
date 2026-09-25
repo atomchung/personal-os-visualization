@@ -22,7 +22,6 @@ export function createDemoRequest() {
   const state = createState()
   const reply = (data: unknown, status = 200) => Response.json(data, { status })
   const rejected = (detail: string, status = 422) => reply({ detail }, status)
-
   return async (input: string, init: RequestInit = {}): Promise<Response> => {
     if (init.signal?.aborted) throw new DOMException("Request aborted", "AbortError")
     // Only relative API paths are accepted; absolute URLs never reach a server.
@@ -117,16 +116,16 @@ export function createDemoRequest() {
       return reply({ slug: "demo-paper-plane", next_action: state.nextAction })
     }
     if (method === "POST" && path === "/api/investment/work") {
-      if (typeof body.text !== "string" || !body.text.trim() || body.text.length > 2000 || !["decision", "research", "watch"].includes(String(body.kind))) return rejected("請提供有效的範例工作。")
-      const text = body.text.trim()
+      if (typeof body.text !== "string" || !body.text.trim() || body.text.length > 500 || !["decision", "research", "watch"].includes(String(body.kind))) return rejected("請提供有效的範例工作。")
       const kind = body.kind as "decision" | "research" | "watch"
-      const expires_on = kind === "watch" ? resolveWatchExpiry(body.expires_on) : ""
-      if (kind === "watch" && !expires_on) return rejected("提醒日期格式無效，請使用有效日期。")
-      if (kind === "watch") {
-        const duplicate = state.investmentWork.find(item => item.kind === "watch" && item.status !== "done" && item.text === text && item.source_id === String(body.source_id ?? "") && item.expires_on === expires_on)
-        if (duplicate) return reply(duplicate)
-      }
-      const item: InvestmentWork = { id: `demo-work-${++state.sequence}`, kind, text, source_id: String(body.source_id ?? ""), source_label: String(body.source_label ?? ""), status: "open", conclusion: "", version: 1, updated_at: STAMP, ...(kind === "watch" ? { expires_on: expires_on ?? "", promoted_to_today: false } : {}) }
+      const expires_on = kind === "watch" ? resolveWatchExpiry(typeof body.expires_on === "string" ? body.expires_on.trim() : "") : ""
+      if (expires_on === null) return rejected("到期日格式應為 YYYY-MM-DD。")
+      const text = body.text.trim()
+      const source_id = String(body.source_id ?? "")
+      const existing = state.investmentWork.find(item => item.kind === kind && item.text === text && item.source_id === source_id
+        && (kind !== "watch" || (item.expires_on === expires_on && item.status !== "done")))
+      if (existing) return reply(existing)
+      const item: InvestmentWork = { id: `demo-work-${++state.sequence}`, kind, text, source_id, source_label: String(body.source_label ?? ""), status: "open", conclusion: "", ...(kind === "watch" ? {expires_on, promoted_to_today: false} : {}), version: 1, updated_at: STAMP }
       state.investmentWork.push(item)
       return reply(item)
     }
@@ -134,11 +133,12 @@ export function createDemoRequest() {
     if (method === "PATCH" && workMatch) {
       const item = state.investmentWork.find(w => w.id === decodeURIComponent(workMatch[1]))
       if (!item || body.version !== item.version) return rejected("範例工作版本已變更，請重新讀取。", 409)
-      const validKind = ["decision", "research", "watch"].includes(String(body.kind))
-      const crossesReminderBoundary = (item.kind === "watch") !== (body.kind === "watch")
-      if (!["open", "watching", "done"].includes(String(body.status)) || !validKind || crossesReminderBoundary || typeof body.conclusion !== "string" || (body.promoted_to_today !== undefined && typeof body.promoted_to_today !== "boolean")) return rejected("請提供有效的工作狀態。")
+      if (!["open", "watching", "done"].includes(String(body.status)) || !["decision", "research", "watch"].includes(String(body.kind)) || typeof body.conclusion !== "string") return rejected("請提供有效的工作狀態。")
+      if ((item.kind === "watch") !== (body.kind === "watch")) return rejected("注意事項和其他事項不能互換類型。")
+      const hasPromotion = Object.prototype.hasOwnProperty.call(body, "promoted_to_today")
+      if (hasPromotion && (item.kind !== "watch" || typeof body.promoted_to_today !== "boolean")) return rejected("只有個人提醒可以明確加入今日。")
       Object.assign(item, { status: body.status, kind: body.kind, conclusion: body.conclusion, version: item.version + 1 })
-      if (item.kind === "watch" && typeof body.promoted_to_today === "boolean") item.promoted_to_today = body.promoted_to_today
+      if (hasPromotion) item.promoted_to_today = body.promoted_to_today as boolean
       return reply(item)
     }
     return rejected("此操作未提供示範，不會送到任何資料來源。", 404)

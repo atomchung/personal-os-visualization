@@ -7,7 +7,7 @@ import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyReadingOrder, investmentReminderIsForToday, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyReadingOrder, investmentReminderIsForToday, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, taipeiDateIso, todayActionPlan, todayActionSection, todayWatchNotes, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -355,6 +355,52 @@ test("investment writes honor versions; malformed and cancelled requests are vis
   await assert.rejects(request("/api/home", { signal: AbortSignal.abort() }), { name: "AbortError" })
 })
 
+test("Today reminder selection uses Taipei dates and excludes future, completed, and source research rows", () => {
+  const today = taipeiDateIso(new Date("2026-09-24T16:30:00.000Z"))
+  assert.equal(today, "2026-09-25", "the Taipei calendar day can differ from UTC")
+  const rows = [
+    {id:"due",kind:"watch",status:"open",expires_on:today},
+    {id:"future",kind:"watch",status:"open",expires_on:"2026-09-26"},
+    {id:"promoted",kind:"watch",status:"watching",expires_on:"2026-09-20",promoted_to_today:true},
+    {id:"expired",kind:"watch",status:"open",expires_on:"2026-09-20"},
+    {id:"done",kind:"watch",status:"done",expires_on:today,promoted_to_today:true},
+    {id:"research",kind:"research",status:"open",expires_on:today,promoted_to_today:true},
+  ]
+  assert.deepEqual(todayWatchNotes(rows, today).map(row=>row.id), ["promoted", "due"])
+})
+
+test("Today personal reminder copy keeps an empty result distinct from a failed read", () => {
+  assert.equal(todayWatchNotes([], "2026-09-25").length, 0)
+  assert.equal(workPanelView({isPending:false,isError:true}), "error")
+  assert.equal(workPanelView({isPending:false,isError:true,data:{items:[]},dataUpdatedAt:1}), "stale")
+})
+
+test("synthetic watch notes keep their expiry and only explicit promotion enters Today", async () => {
+  const request = createDemoRequest()
+  const body = {kind:"watch",text:"Synthetic personal reminder",expires_on:"2026-09-25"}
+  const created = await (await request("/api/investment/work", write(body))).json()
+  assert.equal(created.kind,"watch")
+  assert.equal(created.promoted_to_today,false)
+  assert.equal(created.expires_on,"2026-09-25")
+  const duplicate = await (await request("/api/investment/work", write(body))).json()
+  assert.equal(duplicate.id,created.id,"repeating the same open reminder does not create a duplicate")
+  const defaultNote = await (await request("/api/investment/work", write({kind:"watch",text:"Synthetic default expiry"}))).json()
+  const expectedDefault = new Date(`${taipeiCalendarToday()}T00:00:00.000Z`)
+  expectedDefault.setUTCDate(expectedDefault.getUTCDate()+7)
+  assert.equal(defaultNote.expires_on,expectedDefault.toISOString().slice(0,10))
+  const beforePromotion = await (await request("/api/investment/work")).json()
+  assert.deepEqual(todayWatchNotes(beforePromotion.items,"2026-09-24"),[])
+  const promoted = await (await request(`/api/investment/work/${created.id}`, write({version:1,status:"open",kind:"watch",conclusion:"",promoted_to_today:true},"PATCH"))).json()
+  assert.equal(promoted.promoted_to_today,true)
+  assert.equal(promoted.version,2)
+  const afterPromotion = await (await request("/api/investment/work")).json()
+  assert.deepEqual(todayWatchNotes(afterPromotion.items,"2026-09-24").map((row:any)=>row.id),[created.id])
+  assert.equal((await request(`/api/investment/work/${created.id}`, write({version:2,status:"open",kind:"watch",conclusion:"",promoted_to_today:false},"PATCH"))).status,200)
+  assert.equal((await request("/api/investment/work/nope", write({version:1,status:"open",kind:"watch",conclusion:"",promoted_to_today:true},"PATCH"))).status,409)
+  const decision = await (await request("/api/investment/work", write({kind:"decision",text:"Synthetic decision"}))).json()
+  assert.equal((await request(`/api/investment/work/${decision.id}`, write({version:1,status:"open",kind:"decision",conclusion:"",promoted_to_today:true},"PATCH"))).status,422)
+})
+
 test("brief actions remove only exact duplicates and pure no-information labels", () => {
   const input = ["沒有新資訊。", "觀察 5%", " 觀察 5% ", "觀察 6%", "不加碼", "加碼", "沒有新資訊，但仍需驗證需求。", "", "無新資訊！"]
   const original = [...input]
@@ -490,10 +536,11 @@ test("market context carries explicit market membership and keeps each producer 
 test("work panel view does not treat a failed fetch as an empty list", () => {
   assert.equal(workPanelView({ isPending: true, isError: false }), "loading")
   assert.equal(workPanelView({ isPending: false, isError: true }), "error")
-  assert.equal(workPanelView({ isPending: false, isError: true, data: { items: [] } }), "stale")
+  assert.equal(workPanelView({ isPending: false, isError: true, data: { items: [] }, dataUpdatedAt: 0 }), "error")
+  assert.equal(workPanelView({ isPending: false, isError: true, data: { items: [] }, dataUpdatedAt: 1 }), "stale")
   assert.equal(workPanelView({ isPending: false, isError: false, data: { items: [] } }), "empty")
   assert.equal(workPanelView({ isPending: false, isError: false, data: { items: [{ id: "w1" }] } }), "ready")
-  const stale = workPanelView({ isPending: false, isError: true, data: { items: [{ status: "done" }] } })
+  const stale = workPanelView({ isPending: false, isError: true, data: { items: [{ status: "done" }] }, dataUpdatedAt: 1 })
   assert.equal(stale, "stale")
   assert.equal(typeof stale === "string", true)
 })
