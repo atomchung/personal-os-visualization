@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, SectionHeading } from "@/components/ui/card"
 import { useWrite, writeErrorText } from "@/lib/writes"
 import { getInvestmentWork, addInvestmentWork, saveInvestmentWork, type InvestmentWork, type InvestmentWatch } from "@/lib/investment"
-import { isCanonicalActionId, taipeiDateIso, todayWatchNotes, workPanelView } from "@/lib/investmentFormat"
+import { isCanonicalActionId, taipeiDateIso, workPanelView } from "@/lib/investmentFormat"
 import { ReadingText } from "./ReadingText"
 
 export function SourceQuestion({source}: {source: {id:string; topic:string; source:{path:string}}}) {
@@ -47,28 +47,6 @@ function WatchReminderRow({item, today}: {item: InvestmentWork; today: string}) 
     </div>
     {mutation.isError ? <p role="alert" className="w-full text-caption text-warn">{writeErrorText(mutation.error)}</p> : null}
   </li>
-}
-
-/** A compact Today projection. Only personal, open reminders can enter this list. */
-export function TodayInvestmentWatchNotes({onManage}: {onManage: () => void}) {
-  const query = useQuery({queryKey:["investment-work"], queryFn:getInvestmentWork, refetchOnWindowFocus:false})
-  const today = taipeiDateIso()
-  const reminders = todayWatchNotes(query.data?.items ?? [], today)
-  const view = workPanelView(query)
-
-  if (view === "loading") return <p role="status" className="text-caption text-ink-3">讀取今日個人提醒中…</p>
-  if (view === "error") return <section aria-label="今日個人提醒" className="flex flex-wrap items-center gap-2 text-caption text-warn"><p role="alert">個人提醒讀取失敗，暫時無法確認今天是否有提醒。</p><Button variant="link" onClick={onManage}>查看待關注</Button></section>
-
-  const emptyCopy = view === "stale"
-    ? "上次成功讀取時，沒有今日到期或加入今日的個人提醒。"
-    : "尚未新增個人提醒。"
-  return <section aria-label="今日個人提醒" className="flex min-w-0 flex-col gap-2">
-    {view === "stale" ? <p role="status" className="text-caption text-warn">個人提醒更新失敗，以下沿用上次讀取。</p> : null}
-    {reminders.length ? <>
-      <div className="flex flex-wrap items-center justify-between gap-2"><SectionHeading>今日個人提醒</SectionHeading><Button variant="link" onClick={onManage}>管理提醒</Button></div>
-      <Card className="p-3"><ul className="flex flex-col">{reminders.map(item => <WatchReminderRow key={item.id} item={item} today={today}/>)}</ul></Card>
-    </> : <p className="flex flex-wrap items-center gap-1 text-caption text-ink-3">{emptyCopy}<Button variant="link" onClick={onManage}>待關注</Button></p>}
-  </section>
 }
 
 /** Personal reminders and their promotion controls live under 待關注, apart from source events. */

@@ -110,16 +110,12 @@ function TaiwanOverview({ data, pending, failed, readAt }: {
     data.index.change_pct,
   ) : null
   const directionCheck = data?.index.direction_check
-  const sourceDateSummary = data?.source_dates
-    ? `TWSE ${sourceTimestamp(data.source_dates.twse)} · TPEx ${sourceTimestamp(data.source_dates.tpex)}`
-    : ""
   return <section className="flex min-w-0 flex-col gap-3" aria-label="台股整體盤感" aria-busy={pending}>
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
       <div className="flex min-w-0 flex-wrap items-baseline gap-2"><h3 className="text-body font-medium text-ink">整體盤感</h3>{data ? <Chip tone={data.state === "ready" ? "ok" : "warn"}>{data.state === "ready" ? "完整" : data.state === "partial" ? "部分" : "無法取得"}</Chip> : null}</div>
-      {data ? <span className="text-caption text-ink-3">資料交易日 {sourceTimestamp(data.as_of)}{data.requested_date ? ` · 要求日期 ${sourceTimestamp(data.requested_date)}` : ""} · 本頁讀取於 {sourceTimestamp(readAt)} · 產出於 {sourceTimestamp(data.generated_at)}</span> : null}
+      {data ? <span className="text-caption text-ink-3">最近可用交易日 {sourceTimestamp(data.as_of)} · 收盤／休市狀態未提供</span> : null}
     </div>
     <p className="text-caption text-ink-3">TWSE／TPEx 日結統計；盤中刷新不會讓資料日變成今天，也不代表盤中報價。</p>
-    {data?.source_dates ? <p className="text-caption text-ink-3">各來源行情日：{sourceDateSummary}</p> : null}
     {pending && !data ? <p role="status" className="text-body text-ink-3">正在讀取台股整體盤感…</p> : null}
     {failed ? <p role={data ? "status" : "alert"} className="text-body text-warn">{data ? "台股盤感更新失敗，以下保留上次資料；資料日仍以原標示為準。" : "這次無法取得台股盤感；缺資料不代表沒有市場變化。"}</p> : null}
     {data?.state === "unavailable" ? <p role="status" className="text-body text-warn">這次沒有取得台股盤感；不以空值代表市場平靜。</p> : null}
@@ -139,7 +135,7 @@ function TaiwanOverview({ data, pending, failed, readAt }: {
       </div>
       <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2"><ThemeList title={`${data.themes.label} · 強`} rows={data.themes.strongest} /><ThemeList title={`${data.themes.label} · 弱`} rows={data.themes.weakest} /></div>
     </> : null}
-    {data ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">資料覆蓋、來源日期與方向核對</summary><div className="flex flex-col gap-1 pt-1"><p>產出：{data.producer || "未提供"}</p><p>來源截止：{sourceTimestamp(data.source_cutoff)}</p><p>TWSE 行情日：{sourceTimestamp(data.source_dates?.twse)} · TPEx 行情日：{sourceTimestamp(data.source_dates?.tpex)}</p><p>方向核對：{direction?.state === "confirmed" ? "來源已確認" : direction?.state === "needs_review" ? "待核對" : "未提供可確認狀態"}{directionCheck?.session_flow_status ? ` · 盤後來源狀態 ${directionCheck.session_flow_status}` : ""}</p>{directionCheck?.reason ? <p>{directionCheck.reason}</p> : null}{directionCheck ? <div className="grid grid-cols-1 gap-1 rounded border border-line-soft p-2 sm:grid-cols-2"><p>TWSE 日結原值：{number(directionCheck.twse_close)} 點；漲跌 {number(directionCheck.twse_change)} 點（{pct(directionCheck.twse_change_pct)}）</p><p>盤後量價原值：{number(directionCheck.session_flow_close ?? data.flow?.index_close)} 點；漲跌 {number(directionCheck.session_flow_change ?? data.flow?.index_change)} 點</p></div> : null}{data.limitations.map((item, index) => <p key={index}>{item}</p>)}</div></details> : null}
+    {data ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">資料覆蓋、時間與方向核對</summary><div className="flex flex-col gap-1 pt-1"><p>要求日期：{sourceTimestamp(data.requested_date)} · 本頁讀取：{sourceTimestamp(readAt)} · 資料產出：{sourceTimestamp(data.generated_at)}</p><p>產出：{data.producer || "未提供"}</p><p>來源截止：{sourceTimestamp(data.source_cutoff)}</p><p>TWSE 行情日：{sourceTimestamp(data.source_dates?.twse)} · TPEx 行情日：{sourceTimestamp(data.source_dates?.tpex)}</p><p>方向核對：{direction?.state === "confirmed" ? "來源已確認" : direction?.state === "needs_review" ? "待核對" : "未提供可確認狀態"}{directionCheck?.session_flow_status ? ` · 盤後來源狀態 ${directionCheck.session_flow_status}` : ""}</p>{directionCheck?.reason ? <p>{directionCheck.reason}</p> : null}{directionCheck ? <div className="grid grid-cols-1 gap-1 rounded border border-line-soft p-2 sm:grid-cols-2"><p>TWSE 日結原值：{number(directionCheck.twse_close)} 點；漲跌 {number(directionCheck.twse_change)} 點（{pct(directionCheck.twse_change_pct)}）</p><p>盤後量價原值：{number(directionCheck.session_flow_close ?? data.flow?.index_close)} 點；漲跌 {number(directionCheck.session_flow_change ?? data.flow?.index_change)} 點</p></div> : null}{data.limitations.map((item, index) => <p key={index}>{item}</p>)}</div></details> : null}
   </section>
 }
 

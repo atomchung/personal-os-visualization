@@ -7,7 +7,7 @@ import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyReadingOrder, investmentReminderIsForToday, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, taipeiDateIso, todayActionPlan, todayActionSection, todayWatchNotes, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyReadingOrder, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -68,17 +68,9 @@ test("Today projection keeps intraday delta inside the daily flow", async () => 
   assert.match(data.today.updates[0].source_path, /^wiki\/morning\//)
 })
 
-test("personal reminders stay separate and only reach Today by Taipei due date or explicit promotion", async () => {
+test("personal reminder dates and promotion remain stored under 待關注", async () => {
   const today = "2026-09-25"
   assert.equal(taipeiCalendarToday(new Date("2026-09-24T16:30:00Z")), today, "UTC evening maps to the next Taipei calendar day")
-  const reminder = { kind: "watch" as const, status: "open" as const, expires_on: today, promoted_to_today: false }
-  assert.equal(investmentReminderIsForToday(reminder, today), true)
-  assert.equal(investmentReminderIsForToday({...reminder, expires_on: "2026-09-26"}, today), false)
-  assert.equal(investmentReminderIsForToday({...reminder, expires_on: "2026-09-26", promoted_to_today: true}, today), true)
-  assert.equal(investmentReminderIsForToday({...reminder, status: "watching"}, today), false, "watching reminders are not open Today actions")
-  assert.equal(investmentReminderIsForToday({...reminder, status: "watching", promoted_to_today: true}, today), false)
-  assert.equal(investmentReminderIsForToday({...reminder, status: "done", promoted_to_today: true}, today), false)
-  assert.equal(investmentReminderIsForToday({...reminder, kind: "research"}, today), false, "research work is never a personal reminder")
 
   const request = createDemoRequest()
   const sourceWatch = await (await request("/api/investment/watch")).json()
@@ -158,6 +150,14 @@ test("synthetic formal brief and later update keep their Taiwan-time chronology 
   assert.equal(sourceTimestamp(syntheticInvestment.brief.generated_at), "2026/09/20 21:30 台北")
   assert.equal(sourceTimestamp(syntheticInvestment.brief.source_cutoff), "2026/09/20 21:15 台北")
   assert.equal(sourceTimestamp(syntheticInvestment.today?.updates[0]?.observed_at), "2026/09/21 00:27 台北")
+})
+
+test("explicitly numbered target impacts become readable bullets without dropping evidence", () => {
+  assert.deepEqual(numberedTargets("兩項關注：① A 上調，仍待財報；② B 未觸及 -5% 門檻。"), {
+    intro: "兩項關注：",
+    items: ["A 上調，仍待財報；", "B 未觸及 -5% 門檻。"],
+  })
+  assert.equal(numberedTargets("A 上調，但 B 未觸及 -5% 門檻。"), null)
 })
 
 test("Today groups brief events and updates only by producer-owned story identity", async () => {
@@ -355,27 +355,7 @@ test("investment writes honor versions; malformed and cancelled requests are vis
   await assert.rejects(request("/api/home", { signal: AbortSignal.abort() }), { name: "AbortError" })
 })
 
-test("Today reminder selection uses Taipei dates and excludes future, completed, and source research rows", () => {
-  const today = taipeiDateIso(new Date("2026-09-24T16:30:00.000Z"))
-  assert.equal(today, "2026-09-25", "the Taipei calendar day can differ from UTC")
-  const rows = [
-    {id:"due",kind:"watch",status:"open",expires_on:today},
-    {id:"future",kind:"watch",status:"open",expires_on:"2026-09-26"},
-    {id:"promoted",kind:"watch",status:"watching",expires_on:"2026-09-20",promoted_to_today:true},
-    {id:"expired",kind:"watch",status:"open",expires_on:"2026-09-20"},
-    {id:"done",kind:"watch",status:"done",expires_on:today,promoted_to_today:true},
-    {id:"research",kind:"research",status:"open",expires_on:today,promoted_to_today:true},
-  ]
-  assert.deepEqual(todayWatchNotes(rows, today).map(row=>row.id), ["promoted", "due"])
-})
-
-test("Today personal reminder copy keeps an empty result distinct from a failed read", () => {
-  assert.equal(todayWatchNotes([], "2026-09-25").length, 0)
-  assert.equal(workPanelView({isPending:false,isError:true}), "error")
-  assert.equal(workPanelView({isPending:false,isError:true,data:{items:[]},dataUpdatedAt:1}), "stale")
-})
-
-test("synthetic watch notes keep their expiry and only explicit promotion enters Today", async () => {
+test("synthetic watch notes retain expiry and promotion metadata", async () => {
   const request = createDemoRequest()
   const body = {kind:"watch",text:"Synthetic personal reminder",expires_on:"2026-09-25"}
   const created = await (await request("/api/investment/work", write(body))).json()
@@ -389,12 +369,12 @@ test("synthetic watch notes keep their expiry and only explicit promotion enters
   expectedDefault.setUTCDate(expectedDefault.getUTCDate()+7)
   assert.equal(defaultNote.expires_on,expectedDefault.toISOString().slice(0,10))
   const beforePromotion = await (await request("/api/investment/work")).json()
-  assert.deepEqual(todayWatchNotes(beforePromotion.items,"2026-09-24"),[])
+  assert.equal(beforePromotion.items.find((item:any)=>item.id===created.id).promoted_to_today,false)
   const promoted = await (await request(`/api/investment/work/${created.id}`, write({version:1,status:"open",kind:"watch",conclusion:"",promoted_to_today:true},"PATCH"))).json()
   assert.equal(promoted.promoted_to_today,true)
   assert.equal(promoted.version,2)
   const afterPromotion = await (await request("/api/investment/work")).json()
-  assert.deepEqual(todayWatchNotes(afterPromotion.items,"2026-09-24").map((row:any)=>row.id),[created.id])
+  assert.equal(afterPromotion.items.find((item:any)=>item.id===created.id).promoted_to_today,true)
   assert.equal((await request(`/api/investment/work/${created.id}`, write({version:2,status:"open",kind:"watch",conclusion:"",promoted_to_today:false},"PATCH"))).status,200)
   assert.equal((await request("/api/investment/work/nope", write({version:1,status:"open",kind:"watch",conclusion:"",promoted_to_today:true},"PATCH"))).status,409)
   const decision = await (await request("/api/investment/work", write({kind:"decision",text:"Synthetic decision"}))).json()

@@ -1,4 +1,4 @@
-import type { ActionItemStatus, InvestmentActionItem, InvestmentBrief, InvestmentTodayView, InvestmentWork } from "./investment.ts"
+import type { ActionItemStatus, InvestmentActionItem, InvestmentBrief, InvestmentTodayView } from "./investment.ts"
 
 const VALUE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const CHANGE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "exceptZero" })
@@ -23,9 +23,6 @@ export function taipeiCalendarToday(now = new Date()): string {
   return `${part("year")}-${part("month")}-${part("day")}`
 }
 
-export function investmentReminderIsForToday(item: Pick<InvestmentWork, "kind" | "status" | "expires_on" | "promoted_to_today">, today: string): boolean {
-  return item.kind === "watch" && item.status === "open" && (item.expires_on === today || item.promoted_to_today === true)
-}
 const PILLAR_ID_BY_LAYER_ID: Record<string, string> = {
   L0: "l0_hardware",
   L1: "l1_cloud",
@@ -103,20 +100,6 @@ export function taipeiDateIso(now = new Date()): string {
   return `${parts.year}-${parts.month}-${parts.day}`
 }
 
-/** Today shows only open personal reminders due in Taipei today or explicitly promoted. */
-export function todayWatchNotes<T extends {
-  kind: string
-  status: string
-  expires_on?: string | null
-  promoted_to_today?: boolean
-}>(items: readonly T[], today: string): T[] {
-  return items
-    .filter(item => item.kind === "watch" && item.status !== "done"
-      && (item.expires_on === today || item.promoted_to_today === true))
-    .slice()
-    .sort((a, b) => (a.expires_on ?? "").localeCompare(b.expires_on ?? ""))
-}
-
 export type BriefSessionRow = {
   session: BriefSession
   label: string
@@ -178,6 +161,18 @@ export function briefActions(actions: readonly string[]): string[] {
     seen.add(key)
     return true
   })
+}
+
+/** Split only explicit producer-numbered targets; preserve every word and order. */
+export function numberedTargets(text: string): { intro: string; items: string[] } | null {
+  const markers = [...text.matchAll(/[①②③④⑤⑥⑦⑧⑨⑩]/g)]
+  if (markers.length < 2 || markers[0].index === undefined) return null
+  const items = markers.map((marker, index) => text.slice(
+    marker.index! + marker[0].length,
+    index + 1 < markers.length ? markers[index + 1].index : text.length,
+  ).trim())
+  if (items.some(item => !item)) return null
+  return { intro: text.slice(0, markers[0].index).trim(), items }
 }
 
 export type TodayActionEntry = {
