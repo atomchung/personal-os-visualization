@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, SectionHeading } from "@/components/ui/card"
 import { useWrite, writeErrorText } from "@/lib/writes"
 import { getInvestmentWork, addInvestmentWork, saveInvestmentWork, type InvestmentWork, type InvestmentWatch } from "@/lib/investment"
-import { isCanonicalActionId, workPanelView } from "@/lib/investmentFormat"
+import { investmentReminderIsForToday, isCanonicalActionId, taipeiCalendarToday, workPanelView } from "@/lib/investmentFormat"
 import { ReadingText } from "./ReadingText"
 
 export function SourceQuestion({source}: {source: {id:string; topic:string; source:{path:string}}}) {
@@ -16,6 +16,85 @@ export function SourceQuestion({source}: {source: {id:string; topic:string; sour
     {mutation.isSuccess?<p role="status" className="text-caption text-ink-3">已保存到待處理清單。</p>:null}
     {mutation.isError?<p role="alert" className="text-caption text-warn">{writeErrorText(mutation.error)}</p>:null}
   </div>
+}
+
+function addDays(date: string, days: number): string {
+  const value = new Date(`${date}T00:00:00Z`)
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
+}
+
+function ReminderRow({item, today, compact = false}: {item: InvestmentWork; today: string; compact?: boolean}) {
+  const mutation = useWrite(saveInvestmentWork, ["investment-work"])
+  const dueToday = item.expires_on === today
+  const promoted = item.promoted_to_today === true
+  const dueText = item.expires_on ? `到期 ${item.expires_on}` : "未設定到期日"
+  function save(patch: Partial<InvestmentWork>) {
+    mutation.mutate({...item, ...patch})
+  }
+  return <Card className={`flex min-w-0 flex-col gap-2 ${compact ? "p-3" : "p-4"}`}>
+    <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+      <p className="min-w-0 flex-1 text-body leading-relaxed text-ink-2">{item.text}</p>
+      {compact ? <Button disabled={mutation.isPending} onClick={() => save({status: "done"})}>完成</Button> : null}
+    </div>
+    <p className="text-caption text-ink-3">{dueText}{dueToday ? " · 今天到期" : ""}{promoted ? " · 已加入今日" : ""}</p>
+    {!compact ? <div className="flex flex-wrap gap-2">
+      <Button disabled={mutation.isPending} onClick={() => save({promoted_to_today: !promoted})}>{promoted ? "從今日移除" : "加入今日"}</Button>
+      <Button disabled={mutation.isPending} onClick={() => save({status: "done"})}>確認完成</Button>
+    </div> : null}
+    {mutation.isSuccess ? <p role="status" className="text-caption text-ok">已保存。</p> : null}
+    {mutation.isError ? <p role="alert" className="text-caption text-warn">{writeErrorText(mutation.error)}</p> : null}
+  </Card>
+}
+
+/** Personal reminders are user-owned work rows; source-derived research events stay in ResearchWatch. */
+export function InvestmentReminderPanel({mode, enabled = true, onOpenAttention}: {
+  mode: "today" | "attention"
+  enabled?: boolean
+  onOpenAttention?: () => void
+}) {
+  const query = useQuery({queryKey: ["investment-work"], queryFn: getInvestmentWork, enabled, retry: false, refetchOnWindowFocus: false})
+  const create = useWrite(addInvestmentWork, ["investment-work"])
+  const [text, setText] = useState("")
+  const [expiresOn, setExpiresOn] = useState(() => addDays(taipeiCalendarToday(), 7))
+  const today = taipeiCalendarToday()
+  const reminders = query.data?.items.filter(item => item.kind === "watch") ?? []
+  const open = reminders.filter(item => item.status !== "done").sort((a, b) => (a.expires_on ?? "").localeCompare(b.expires_on ?? ""))
+  const todayItems = open.filter(item => investmentReminderIsForToday(item, today))
+
+  if (mode === "today") {
+    if (query.isPending && !query.data) return <p role="status" className="text-caption text-ink-3">正在讀取個人提醒…</p>
+    return <section className="flex min-w-0 flex-col gap-2" aria-label="今日個人提醒">
+      {query.isError ? <p role="alert" className="text-caption text-warn">個人提醒讀取失敗{query.data ? "；目前保留先前資料，未能確認是否有更新。" : "，目前無法確認是否有提醒。"}</p> : null}
+      {!query.isError && todayItems.length === 0 ? <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-caption text-ink-3">
+        <span>尚未新增個人提醒</span>
+        <Button variant="link" onClick={onOpenAttention}>新增提醒</Button>
+      </div> : null}
+      {todayItems.map(item => <ReminderRow key={item.id} item={item} today={today} compact />)}
+    </section>
+  }
+
+  return <section className="flex min-w-0 flex-col gap-3" aria-label="我的提醒">
+    <div className="flex flex-col gap-1"><SectionHeading>我的提醒</SectionHeading><p className="text-caption text-ink-3">只列個人記下的提醒；研究筆記與事件在下方分開呈現。</p></div>
+    <form aria-label="新增個人提醒" className="flex min-w-0 flex-col gap-2 sm:flex-row" onSubmit={event => {
+      event.preventDefault()
+      create.mutate({kind: "watch", text: text.trim(), expires_on: expiresOn}, {onSuccess: () => setText("")})
+    }}>
+      <label className="flex min-w-0 flex-1 flex-col gap-1 text-caption text-ink-3">提醒內容
+        <input aria-label="個人提醒內容" className="min-w-0 rounded-sm border border-line bg-paper p-2 text-body text-ink" maxLength={500} value={text} onChange={event => setText(event.target.value)} placeholder="記下一件要留意的事…" />
+      </label>
+      <label className="flex flex-col gap-1 text-caption text-ink-3">到期日期
+        <input aria-label="個人提醒到期日期" type="date" className="rounded-sm border border-line bg-paper p-2 text-body text-ink" value={expiresOn} onChange={event => setExpiresOn(event.target.value)} />
+      </label>
+      <div className="flex items-end"><Button type="submit" disabled={!text.trim() || !expiresOn || create.isPending}>新增提醒</Button></div>
+    </form>
+    {query.isPending && !query.data ? <p role="status" className="text-body text-ink-3">讀取個人提醒中…</p> : null}
+    {query.isError ? <p role="alert" className="text-body text-warn">個人提醒讀取失敗{query.data ? "；以下保留先前內容，不代表最新清單。" : "，無法確認目前清單。"}</p> : null}
+    {create.isError ? <p role="alert" className="text-body text-warn">{writeErrorText(create.error)}</p> : null}
+    {!query.isError && query.isSuccess && query.data && open.length === 0 ? <p className="text-body text-ink-3">尚未新增個人提醒。</p> : null}
+    {open.map(item => <ReminderRow key={item.id} item={item} today={today} />)}
+    {reminders.some(item => item.status === "done") ? <details><summary className="cursor-pointer text-caption text-ink-3">查看已完成提醒（{reminders.filter(item => item.status === "done").length}）</summary><ul className="flex flex-col gap-2 pt-2">{reminders.filter(item => item.status === "done").map(item => <li key={item.id} className="text-body text-ink-3">{item.text}</li>)}</ul></details> : null}
+  </section>
 }
 
 function WorkItem({item}: {item:InvestmentWork}) {
@@ -54,7 +133,7 @@ export function InvestmentWorkPanel({research}: {research: InvestmentWatch["rese
   const [showDone,setShowDone]=useState(false)
   const view=workPanelView(query)
   const showList=view==="stale"||view==="empty"||view==="ready"
-  const items=showList?(query.data?.items??[]):[]
+  const items=showList?(query.data?.items??[]).filter(item=>item.kind!=="watch"):[]
   const doneCount=items.filter(i=>i.status==="done").length
   const candidates=research.filter(r=>r.status==="candidate" && /owner 拍板|對標名單/.test(r.source.section) && !items.some(i=>i.source_id===r.id))
   return <section className="flex flex-col gap-4" aria-label="投資待處理事項">

@@ -1,4 +1,4 @@
-import type { ActionItemStatus, InvestmentActionItem, InvestmentBrief, InvestmentTodayView } from "./investment.ts"
+import type { ActionItemStatus, InvestmentActionItem, InvestmentBrief, InvestmentTodayView, InvestmentWork } from "./investment.ts"
 
 const VALUE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const CHANGE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "exceptZero" })
@@ -6,6 +6,7 @@ const TIME_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", 
 const DAY_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", month: "2-digit", day: "2-digit" })
 const DATE_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" })
 const SOURCE_TIME_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+const TAIPEI_DATE_PARTS = new Intl.DateTimeFormat("en", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" })
 export const NARRATIVE_FALSIFIER_UNAVAILABLE_COPY = "此讀取資料未提供獨立的明確推翻條件欄位；挑戰訊號不等同於推翻條件。"
 export const BRIEF_SESSION_METADATA = {
   "tw-open-prep": { label: "台股盤前注意 · 正式版", targetTime: "08:00" },
@@ -15,6 +16,16 @@ export type BriefSession = keyof typeof BRIEF_SESSION_METADATA
 export const BRIEF_SESSION_LABELS: Record<string, string> = Object.fromEntries(
   Object.entries(BRIEF_SESSION_METADATA).map(([session, metadata]) => [session, metadata.label]),
 )
+
+export function taipeiCalendarToday(now = new Date()): string {
+  const parts = TAIPEI_DATE_PARTS.formatToParts(now)
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find(item => item.type === type)?.value ?? ""
+  return `${part("year")}-${part("month")}-${part("day")}`
+}
+
+export function investmentReminderIsForToday(item: Pick<InvestmentWork, "kind" | "status" | "expires_on" | "promoted_to_today">, today: string): boolean {
+  return item.kind === "watch" && item.status !== "done" && (item.expires_on === today || item.promoted_to_today === true)
+}
 const PILLAR_ID_BY_LAYER_ID: Record<string, string> = {
   L0: "l0_hardware",
   L1: "l1_cloud",

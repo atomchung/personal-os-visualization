@@ -12,7 +12,7 @@ import {
 } from "@/lib/investmentFormat"
 import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
 import { ReadingText, InlineText } from "./ReadingText"
-import { InvestmentWorkPanel } from "./InvestmentWork"
+import { InvestmentReminderPanel, InvestmentWorkPanel } from "./InvestmentWork"
 import { PendingBoard } from "./InvestmentPending"
 import { InvestmentHistory } from "./InvestmentHistory"
 import { InvestmentNarrativeSection } from "./InvestmentNarrative"
@@ -252,7 +252,7 @@ function TodayBrief({ b, today, readFailed }: { b: InvestmentBrief; today?: Inve
   </section>
 }
 
-const VIEWS = [["today", "今日"], ["thesis", "我的論點"], ["work", "正在研究"], ["month", "近期要留意"], ["history", "舊判斷回看"]] as const
+const VIEWS = [["today", "今日"], ["thesis", "我的論點"], ["work", "正在研究"], ["month", "待關注"], ["history", "舊判斷回看"]] as const
 type View = typeof VIEWS[number][0]
 
 export function InvestmentPage() {
@@ -333,6 +333,7 @@ export function InvestmentPage() {
       if (next !== null) { event.preventDefault(); openView(VIEWS[next][0]) }
     }}>{label}</Button>)}</nav>
     <div id="investment-panel-today" role="tabpanel" aria-labelledby="investment-tab-today" hidden={view !== "today"} className={view === "today" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
+      <InvestmentReminderPanel mode="today" enabled={view === "today"} onOpenAttention={() => openView("month")} />
       {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次內容。" : ""}請按更新資料重試。</p> : null}
       {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
       {b ? <TodayBrief b={b} today={query.data?.today} readFailed={query.isError} /> : null}
@@ -354,7 +355,10 @@ export function InvestmentPage() {
       {watch.data ? <ResearchLibrary data={watch.data} /> : null}
       <PendingBoard />
     </div>
-    <div id="investment-panel-month" role="tabpanel" aria-labelledby="investment-tab-month" hidden={view !== "month"} className={view === "month" ? "flex min-w-0 flex-col gap-4" : "hidden"}>{watch.data ? <ResearchWatch data={watch.data} brief={b} /> : <p className="text-body text-ink-3">{watch.isError ? "日期資料讀取失敗，請按更新資料。" : "正在讀取重要日期…"}</p>}</div>
+    <div id="investment-panel-month" role="tabpanel" aria-labelledby="investment-tab-month" hidden={view !== "month"} className={view === "month" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
+      <InvestmentReminderPanel mode="attention" enabled={view === "month"} />
+      {watch.data ? <ResearchWatch data={watch.data} brief={b} /> : <p className="text-body text-ink-3">{watch.isError ? "研究與事件讀取失敗，請按更新資料。" : "正在讀取研究與事件…"}</p>}
+    </div>
     <div id="investment-panel-history" role="tabpanel" aria-labelledby="investment-tab-history" hidden={view !== "history"} className={view === "history" ? "flex min-w-0 flex-col gap-4" : "hidden"}>
       {history.isPending || context.isPending ? <p className="text-body text-ink-3">讀取歷史與研究脈絡中…</p> : null}
       {history.isError ? <p role="alert" className="text-body text-warn">歷史來源這次無法取得，請稍後重試。</p> : null}

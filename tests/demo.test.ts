@@ -7,7 +7,7 @@ import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyReadingOrder, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyReadingOrder, investmentReminderIsForToday, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -66,6 +66,34 @@ test("Today projection keeps intraday delta inside the daily flow", async () => 
   assert.equal(data.today.updates.length, 1)
   assert.equal(data.today.updates[0].relevance.includes("new-price-discovery"), true)
   assert.match(data.today.updates[0].source_path, /^wiki\/morning\//)
+})
+
+test("personal reminders stay separate and only reach Today by Taipei due date or explicit promotion", async () => {
+  const today = "2026-09-25"
+  assert.equal(taipeiCalendarToday(new Date("2026-09-24T16:30:00Z")), today, "UTC evening maps to the next Taipei calendar day")
+  const reminder = { kind: "watch" as const, status: "open" as const, expires_on: today, promoted_to_today: false }
+  assert.equal(investmentReminderIsForToday(reminder, today), true)
+  assert.equal(investmentReminderIsForToday({...reminder, expires_on: "2026-09-26"}, today), false)
+  assert.equal(investmentReminderIsForToday({...reminder, expires_on: "2026-09-26", promoted_to_today: true}, today), true)
+  assert.equal(investmentReminderIsForToday({...reminder, status: "done", promoted_to_today: true}, today), false)
+  assert.equal(investmentReminderIsForToday({...reminder, kind: "research"}, today), false, "research work is never a personal reminder")
+
+  const request = createDemoRequest()
+  const sourceWatch = await (await request("/api/investment/watch")).json()
+  assert.ok(sourceWatch.catalysts.length, "source-derived events remain in their separate watch response")
+  assert.deepEqual((await (await request("/api/investment/work")).json()).items, [], "the empty personal list stays a confirmed empty list")
+  const input = {kind: "watch", text: "合成個人提醒", expires_on: "2026-10-02"}
+  const created = await (await request("/api/investment/work", write(input))).json()
+  assert.equal(created.kind, "watch")
+  assert.equal(created.expires_on, input.expires_on)
+  assert.equal(created.promoted_to_today, false)
+  assert.equal((await (await request("/api/investment/work", write(input))).json()).id, created.id, "retry does not duplicate an open reminder")
+  assert.equal((await request("/api/investment/work", write({...input, text: "bad date", expires_on: "2026-02-30"}))).status, 422)
+  const promoted = await (await request(`/api/investment/work/${created.id}`, write({version: 1, status: "open", kind: "watch", conclusion: "", promoted_to_today: true}, "PATCH"))).json()
+  assert.equal(promoted.promoted_to_today, true)
+  assert.equal(promoted.expires_on, input.expires_on, "promotion does not rewrite the reminder deadline")
+  assert.equal(promoted.version, 2)
+  assert.equal((await request(`/api/investment/work/${created.id}`, write({version: 2, status: "open", kind: "research", conclusion: ""}, "PATCH"))).status, 422, "source/research work cannot be converted into a personal reminder")
 })
 
 test("Today prose uses the source session date across midnight and preserves unknown dates", () => {

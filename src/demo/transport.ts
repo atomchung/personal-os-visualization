@@ -1,6 +1,22 @@
 /** Closed, browser-memory-only adapter. No network, storage, or live fallback. */
 import { cockpit, createState, DATE, focus, goals, health, home, ideal, investment, investmentActions, investmentContext, investmentHistory, investmentHistorySources, investmentNarrative, leaders, market, marketExplore, momentum, pending, pulse, quote, STAMP, timeData, todos, universe, watch } from "./fixtures.ts"
 import { investmentScenario } from "./generated/investment-scenario.ts"
+import { taipeiCalendarToday } from "../lib/investmentFormat.ts"
+import type { InvestmentWork } from "../lib/investment.ts"
+
+function addDays(date: string, days: number): string {
+  const value = new Date(`${date}T00:00:00Z`)
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
+}
+
+function resolveWatchExpiry(raw: unknown): string | null {
+  const value = typeof raw === "string" && raw.trim() ? raw.trim() : addDays(taipeiCalendarToday(), 7)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const parsed = Date.parse(`${value}T00:00:00Z`)
+  if (!Number.isFinite(parsed) || new Date(parsed).toISOString().slice(0, 10) !== value) return null
+  return value
+}
 
 export function createDemoRequest() {
   const state = createState()
@@ -101,8 +117,16 @@ export function createDemoRequest() {
       return reply({ slug: "demo-paper-plane", next_action: state.nextAction })
     }
     if (method === "POST" && path === "/api/investment/work") {
-      if (typeof body.text !== "string" || !body.text.trim() || body.text.length > 2000 || !["decision", "research"].includes(String(body.kind))) return rejected("請提供有效的範例工作。")
-      const item = { id: `demo-work-${++state.sequence}`, kind: body.kind as "decision" | "research", text: body.text.trim(), source_id: String(body.source_id ?? ""), source_label: String(body.source_label ?? ""), status: "open" as const, conclusion: "", version: 1, updated_at: STAMP }
+      if (typeof body.text !== "string" || !body.text.trim() || body.text.length > 2000 || !["decision", "research", "watch"].includes(String(body.kind))) return rejected("請提供有效的範例工作。")
+      const text = body.text.trim()
+      const kind = body.kind as "decision" | "research" | "watch"
+      const expires_on = kind === "watch" ? resolveWatchExpiry(body.expires_on) : ""
+      if (kind === "watch" && !expires_on) return rejected("提醒日期格式無效，請使用有效日期。")
+      if (kind === "watch") {
+        const duplicate = state.investmentWork.find(item => item.kind === "watch" && item.status !== "done" && item.text === text && item.source_id === String(body.source_id ?? "") && item.expires_on === expires_on)
+        if (duplicate) return reply(duplicate)
+      }
+      const item: InvestmentWork = { id: `demo-work-${++state.sequence}`, kind, text, source_id: String(body.source_id ?? ""), source_label: String(body.source_label ?? ""), status: "open", conclusion: "", version: 1, updated_at: STAMP, ...(kind === "watch" ? { expires_on: expires_on ?? "", promoted_to_today: false } : {}) }
       state.investmentWork.push(item)
       return reply(item)
     }
@@ -110,8 +134,11 @@ export function createDemoRequest() {
     if (method === "PATCH" && workMatch) {
       const item = state.investmentWork.find(w => w.id === decodeURIComponent(workMatch[1]))
       if (!item || body.version !== item.version) return rejected("範例工作版本已變更，請重新讀取。", 409)
-      if (!["open", "watching", "done"].includes(String(body.status)) || !["decision", "research"].includes(String(body.kind)) || typeof body.conclusion !== "string") return rejected("請提供有效的工作狀態。")
+      const validKind = ["decision", "research", "watch"].includes(String(body.kind))
+      const crossesReminderBoundary = (item.kind === "watch") !== (body.kind === "watch")
+      if (!["open", "watching", "done"].includes(String(body.status)) || !validKind || crossesReminderBoundary || typeof body.conclusion !== "string" || (body.promoted_to_today !== undefined && typeof body.promoted_to_today !== "boolean")) return rejected("請提供有效的工作狀態。")
       Object.assign(item, { status: body.status, kind: body.kind, conclusion: body.conclusion, version: item.version + 1 })
+      if (item.kind === "watch" && typeof body.promoted_to_today === "boolean") item.promoted_to_today = body.promoted_to_today
       return reply(item)
     }
     return rejected("此操作未提供示範，不會送到任何資料來源。", 404)

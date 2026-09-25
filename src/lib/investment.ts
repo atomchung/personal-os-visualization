@@ -798,9 +798,13 @@ export const getInvestmentPending = (signal?: AbortSignal) =>
   readInvestment<InvestmentPending>("/api/investment/pending", signal)
 
 export type InvestmentWork = {
-  id: string; kind: "decision" | "research"; text: string;
+  id: string; kind: "decision" | "research" | "watch"; text: string;
   source_id: string; source_label: string; status: "open" | "watching" | "done";
   conclusion: string; version: number; updated_at: string;
+  /** YYYY-MM-DD; present for personal watch reminders only. */
+  expires_on?: string;
+  /** Explicit user choice. Missing legacy values mean false, never infer from date or order. */
+  promoted_to_today?: boolean;
 }
 export const getInvestmentWork = () => readInvestment<{items: InvestmentWork[]}>("/api/investment/work")
 async function writeWork(path: string, method: string, data: unknown): Promise<InvestmentWork> {
@@ -811,7 +815,7 @@ async function writeWork(path: string, method: string, data: unknown): Promise<I
   }
   return response.json()
 }
-export const addInvestmentWork = (data: {kind: InvestmentWork["kind"]; text: string; source_id?: string; source_label?: string}) =>
+export const addInvestmentWork = (data: {kind: InvestmentWork["kind"]; text: string; source_id?: string; source_label?: string; expires_on?: string}) =>
   writeWork("/api/investment/work", "POST", data)
 export const saveInvestmentWork = (data: InvestmentWork) =>
-  writeWork(`/api/investment/work/${encodeURIComponent(data.id)}`, "PATCH", {version: data.version, status: data.status, kind: data.kind, conclusion: data.conclusion})
+  writeWork(`/api/investment/work/${encodeURIComponent(data.id)}`, "PATCH", {version: data.version, status: data.status, kind: data.kind, conclusion: data.conclusion, promoted_to_today: data.promoted_to_today})
