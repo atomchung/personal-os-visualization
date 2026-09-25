@@ -7,7 +7,7 @@ import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyReadingOrder, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -567,4 +567,14 @@ test("history reading order puts dated records first", () => {
     { id: "b", date: "2026-09-14", title: "new" },
   ] as Parameters<typeof historyReadingOrder>[0]
   assert.deepEqual(historyReadingOrder(items).map(item => item.id), ["b", "a", "u"])
+})
+
+test("only source-marked P/Q categories become reusable learning frameworks", () => {
+  const items = [
+    { id: "p1", kind: "mistake", heading: "## P1 — Verify the shipment" },
+    { id: "q2", kind: "mistake", heading: "## Q2- Check the denominator" },
+    { id: "dated-case", kind: "mistake", heading: "### 2026-09-20 · A dated case" },
+    { id: "other-kind", kind: "decision_review", heading: "## P3 — Not a framework" },
+  ]
+  assert.deepEqual(reusableLearningItems(items).map(item => item.id), ["p1", "q2"])
 })

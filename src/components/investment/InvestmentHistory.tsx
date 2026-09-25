@@ -4,7 +4,7 @@ import { Card, SectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { Button } from "@/components/ui/button"
 import { ReadingText } from "./ReadingText"
-import { historyReadingOrder } from "@/lib/investmentFormat"
+import { historyReadingOrder, reusableLearningItems } from "@/lib/investmentFormat"
 import {
   getInvestmentHistorySource,
   type InvestmentContext,
@@ -67,6 +67,35 @@ function HistoryItem({ item }: { item: InvestmentHistoryItem }) {
   )
 }
 
+function LearningFramework({ item }: { item: InvestmentHistoryItem }) {
+  const [open, setOpen] = useState(false)
+  const detail = useQuery({
+    queryKey: ["investment-history-source", item.id],
+    queryFn: ({ signal }) => getInvestmentHistorySource(item.id, signal),
+    enabled: open && item.detail_state === "available",
+    retry: false,
+  })
+  return (
+    <Card className="flex min-w-0 flex-col gap-2 p-3">
+      <h3 className="break-words text-body font-medium text-ink">{item.title}</h3>
+      <p className="break-words text-caption text-ink-3">明確標記的可重用框架 · {item.source.path} · {item.source.line_start}–{item.source.line_end}</p>
+      <p className="break-words text-body leading-relaxed text-ink-2">{item.excerpt || "原文沒有可用摘要。"}</p>
+      {item.detail_state === "truncated" ? (
+        <p className="text-caption text-warn">原文段落超過安全展開上限，只保留摘要與來源位置。</p>
+      ) : (
+        <details onToggle={(event) => setOpen(event.currentTarget.open)}>
+          <summary className="cursor-pointer text-caption font-medium text-ink-3">展開來源原文</summary>
+          <div className="min-w-0 pt-2">
+            {detail.isPending ? <p className="text-body text-ink-3">讀取原文中…</p> : null}
+            {detail.isError ? <p role="alert" className="text-body text-warn">這段原文目前無法讀取。</p> : null}
+            {detail.data ? <ReadingText text={detail.data.text} /> : null}
+          </div>
+        </details>
+      )}
+    </Card>
+  )
+}
+
 function ContextBlock({ context }: { context: InvestmentContext }) {
   const approved = context.decisions.filter((item) => item.kind === "approved")
   const rejected = context.decisions.filter((item) => item.kind === "rejected")
@@ -92,24 +121,36 @@ function ContextBlock({ context }: { context: InvestmentContext }) {
 
 export function InvestmentHistory({ data, context }: { data: InvestmentHistory; context?: InvestmentContext }) {
   const [showAll, setShowAll] = useState(false)
-  const ordered = historyReadingOrder(data.items)
+  const frameworks = reusableLearningItems(data.items)
+  const frameworkIds = new Set(frameworks.map((item) => item.id))
+  const ordered = historyReadingOrder(data.items.filter((item) => !frameworkIds.has(item.id)))
   const visibleItems = showAll ? ordered : ordered.slice(0, 12)
   const hiddenCount = ordered.length - visibleItems.length
   const undatedCount = ordered.filter((item) => !item.date).length
   return (
-    <section className="flex min-w-0 flex-col gap-3" aria-label="投資歷史回看">
+    <section className="flex min-w-0 flex-col gap-3" aria-label="復盤與學習">
       <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2"><SectionHeading>回看舊判斷與後續結果</SectionHeading><Chip tone={data.state === "ready" ? "ok" : "warn"}>{stateLabel(data.state)}</Chip></div>
-        <p className="text-body text-ink-3">有日期的紀錄在前。沒有記錄結果時保持「未知」，不把空白推成結論。</p>
+        <div className="flex flex-wrap items-center gap-2"><SectionHeading>復盤與學習</SectionHeading><Chip tone={data.state === "ready" ? "ok" : "warn"}>{stateLabel(data.state)}</Chip></div>
+        <p className="text-body text-ink-3">先看來源明確標記的可重用框架；歷史案例收在下方，沒有記錄結果時保持「未知」。</p>
       </div>
-      {context ? <ContextBlock context={context} /> : null}
       {data.coverage.errors.length ? <div className="flex flex-col gap-1 text-caption text-warn">{data.coverage.errors.map((error) => <p key={error.source_id}>{error.path}：{error.message}</p>)}</div> : null}
-      {data.items.length ? <>
-        <p className="text-caption text-ink-3">先顯示 {visibleItems.length} / {ordered.length} 筆；每筆都保留來源位置。{undatedCount ? `其中 ${undatedCount} 筆標題沒有日期，列在有日期的紀錄之後。` : ""}</p>
-        <div className="flex min-w-0 flex-col gap-2">{visibleItems.map((item) => <HistoryItem key={item.id} item={item} />)}</div>
-        {hiddenCount > 0 ? <Button type="button" className="self-start" onClick={() => setShowAll(true)}>顯示其餘 {hiddenCount} 筆歷史</Button> : null}
-        {showAll && data.items.length > 12 ? <Button type="button" variant="link" className="self-start" onClick={() => setShowAll(false)}>收合到前 12 筆</Button> : null}
-      </> : <p className="text-body text-ink-3">目前沒有可回看的歷史項目；沒有結果不代表沒有事件。</p>}
+      <section className="flex min-w-0 flex-col gap-2" aria-label="可重用框架">
+        <div className="flex flex-wrap items-baseline gap-2"><SectionHeading>可重用框架</SectionHeading><span className="text-caption text-ink-3">{frameworks.length} 項</span></div>
+        {frameworks.length ? <div className="flex min-w-0 flex-col gap-2">{frameworks.map((item) => <LearningFramework key={item.id} item={item} />)}</div> : <p className="text-body text-ink-3">目前讀取到的歷史資料沒有明確標記的 P/Q 框架；未讀到不代表來源不存在。</p>}
+      </section>
+      <details className="border-t border-line-soft pt-2">
+        <summary className="cursor-pointer py-1 text-body font-medium text-ink">歷史紀錄與後續結果 · {ordered.length} 筆</summary>
+        <div className="flex flex-col gap-3 pt-2">
+          <p className="text-caption text-ink-3">有日期的紀錄在前。每筆都保留來源位置；未標記為 P/Q 框架的紀錄不會被改寫成學習結論。{undatedCount ? `其中 ${undatedCount} 筆標題沒有日期，列在有日期的紀錄之後。` : ""}</p>
+          {ordered.length ? <>
+            <p className="text-caption text-ink-3">先顯示 {visibleItems.length} / {ordered.length} 筆。</p>
+            <div className="flex min-w-0 flex-col gap-2">{visibleItems.map((item) => <HistoryItem key={item.id} item={item} />)}</div>
+            {hiddenCount > 0 ? <Button type="button" className="self-start" onClick={() => setShowAll(true)}>顯示其餘 {hiddenCount} 筆歷史</Button> : null}
+            {showAll && ordered.length > 12 ? <Button type="button" variant="link" className="self-start" onClick={() => setShowAll(false)}>收合到前 12 筆</Button> : null}
+          </> : <p className="text-body text-ink-3">目前沒有可回看的歷史項目；沒有結果不代表沒有事件。</p>}
+        </div>
+      </details>
+      {context ? <details className="border-t border-line-soft pt-2"><summary className="cursor-pointer py-1 text-body font-medium text-ink">目前工作的唯讀脈絡</summary><div className="pt-2"><ContextBlock context={context} /></div></details> : null}
       {data.coverage.missing_sources.length ? <p className="text-caption text-warn">未讀取來源：{data.coverage.missing_sources.join("、")}。目前畫面只呈現可確認的部分。</p> : null}
     </section>
   )

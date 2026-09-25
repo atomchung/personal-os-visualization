@@ -307,6 +307,11 @@ export function historyReadingOrder<T extends { id: string; date: string | null 
   return [...dated, ...undated]
 }
 
+/** Only source-marked P/Q category headings are reusable frameworks; dated cases stay in history. */
+export function reusableLearningItems<T extends { kind: string; heading: string }>(items: readonly T[]): T[] {
+  return items.filter((item) => item.kind === "mistake" && /^##\s+(?:P|Q)\d+\s*[—-]/i.test(item.heading))
+}
+
 export type WorkPanelView = "loading" | "error" | "stale" | "empty" | "ready"
 
 /** Fetch-state discriminant so a failed first load is not rendered as an empty list. */

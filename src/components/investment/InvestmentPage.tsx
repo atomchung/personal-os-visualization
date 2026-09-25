@@ -16,7 +16,6 @@ import { InvestmentWorkPanel, InvestmentWatchNotes } from "./InvestmentWork"
 import { PendingBoard } from "./InvestmentPending"
 import { InvestmentHistory } from "./InvestmentHistory"
 import { InvestmentNarrativeSection } from "./InvestmentNarrative"
-import { InvestmentThesis } from "./InvestmentThesis"
 import { anchorRelativeDay, buildTodayStories, taipeiCalendarDate, todayStoryHeadline, type TodayStory } from "@/lib/investmentToday"
 import {
   getInvestment, getInvestmentWatch, getInvestmentMarket, getInvestmentPulse,
@@ -266,7 +265,7 @@ function TodayBrief({ b, today, readFailed }: { b: InvestmentBrief; today?: Inve
   </section>
 }
 
-const VIEWS = [["today", "今日"], ["thesis", "我的論點"], ["work", "正在研究"], ["month", "待關注"], ["history", "舊判斷回看"]] as const
+const VIEWS = [["today", "今日"], ["judgment", "我的判斷"], ["research", "研究與策略"], ["review", "復盤與學習"]] as const
 type View = typeof VIEWS[number][0]
 
 export function InvestmentPage() {
@@ -276,10 +275,10 @@ export function InvestmentPage() {
   const client = useQueryClient()
   const fetching = useIsFetching({ predicate: q => String(q.queryKey[0]).startsWith("investment") })
   const query = useQuery({ queryKey: ["investment"], queryFn: ({ signal }) => getInvestment(signal), retry: false, refetchOnWindowFocus: true, staleTime: 60_000 })
-  const watch = useQuery({ queryKey: ["investment-watch"], queryFn: ({ signal }) => getInvestmentWatch(signal), enabled: view === "work" || view === "month", retry: false, refetchOnWindowFocus: false })
-  const actions = useQuery({ queryKey: ["investment-actions"], queryFn: ({ signal }) => getInvestmentActions(signal), enabled: view === "work", retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
-  const history = useQuery({ queryKey: ["investment-history"], queryFn: ({ signal }) => getInvestmentHistory(signal), enabled: view === "history", retry: false, refetchOnWindowFocus: false })
-  const context = useQuery({ queryKey: ["investment-context"], queryFn: ({ signal }) => getInvestmentContext(signal), enabled: view === "history", retry: false, refetchOnWindowFocus: false })
+  const watch = useQuery({ queryKey: ["investment-watch"], queryFn: ({ signal }) => getInvestmentWatch(signal), enabled: view === "research", retry: false, refetchOnWindowFocus: false })
+  const actions = useQuery({ queryKey: ["investment-actions"], queryFn: ({ signal }) => getInvestmentActions(signal), enabled: view === "research", retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
+  const history = useQuery({ queryKey: ["investment-history"], queryFn: ({ signal }) => getInvestmentHistory(signal), enabled: view === "review", retry: false, refetchOnWindowFocus: false })
+  const context = useQuery({ queryKey: ["investment-context"], queryFn: ({ signal }) => getInvestmentContext(signal), enabled: view === "review", retry: false, refetchOnWindowFocus: false })
   const b = query.data?.brief
   const workContinuation = openActionItems(actions.data?.items ?? [])
   function openView(next: View) {
@@ -308,15 +307,11 @@ export function InvestmentPage() {
         if (explore?.state === "partial") failures.push("部分市場探索")
         if (!pulse || pulse.state !== "ready") failures.push("台股整體盤感")
         await client.invalidateQueries({ queryKey: ["investment-source"], refetchType: "active" })
-      } else if (view === "thesis") {
-        const [brief, narrative] = await Promise.all([
-          run("簡報", ["investment"], () => getInvestment()),
-          run("我的論點", ["investment-narrative"], () => getInvestmentNarrative()),
-        ])
-        if (brief?.brief.state === "invalid" || brief?.brief.state === "missing") failures.push("簡報內容")
+      } else if (view === "judgment") {
+        const narrative = await run("我的判斷", ["investment-narrative"], () => getInvestmentNarrative())
         if (narrative && narrative.state !== "ready") failures.push("我的論點部分來源")
         if (!narrative) failures.push("我的論點")
-      } else if (view === "work") {
+      } else if (view === "research") {
         const [research, actionBoard] = await Promise.all([
           run("研究", ["investment-watch"], () => getInvestmentWatch()),
           run("待續行動", ["investment-actions"], () => getInvestmentActions()),
@@ -325,9 +320,6 @@ export function InvestmentPage() {
         ])
         if (research?.coverage.errors.length) failures.push("部分研究來源")
         if (actionBoard?.state === "unavailable") failures.push("待續行動")
-      } else if (view === "month") {
-        const research = await run("重要日期", ["investment-watch"], () => getInvestmentWatch())
-        if (research?.coverage.errors.length) failures.push("部分日期來源")
       } else {
         const [records] = await Promise.all([
           run("歷史來源", ["investment-history"], () => getInvestmentHistory()),
@@ -352,33 +344,43 @@ export function InvestmentPage() {
       {b ? <TodayBrief b={b} today={query.data?.today} readFailed={query.isError} /> : null}
       <MarketIndicators />
     </div>
-    <div id="investment-panel-thesis" role="tabpanel" aria-labelledby="investment-tab-thesis" hidden={view !== "thesis"} className={view === "thesis" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
-      <InvestmentNarrativeSection enabled={view === "thesis"} onOpenHistory={() => openView("history")} />
-      {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次讀取的資料；資料截止時間仍以簡報標示為準。" : "目前沒有可用的簡報資料。"}請按更新資料重試。</p> : null}
-      {b ? <InvestmentThesis b={b} /> : <p className="text-body text-ink-3">{query.isError ? "論點近況來源讀取失敗，請按更新資料。" : "正在讀取論點近況…"}</p>}
+    <div id="investment-panel-judgment" role="tabpanel" aria-labelledby="investment-tab-judgment" hidden={view !== "judgment"} className={view === "judgment" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
+      <InvestmentNarrativeSection enabled={view === "judgment"} onOpenHistory={() => openView("review")} />
     </div>
-    <div id="investment-panel-work" role="tabpanel" aria-labelledby="investment-tab-work" hidden={view !== "work"} className={view === "work" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
+    <div id="investment-panel-research" role="tabpanel" aria-labelledby="investment-tab-research" hidden={view !== "research"} className={view === "research" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
+      {watch.isError ? <p role="alert" className="text-body text-warn">研究與重要日期本次讀取失敗。{watch.data ? "仍顯示上次內容。" : ""}</p> : null}
       {actions.isError ? <p role="status" className="text-caption text-warn">待續行動這次讀不到。{actions.data ? "以下保留上次內容。" : ""}本機筆記仍可使用。</p> : null}
       {actions.data?.state === "unavailable" ? <p role="status" className="text-caption text-warn">{actions.data.message || "待續行動目前無法取得。"}</p> : null}
-      {workContinuation.length ? <section className="flex min-w-0 flex-col gap-2" aria-label="尚未結束的行動"><ContinuationList items={workContinuation} /></section> : null}
-      <section className="flex min-w-0 flex-col gap-3" aria-label="我留下的問題與研究">
-        <div className="flex flex-col gap-1"><SectionHeading>我留下的問題與研究</SectionHeading><p className="text-caption text-ink-3">在這裡接續本機筆記與研究；正式待續行動列在上方，系統整理的提醒另列在下方。</p></div>
-        <InvestmentWorkPanel research={watch.data?.research ?? []} />
-      </section>
-      {watch.data ? <ResearchLibrary data={watch.data} /> : null}
-      <PendingBoard />
+      <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
+        <section className="flex min-w-0 flex-col gap-3" aria-label="研究">
+          <div className="flex flex-col gap-1"><SectionHeading>研究</SectionHeading><p className="text-body text-ink-3">保留研究來源和事件各自的原始日期與出處；事件不會自動變成個人提醒。</p></div>
+          {watch.isPending ? <p className="text-body text-ink-3">讀取研究與事件…</p> : null}
+          {watch.data ? <><ResearchLibrary data={watch.data} /><ResearchWatch data={watch.data} brief={b} /></> : null}
+        </section>
+        <section className="flex min-w-0 flex-col gap-3" aria-label="策略">
+          <SectionHeading>策略</SectionHeading>
+          <Card className="flex flex-col gap-2 p-3"><p className="text-body text-ink-2">目前的唯讀資料契約沒有提供獨立的策略內容，因此這裡標示為尚未提供。</p><p className="text-caption text-ink-3">不從研究文字、持倉或市場行情推導策略。</p></Card>
+        </section>
+      </div>
+      <details className="border-t border-line-soft pt-2">
+        <summary className="cursor-pointer py-1 text-body font-medium text-ink">我的待續工作與提醒</summary>
+        <div className="flex min-w-0 flex-col gap-5 pt-3">
+          {workContinuation.length ? <section className="flex min-w-0 flex-col gap-2" aria-label="尚未結束的行動"><ContinuationList items={workContinuation} /></section> : null}
+          <section className="flex min-w-0 flex-col gap-3" aria-label="我留下的問題與研究">
+            <div className="flex flex-col gap-1"><SectionHeading>我留下的問題與研究</SectionHeading><p className="text-caption text-ink-3">個人筆記、待續行動和系統提醒維持各自來源，不會自動改寫正式判斷。</p></div>
+            <InvestmentWorkPanel research={watch.data?.research ?? []} />
+          </section>
+          <InvestmentWatchNotes />
+          <PendingBoard />
+        </div>
+      </details>
     </div>
-    <div id="investment-panel-month" role="tabpanel" aria-labelledby="investment-tab-month" hidden={view !== "month"} className={view === "month" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
-      <InvestmentWatchNotes />
-      {watch.data ? <ResearchWatch data={watch.data} brief={b} /> : <p className="text-body text-ink-3">{watch.isError ? "研究與事件資料讀取失敗，請按更新資料。" : "正在讀取研究與事件…"}</p>}
-    </div>
-    <div id="investment-panel-history" role="tabpanel" aria-labelledby="investment-tab-history" hidden={view !== "history"} className={view === "history" ? "flex min-w-0 flex-col gap-4" : "hidden"}>
+    <div id="investment-panel-review" role="tabpanel" aria-labelledby="investment-tab-review" hidden={view !== "review"} className={view === "review" ? "flex min-w-0 flex-col gap-4" : "hidden"}>
       {history.isPending || context.isPending ? <p className="text-body text-ink-3">讀取歷史與研究脈絡中…</p> : null}
       {history.isError ? <p role="alert" className="text-body text-warn">歷史來源這次無法取得，請稍後重試。</p> : null}
       {context.isError ? <p role="alert" className="text-body text-warn">研究脈絡這次無法取得；歷史資料仍可單獨查看。</p> : null}
       {history.data ? <InvestmentHistory data={history.data} context={context.data} /> : null}
     </div>
-    {view !== "today" && watch.isError ? <p role="alert" className="text-body text-warn">研究與重要日期本次讀取失敗。{watch.data ? "仍顯示上次內容。" : ""}</p> : null}
     <details className="border-t border-line-soft pt-3"><summary className="cursor-pointer py-2 text-caption text-ink-3">資料來源與讀取狀況{watch.data?.coverage.errors.length ? ` · ${watch.data.coverage.errors.length} 項異常` : ""}</summary><div className="flex flex-col gap-2 pt-2 text-caption text-ink-3">
       <p>{DEMO_MODE ? "簡報、研究、日期與行情全由合成資料提供。更新資料只重讀範例，不連接帳戶或外部資料。" : "簡報、研究和日期讀取本機 Investment Note；行情向 Yahoo Finance 查詢。更新資料不會同步 Git 或重新生成 AI 簡報。"}</p>
       <p>每週觀察：{query.data?.weekly_watch.date ?? "尚未取得日期"}。目前只提供日期，無法據此確認本週回顧是否完成。</p>
