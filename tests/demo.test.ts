@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { createDemoRequest } from "../src/demo/transport.ts"
-import { investment as syntheticInvestment, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
+import { investment as syntheticInvestment, investmentHistory, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
 import { investmentScenario } from "../src/demo/generated/investment-scenario.ts"
 import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
@@ -44,7 +44,7 @@ test("every page runs with no network; unknown routes and real symbols fail clos
   globalThis.fetch = () => { throw new Error("Unexpected network request") }
   try {
     const request = createDemoRequest()
-    for (const path of ["home", "cockpit", "focus", "time", "goals", "ideal", "health", "todos", "investment", "investment/narrative", "investment/actions", "investment/explore", "investment/market", "investment/pulse", "investment/watch", "investment/history", "investment/context", "investment/pending", "investment/work", "investment/momentum/universe", "investment/momentum/leaders", `investment/quote?symbol=${investmentScenario.symbol}`, `investment/momentum?symbol=${investmentScenario.symbol}`, `investment/source?id=${investmentScenario.source_id}`, `investment/history/source?id=${investmentScenario.history[0].id}`]) {
+    for (const path of ["home", "cockpit", "focus", "time", "goals", "ideal", "health", "todos", "investment", "investment/narrative", "investment/actions", "investment/explore", "investment/market", "investment/pulse", "investment/watch", "investment/history", "investment/context", "investment/pending", "investment/work", "investment/momentum/universe", "investment/momentum/leaders", `investment/quote?symbol=${investmentScenario.symbol}`, `investment/momentum?symbol=${investmentScenario.symbol}`, `investment/source?id=${investmentScenario.source_id}`, `investment/history/source?id=${encodeURIComponent(investmentHistory.history.items[0].id)}`]) {
       const result = await request(`/api/${path}`)
       assert.equal(result.status, 200, path)
       assert.equal(typeof await result.json(), "object", path)
@@ -292,16 +292,32 @@ test("the showcase keeps personal content unknown while preserving aggregate nar
   assert.match(data.limitations[0], /不展示或推測個人論點與持倉/)
 })
 
-test("history and Context expose one coherent scenario with explicit unknown results", async () => {
+test("history exposes the producer envelope and exact typed detail without inferring reusable learning", async () => {
   const request = createDemoRequest()
   const history = await (await request("/api/investment/history")).json()
   const context = await (await request("/api/investment/context")).json()
-  assert.equal(history.items[0].date, "2026-09-13")
-  assert.equal(history.items[0].result_state, "unknown")
+  assert.equal(history.artifact, "investment-history-index")
+  assert.equal(history.id, "history-index")
+  assert.equal(history.state, "partial")
+  assert.equal(history.as_of, "unknown")
+  assert.equal(history.source_cutoff, "unknown")
+  assert.equal(history.history.count, 1)
+  assert.equal(history.history.items[0].date, "2026-09-13")
+  assert.equal(history.history.items[0].outcome_state, "unknown")
+  assert.equal(history.history.items[0].learning_state, "unknown")
+  assert.deepEqual(reusableLearningItems(history.history.items), [])
+  const itemId = history.history.items[0].id
+  const detailResponse = await request(`/api/investment/history/source?id=${encodeURIComponent(itemId)}`)
+  assert.equal(detailResponse.status, 200)
+  const detail = await detailResponse.json()
+  assert.equal(detail.artifact, "investment-history-detail")
+  assert.equal(detail.history.item.id, itemId)
+  assert.equal(detail.history.item.outcome.state, "unknown")
+  assert.equal(detail.history.source_text, investmentScenario.history[0].detail)
   assert.equal(context.read_only, true)
   assert.equal(context.task.slug, investmentScenario.context.task_slug)
   assert.equal(context.current_state.next_action, investmentScenario.context.next_action)
-  assert.equal(context.evidence[0].source.line_start, history.items[1].source.line_start)
+  assert.equal(context.evidence[0].source.path, investmentScenario.source_path)
 })
 
 test("registered event labels use source wording instead of a generic topic directory", () => {

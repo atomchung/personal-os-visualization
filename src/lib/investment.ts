@@ -310,41 +310,66 @@ export type InvestmentSourceText = {
   text: string
 }
 
+export type InvestmentReadState = "ready" | "empty" | "unknown" | "partial" | "stale" | "unavailable" | "conflict"
+
+export type InvestmentReadModelEnvelope = {
+  schema_version: string
+  artifact: string
+  id: string
+  as_of: string
+  generated_at: string
+  source_cutoff: string
+  producer: string
+  state: InvestmentReadState
+  limitations: string[]
+  sources: string[]
+}
+
+export type InvestmentHistorySourceRef = {
+  path: string
+  line?: number
+  line_end?: number
+  label?: string
+}
+
 export type InvestmentHistoryItem = {
   id: string
-  title: string
-  heading: string
-  date: string | null
+  source_id: string | null
   kind: string
-  excerpt: string
-  excerpt_truncated: boolean
-  result_state: "known" | "unknown"
-  result: string
-  /** Producer classification; absent/unknown items must not be promoted by title or kind. */
+  title: string
+  date: string | null
+  ticker: string | null
+  narrative_id: string | null
+  story_id: string | null
+  evidence_ids: string[]
+  decision_id: string | null
+  outcome_state: "unknown" | "recorded"
+  learning_state: "unknown" | "recorded"
+  /** Producer-owned classification; absent/unknown items stay unclassified. */
   learning_role?: "reusable_framework" | "historical_case" | "unknown"
-  detail_state: "available" | "truncated"
-  source: {
-    id: string
-    path: string
-    section: string
-    line_start: number
-    line_end: number
-  }
+  state: "ready" | "partial" | "conflict"
+  missing: string[]
+  source: InvestmentHistorySourceRef
+  reason?: string | null
+  evidence?: string | null
+  outcome?: { text: string | null; state: "unknown" | "recorded" }
+  learning?: string | null
 }
 
-export type InvestmentHistory = {
-  state: "ready" | "partial" | "unavailable"
-  coverage: {
-    allowed_sources: { id: string; path: string; kind: string }[]
-    available_sources: { id: string; path: string; kind: string; bytes: number; items?: number }[]
-    missing_sources: string[]
-    items: number
-    errors: { source_id: string; path: string; code: string; message: string }[]
-  }
-  items: InvestmentHistoryItem[]
+export type InvestmentHistory = InvestmentReadModelEnvelope & {
+  artifact: "investment-history-index"
+  id: "history-index"
+  history: { items: InvestmentHistoryItem[]; count: number }
 }
 
-export type InvestmentHistorySource = InvestmentHistoryItem & { text: string }
+export type InvestmentHistoryDetail = InvestmentReadModelEnvelope & {
+  artifact: "investment-history-detail"
+  history: {
+    item: InvestmentHistoryItem | null
+    source_text?: string | null
+    conflicts?: InvestmentHistoryItem[]
+  }
+}
 
 export type InvestmentContext = {
   schema_version: number
@@ -738,7 +763,7 @@ export const getInvestmentHistory = (signal?: AbortSignal) =>
   readInvestment<InvestmentHistory>("/api/investment/history", signal)
 
 export const getInvestmentHistorySource = (id: string, signal?: AbortSignal) =>
-  readInvestment<InvestmentHistorySource>(
+  readInvestment<InvestmentHistoryDetail>(
     `/api/investment/history/source?id=${encodeURIComponent(id)}`,
     signal,
   )

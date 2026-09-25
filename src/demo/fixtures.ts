@@ -1,6 +1,6 @@
 /** Synthetic showcase fixture; never generated from a real API or private vault. */
 import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
-import type { InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistorySource, InvestmentMarket, InvestmentMarketPulse, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
+import type { InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 
 export const DATE = investmentScenario.as_of
@@ -532,21 +532,63 @@ export const marketExplore: MarketExplore = {
   ],
 }
 
-export const investmentHistory: InvestmentHistory = {
-  state: "ready",
-  coverage: {
-    allowed_sources: [{ id: investmentScenario.source_id, path: investmentScenario.source_path, kind: "synthetic_story" }],
-    available_sources: [{ id: investmentScenario.source_id, path: investmentScenario.source_path, kind: "synthetic_story", bytes: investmentScenario.source_text.length, items: investmentScenario.history.length }],
-    missing_sources: [],
-    items: investmentScenario.history.length,
-    errors: [],
+const demoHistoryRow = investmentScenario.history[0]
+const investmentHistoryItem: InvestmentHistoryItem = {
+  id: `learning:${demoHistoryRow.id}`,
+  source_id: demoHistoryRow.id,
+  kind: "thesis_learning",
+  title: demoHistoryRow.title,
+  date: demoHistoryRow.date,
+  ticker: null,
+  narrative_id: null,
+  story_id: null,
+  evidence_ids: [],
+  decision_id: null,
+  outcome_state: "unknown",
+  learning_state: "unknown",
+  state: "partial",
+  missing: ["後續結果尚未記錄，結果保持未知。", "合成來源未提供 learning_role；分類保持未知。"],
+  source: {
+    path: investmentScenario.source_path,
+    line: demoHistoryRow.source.line_start,
+    line_end: demoHistoryRow.source.line_end,
+    label: "Scorecard 時間線項目（合成）",
   },
-  items: [...investmentScenario.history],
+  reason: demoHistoryRow.excerpt,
+  evidence: null,
+  outcome: { text: null, state: "unknown" },
+  learning: null,
 }
 
-export const investmentHistorySources: Record<string, InvestmentHistorySource> = Object.fromEntries(
-  investmentScenario.history.map((item) => [item.id, { ...item, text: item.detail }]),
-) as Record<string, InvestmentHistorySource>
+export const investmentHistory: InvestmentHistory = {
+  schema_version: "1.0",
+  artifact: "investment-history-index",
+  id: "history-index",
+  as_of: "unknown",
+  generated_at: STAMP,
+  source_cutoff: "unknown",
+  producer: "tools/history_view.py",
+  state: "partial",
+  limitations: ["合成歷史沒有共同 source_cutoff，也沒有 producer 明示的 learning_role 分類。"],
+  sources: [investmentScenario.source_path],
+  history: { items: [investmentHistoryItem], count: 1 },
+}
+
+export const investmentHistorySources: Record<string, InvestmentHistoryDetail> = Object.fromEntries(
+  [[investmentHistoryItem.id, {
+      schema_version: "1.0",
+      artifact: "investment-history-detail",
+      id: `history-detail:${investmentHistoryItem.id}`,
+      as_of: investmentHistoryItem.date ?? "unknown",
+      generated_at: STAMP,
+      source_cutoff: "unknown",
+      producer: "tools/history_view.py",
+      state: "partial",
+      limitations: investmentHistoryItem.missing,
+      sources: [investmentScenario.source_path],
+      history: { item: investmentHistoryItem, source_text: demoHistoryRow.detail },
+    }]],
+) as Record<string, InvestmentHistoryDetail>
 
 export const investmentContext: InvestmentContext = {
   schema_version: 1,
