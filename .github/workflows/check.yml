@@ -60,33 +60,38 @@ jobs:
               page.on('request', request => { if (!request.url().startsWith(origin)) externalRequests.push(request.url()) })
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
               await page.getByText('今天發生了什麼', { exact: true }).waitFor()
-              const todayReminders = page.getByRole('region', { name: '今日個人提醒' })
-              await todayReminders.locator('p').filter({ hasText: '尚未新增個人提醒。' }).waitFor()
-              assert(await todayReminders.getByRole('button', { name: '待關注', exact: true }).isVisible(), `${name}: empty Today stays a compact add affordance`)
-              const briefSessions = page.getByRole('region', { name: '盤前班次' })
-              const briefSessionRows = briefSessions.locator('li')
-              assert.equal(await briefSessionRows.count(), 2)
-              assert.match(await briefSessionRows.nth(0).innerText(), /台股盤前注意.*目標 08:00 台北/)
-              assert.match(await briefSessionRows.nth(1).innerText(), /美股盤前注意.*目標 21:15 台北/)
-              assert(await briefSessionRows.nth(0).getByText('本次資料未提供這個班次的正式簡報。', { exact: true }).isVisible(), `${name}: unmatched session must not inherit the selected brief`)
-              assert.match(await briefSessionRows.nth(1).innerText(), /報告日 2026-09-20 · 實際產出 2026\/09\/20 21:30 台北 · 資訊截至 2026\/09\/20 21:15 台北/)
-              assert(await briefSessions.getByText(/目標時段不代表自動產出或送達/).isVisible())
-              assert(await briefSessions.getByText(/更新承接這份正式簡報/).isVisible())
-              assert(await page.getByText(/^最新盤中觀察/).isVisible())
-              assert(await page.getByText('最近更新 2026/09/21 00:27 台北', { exact: true }).isVisible(), `${name}: cross-midnight update must use its own Taiwan observation date`)
+              assert.equal(await page.locator('[aria-label="今日個人提醒"]').count(), 0, `${name}: Today has no personal reminder projection`)
+              assert.equal(await page.getByText('尚未新增個人提醒。', { exact: true }).count(), 0)
+              const briefSessions = page.getByRole('region', { name: '簡報版本' })
+              assert(await briefSessions.getByText('2026-09-20 · 美股盤前注意 · 正式版', { exact: true }).isVisible())
+              assert(await briefSessions.getByText(/資訊截至 2026\/09\/20 21:15 台北/).isVisible())
+              const sessionDetails = briefSessions.locator('details')
+              assert.equal(await sessionDetails.getAttribute('open'), null, `${name}: target and generation clocks are secondary`)
+              await sessionDetails.locator('summary').click()
+              assert.match(await sessionDetails.locator('li').nth(0).innerText(), /台股盤前注意.*目標 08:00 台北.*本次資料未提供此班次/)
+              assert.match(await sessionDetails.locator('li').nth(1).innerText(), /美股盤前注意.*目標 21:15 台北.*本次所選簡報/)
+              assert(await sessionDetails.getByText(/實際產出：2026\/09\/20 21:30 台北/).isVisible())
+              await sessionDetails.locator('summary').click()
+              assert(await page.getByText('更新於 2026/09/21 00:27 台北', { exact: true }).isVisible(), `${name}: cross-midnight update keeps its observation date once`)
               assert.equal(await page.locator('[aria-label="今天發生了什麼"] article').count(), 1,
                 `${name}: matching brief event and update must share one story card`)
               assert(await page.getByRole('heading', { name: /隔夜價格反應確認前一版事件/ }).isVisible(),
                 `${name}: latest update must be the story heading`)
-              await todayReminders.getByRole('button', { name: '待關注', exact: true }).click()
+              const story = page.locator('[aria-label="今天發生了什麼"] article')
+              assert(await story.getByText('此事件的論點變化', { exact: true }).isVisible())
+              assert(await story.getByText('此事件的風險', { exact: true }).isVisible())
+              await story.getByText('這筆更新的原始提醒', { exact: true }).click()
+              assert(await story.getByText('收盤前再看一次量能是否延續，不因單一盤中波動追價。', { exact: true }).isVisible())
+              await page.getByRole('tab', { name: '待關注', exact: true }).click()
               const attentionTab = page.getByRole('tab', { name: '待關注', exact: true })
               assert.equal(await attentionTab.getAttribute('aria-selected'), 'true')
               const attentionPanel = page.locator('#investment-panel-month')
               await attentionPanel.getByRole('region', { name: '我的提醒' }).waitFor({ state: 'visible' })
               await attentionPanel.getByRole('region', { name: '研究與事件' }).waitFor({ state: 'visible' })
               await page.getByRole('tab', { name: '今日', exact: true }).click()
+              await page.getByText('正式簡報基線與論據', { exact: true }).click()
               assert(await page.getByText('星島設備發表新一代儲能產品（虛構）', { exact: true }).isVisible(),
-                `${name}: formal brief baseline must remain visible in the story card`)
+                `${name}: formal brief baseline remains reachable in the story card`)
               const thesisTab = page.getByRole('tab', { name: '我的論點', exact: true })
               await thesisTab.click()
               assert.equal(await thesisTab.getAttribute('aria-selected'), 'true')
@@ -129,8 +134,8 @@ jobs:
               const usMarket = page.getByRole('tab', { name: '美股', exact: true })
               assert.equal(await twMarket.getAttribute('aria-selected'), 'true')
               const taiwanPulse = page.locator('[aria-label="台股整體盤感"]')
-              assert(await taiwanPulse.getByText(/資料交易日 .*本頁讀取於 .*產出於/).isVisible(),
-                `${name}: market date, local page read, and producer time must be separate`)
+              assert(await taiwanPulse.getByText(/最近可用交易日 2026-09-19 · 收盤／休市狀態未提供/).isVisible(),
+                `${name}: unknown exchange status must stay unknown`)
               assert(await taiwanPulse.getByText('漲跌方向待核對', { exact: true }).isVisible(),
                 `${name}: unverified direction must have a neutral explicit state`)
               assert(!(await taiwanPulse.innerText()).includes('漲跌 120 點（+0.55%）'),
@@ -139,6 +144,8 @@ jobs:
               const pulseIntegrityDisclosure = taiwanPulse.locator('details > summary')
               await pulseIntegrityDisclosure.focus()
               await page.keyboard.press('Space')
+              assert(await taiwanPulse.getByText(/要求日期：.*本頁讀取：.*資料產出：/).isVisible(),
+                `${name}: secondary clocks stay accessible together`)
               assert(await taiwanPulse.getByText(/TWSE 日結原值：21,880 點；漲跌 120 點/).isVisible(),
                 `${name}: source-specific TWSE value must remain inspectable`)
               assert(await taiwanPulse.getByText(/盤後量價原值：21,880 點；漲跌 -120 點/).isVisible(),
@@ -174,11 +181,8 @@ jobs:
               assert(await page.getByRole('heading', { name: '我的提醒', exact: true }).isVisible())
               assert(await page.getByRole('heading', { name: '研究與事件', exact: true }).isVisible())
               await page.getByRole('tab', { name: '今日', exact: true }).click()
-              const emptyStateReminderSection = page.locator('[aria-label="今日個人提醒"]')
-              const emptyReminderCopy = emptyStateReminderSection.locator('p').filter({ hasText: '尚未新增個人提醒。' })
-              await emptyReminderCopy.waitFor({ state: 'visible', timeout: 5000 })
-              assert.equal(await emptyStateReminderSection.locator('ul').count(), 0, `${name}: empty reminders must not render a list card`)
-              assert.equal(await emptyStateReminderSection.locator('input[type="date"]').count(), 0, `${name}: Today must not render the reminder form`)
+              assert.equal(await page.locator('[aria-label="今日個人提醒"]').count(), 0, `${name}: Today reminder section stays removed`)
+              assert.equal(await page.locator('#investment-panel-today input[type="date"]').count(), 0, `${name}: Today has no reminder form`)
               const today = page.getByRole('tab', { name: '今日', exact: true })
               await today.focus()
               await page.keyboard.press('ArrowRight')
@@ -204,8 +208,9 @@ jobs:
             reminderPage.on('pageerror', error => reminderErrors.push(error.message))
             reminderPage.on('request', request => { if (!request.url().startsWith(origin)) reminderExternalRequests.push(request.url()) })
             await reminderPage.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
-            const todayReminders = reminderPage.getByRole('region', { name: '今日個人提醒' })
-            await todayReminders.locator('p').filter({ hasText: '尚未新增個人提醒。' }).waitFor()
+            await reminderPage.getByRole('heading', { name: '今天發生了什麼', exact: true }).waitFor()
+            const todayPanel = reminderPage.locator('#investment-panel-today')
+            assert.equal(await todayPanel.locator('[aria-label="今日個人提醒"]').count(), 0)
             const dates = await reminderPage.evaluate(() => {
               const parts = new Intl.DateTimeFormat('en', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
               const part = type => parts.find(item => item.type === type)?.value ?? ''
@@ -214,8 +219,8 @@ jobs:
               tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
               return { today, tomorrow: tomorrow.toISOString().slice(0, 10) }
             })
-            await todayReminders.getByRole('button', { name: '待關注', exact: true }).click()
             const attentionTab = reminderPage.getByRole('tab', { name: '待關注', exact: true })
+            await attentionTab.click()
             await attentionTab.waitFor({ state: 'visible' })
             await reminderPage.waitForFunction(() => document.querySelector('#investment-tab-month')?.getAttribute('aria-selected') === 'true')
             const attentionPanel = reminderPage.locator('#investment-panel-month')
@@ -229,12 +234,11 @@ jobs:
             await attentionPanel.locator('input[aria-label="個人提醒到期日"]').fill(dates.tomorrow)
             await attentionPanel.getByRole('button', { name: '加入提醒', exact: true }).click()
             await attentionPanel.getByText('合成未來個人提醒', { exact: true }).waitFor()
-            assert.equal(await todayReminders.getByText('合成未來個人提醒', { exact: true }).count(), 0, 'future reminders stay off Today by default')
+            assert.equal(await todayPanel.getByText('合成未來個人提醒', { exact: true }).count(), 0, 'future reminders stay off Today')
             await attentionPanel.getByRole('button', { name: '加入今日', exact: true }).click()
             await attentionPanel.getByText('已加入今日', { exact: false }).waitFor()
             await reminderPage.getByRole('tab', { name: '今日', exact: true }).click()
-            await todayReminders.getByText('合成未來個人提醒', { exact: true }).waitFor()
-            assert.equal(await todayReminders.getByText('交付說明會', { exact: false }).count(), 0, 'source-derived events do not become Today reminders')
+            assert.equal(await todayPanel.getByText('合成未來個人提醒', { exact: true }).count(), 0, 'promotion metadata does not restore the Today reminder projection')
             await attentionTab.click()
             await addReminderButton.waitFor({ state: 'visible' })
             await addReminderButton.click()
@@ -244,7 +248,7 @@ jobs:
             await attentionPanel.getByRole('button', { name: '加入提醒', exact: true }).click()
             await attentionPanel.getByText('合成今日到期提醒', { exact: true }).waitFor()
             await reminderPage.getByRole('tab', { name: '今日', exact: true }).click()
-            await todayReminders.getByText('合成今日到期提醒', { exact: true }).waitFor()
+            assert.equal(await todayPanel.getByText('合成今日到期提醒', { exact: true }).count(), 0, 'due-today reminder stays in 待關注')
             await attentionTab.click()
             assert(await attentionPanel.getByRole('region', { name: '研究與事件' }).isVisible(), 'source-derived research/events keep their own group')
             await noOverflow(reminderPage, 'reminders/390px')
@@ -426,37 +430,45 @@ jobs:
               }, scenario)
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
               if (scenario === 'watch-read-error') {
-                const todayReminders = page.locator('[aria-label="今日個人提醒"]')
-                const readFailureCopy = todayReminders.getByRole('alert').getByText('個人提醒讀取失敗，暫時無法確認今天是否有提醒。', { exact: true })
-                await readFailureCopy.waitFor({ state: 'visible', timeout: 5000 })
-                assert.equal(await todayReminders.locator('p').filter({ hasText: '尚未新增個人提醒。' }).count(), 0, 'a failed reminder read must not render the empty state')
+                assert.equal(await page.locator('[aria-label="今日個人提醒"]').count(), 0)
                 await page.getByRole('tab', { name: '待關注', exact: true }).click()
                 const personalReminders = page.locator('[aria-label="我的提醒"]')
                 await personalReminders.getByRole('alert').waitFor({ state: 'visible', timeout: 5000 })
                 assert.equal(await personalReminders.getByText('目前沒有未到期或加入今日的個人提醒。', { exact: true }).count(), 0, 'a failed read must not look like a confirmed empty attention list')
               }
               if (scenario === 'watch-eligibility') {
-                const todayReminders = page.locator('[aria-label="今日個人提醒"]')
-                for (const id of ['due-today', 'promoted']) await todayReminders.getByText(`Synthetic ${id}`, { exact: true }).waitFor({ state: 'visible', timeout: 5000 })
-                for (const id of ['future', 'expired', 'completed', 'research-event']) assert.equal(await todayReminders.getByText(`Synthetic ${id}`, { exact: true }).count(), 0, `${id} must not appear on Today`)
+                assert.equal(await page.locator('[aria-label="今日個人提醒"]').count(), 0)
+                await page.getByRole('tab', { name: '待關注', exact: true }).click()
+                const personalReminders = page.locator('[aria-label="我的提醒"]')
+                for (const id of ['due-today', 'promoted', 'future']) await personalReminders.getByText(`Synthetic ${id}`, { exact: true }).waitFor({ state: 'visible', timeout: 5000 })
+                for (const id of ['completed', 'research-event']) assert.equal(await personalReminders.getByText(`Synthetic ${id}`, { exact: true }).count(), 0, `${id} is not an open personal reminder`)
+                await page.getByRole('tab', { name: '今日', exact: true }).click()
+                for (const id of ['due-today', 'promoted', 'future', 'expired', 'completed', 'research-event']) assert.equal(await page.locator('#investment-panel-today').getByText(`Synthetic ${id}`, { exact: true }).count(), 0, `${id} must stay off Today`)
               }
               if (scenario.startsWith('session-')) {
-                const sessions = page.getByRole('region', { name: '盤前班次' })
+                const sessions = page.getByRole('region', { name: '簡報版本' })
                 if (scenario === 'session-tw') {
-                  assert.match(await sessions.locator('li').nth(0).innerText(), /報告日 2026-09-20 · 實際產出 2026\/09\/20 08:20 台北 · 資訊截至 2026\/09\/20 08:00 台北/)
-                  assert.match(await sessions.locator('li').nth(1).innerText(), /美股盤前注意.*目標 21:15 台北/)
-                  assert(await sessions.locator('li').nth(1).getByText('本次資料未提供這個班次的正式簡報。', { exact: true }).isVisible())
+                  assert(await sessions.getByText('2026-09-20 · 台股盤前注意 · 正式版', { exact: true }).isVisible())
+                  assert(await sessions.getByText('資訊截至 2026/09/20 08:00 台北 · 下方另列盤中更新', { exact: true }).isVisible())
+                  await sessions.locator('summary').click()
+                  assert(await sessions.getByText(/實際產出：2026\/09\/20 08:20 台北/).isVisible())
+                  assert.match(await sessions.locator('li').nth(1).innerText(), /美股盤前注意.*目標 21:15 台北.*本次資料未提供此班次/)
                 }
                 if (scenario === 'session-stale-us') {
-                  assert(await page.getByRole('status').filter({ hasText: '目前沿用 2026-09-20 · 美股盤前注意' }).isVisible())
+                  assert(await page.getByRole('status').filter({ hasText: '這是較早的正式簡報；目前尚無今日新版。' }).isVisible())
                   assert(await page.getByText('目前可用行動', { exact: true }).isVisible())
                   assert(await page.getByText('沿用 2026-09-20 · 美股盤前注意 · 正式版；今日正式版尚未產出。', { exact: true }).isVisible())
                 }
                 if (scenario === 'session-missing') {
-                  assert.equal(await sessions.getByText('本次資料未提供這個班次的正式簡報。', { exact: true }).count(), 2)
+                  assert(await sessions.getByText('2026-09-20 · 版次未標示', { exact: true }).isVisible())
+                  await sessions.locator('summary').click()
+                  assert.equal(await sessions.locator('li').filter({ hasText: '本次資料未提供此班次' }).count(), 2)
                 }
                 if (scenario === 'session-malformed-times') {
-                  assert.match(await sessions.locator('li').nth(1).innerText(), /報告日 時間未能辨識 · 實際產出 時間未能辨識 · 資訊截至 未提供/)
+                  assert(await sessions.getByText('時間未能辨識 · 美股盤前注意 · 正式版', { exact: true }).isVisible())
+                  assert(await sessions.getByText(/資訊截至 未提供/).isVisible())
+                  await sessions.locator('summary').click()
+                  assert(await sessions.getByText(/實際產出：時間未能辨識/).isVisible())
                 }
               }
               if (scenario === 'unlinked-long') {
@@ -468,10 +480,10 @@ jobs:
                   assert(await item.isVisible())
                 }
                 assert.equal(await page.getByText('觀察 5%', { exact: true }).count(), 1)
-                assert(await page.getByText('收盤前再看一次量能是否延續，不因單一盤中波動追價。', { exact: true }).isVisible())
+                assert(await page.locator('section[aria-label="目前可用行動"]').getByText('收盤前再看一次量能是否延續，不因單一盤中波動追價。', { exact: true }).isVisible())
                 assert(await page.getByText('目前可用行動', { exact: true }).isVisible())
                 assert(await page.getByText('沿用 2026-09-20 · 美股盤前注意 · 正式版；今日正式版尚未產出。', { exact: true }).isVisible())
-                assert(await page.getByRole('region', { name: '盤前班次' }).locator('li').nth(1).getByText(/資訊截至 未提供/).isVisible())
+                assert(await page.getByRole('region', { name: '簡報版本' }).getByText(/資訊截至 未提供/).isVisible())
                 const overflowAction = page.getByText('加碼', { exact: true })
                 assert.equal(await overflowAction.count(), 1)
                 assert.equal(await overflowAction.isVisible(), false, 'overflow actions remain reachable without crowding the first screen')
@@ -483,7 +495,7 @@ jobs:
               if (scenario === 'blank-summary') {
                 assert(await page.getByRole('heading', { name: '最新摘要未提供', exact: true }).isVisible())
                 assert(await page.getByText(/對判斷的影響：更正為 2%，原判斷需下修。/).isVisible())
-                assert(await page.getByText('正式簡報基線', { exact: true }).isVisible())
+                await page.getByText('正式簡報基線與論據', { exact: true }).click()
                 assert(await page.getByText('星島設備發表新一代儲能產品（虛構）', { exact: true }).isVisible())
               }
               if (scenario === 'missing') {
@@ -602,8 +614,11 @@ jobs:
                 await page.getByRole('button', { name: '更新市場資料', exact: true }).waitFor()
               }
               if (scenario === 'market-mixed-dates') {
-                assert(await page.getByText(/資料交易日 2001-01-02 · 要求日期 2001-01-03 · 本頁讀取於 .* · 產出於 2001\/03\/04 12:00 台北/).isVisible())
-                assert(await page.getByText('各來源行情日：TWSE 2001-01-02 · TPEx 2001-01-03', { exact: true }).isVisible())
+                const pulse = page.locator('[aria-label="台股整體盤感"]')
+                assert(await pulse.getByText('最近可用交易日 2001-01-02 · 收盤／休市狀態未提供', { exact: true }).isVisible())
+                await pulse.locator('details > summary').click()
+                assert(await pulse.getByText(/要求日期：2001-01-03 · 本頁讀取：.* · 資料產出：2001\/03\/04 12:00 台北/).isVisible())
+                assert(await pulse.getByText('TWSE 行情日：2001-01-02 · TPEx 行情日：2001-01-03', { exact: true }).isVisible())
                 assert(await page.getByText(/報價時間 2001\/05\/06 09:30/).isVisible())
                 assert(await page.getByText(/資料日 2001-02-03 · 來源截止/).isVisible())
               }

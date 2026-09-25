@@ -199,7 +199,7 @@ function TodayBriefSessions({ brief, hasUpdates }: { brief: InvestmentBrief; has
   const rows = briefSessionRows(brief)
   const selected = rows.find(row => row.matches)
   return <section aria-label="簡報版本" className="flex min-w-0 flex-col gap-2 border-b border-line-soft pb-3">
-    <p className="text-body font-medium text-ink-2">{brief.date ?? "日期未提供"} · {selected?.label ?? "版次未標示"}</p>
+    <p className="text-body font-medium text-ink-2">{brief.date ? sourceTimestamp(brief.date) : "日期未提供"} · {selected?.label ?? "版次未標示"}</p>
     <p className="text-caption text-ink-3">資訊截至 {sourceTimestamp(brief.source_cutoff)}{hasUpdates ? " · 下方另列盤中更新" : ""}</p>
     <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">班次與產出時間</summary>
       <p className="pt-1">實際產出：{sourceTimestamp(brief.generated_at)}。班次時段是目標，不代表自動產出或送達；共享資料沒有排程狀態。</p>
