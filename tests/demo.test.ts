@@ -75,6 +75,8 @@ test("personal reminders stay separate and only reach Today by Taipei due date o
   assert.equal(investmentReminderIsForToday(reminder, today), true)
   assert.equal(investmentReminderIsForToday({...reminder, expires_on: "2026-09-26"}, today), false)
   assert.equal(investmentReminderIsForToday({...reminder, expires_on: "2026-09-26", promoted_to_today: true}, today), true)
+  assert.equal(investmentReminderIsForToday({...reminder, status: "watching"}, today), false, "watching reminders are not open Today actions")
+  assert.equal(investmentReminderIsForToday({...reminder, status: "watching", promoted_to_today: true}, today), false)
   assert.equal(investmentReminderIsForToday({...reminder, status: "done", promoted_to_today: true}, today), false)
   assert.equal(investmentReminderIsForToday({...reminder, kind: "research"}, today), false, "research work is never a personal reminder")
 

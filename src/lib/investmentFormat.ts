@@ -24,7 +24,7 @@ export function taipeiCalendarToday(now = new Date()): string {
 }
 
 export function investmentReminderIsForToday(item: Pick<InvestmentWork, "kind" | "status" | "expires_on" | "promoted_to_today">, today: string): boolean {
-  return item.kind === "watch" && item.status !== "done" && (item.expires_on === today || item.promoted_to_today === true)
+  return item.kind === "watch" && item.status === "open" && (item.expires_on === today || item.promoted_to_today === true)
 }
 const PILLAR_ID_BY_LAYER_ID: Record<string, string> = {
   L0: "l0_hardware",
