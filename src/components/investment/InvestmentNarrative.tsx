@@ -369,7 +369,7 @@ export function InvestmentNarrativeSection({ enabled, onOpenHistory }: { enabled
   const state: DisplayState = query.isError ? "unavailable" : narrativeDisplayState(narrative?.state, narrative?.thesis_evidence.state, data?.state) ?? "unknown"
   return <section aria-label="我的論點｜五層證據" className="flex min-w-0 flex-col gap-3 break-words">
     <SectionHeading aside={<StateChip state={state} />}>我的論點｜五層證據</SectionHeading>
-    <p className="text-caption leading-relaxed text-ink-3">依序看五層證據、目前訊號、日期與來源、最近一次明確記錄；資料完整度不代表論點成立。要回找當時判斷、後續結果與已記錄心得，請到 <Button variant="link" className="inline min-h-0 px-0 py-0 align-baseline" onClick={onOpenHistory}>舊判斷回看</Button>。交易紀錄核對是另一項工作；PersonalOS 目前沒有對應入口。</p>
+    <p className="text-caption leading-relaxed text-ink-3">依序看五層證據、目前訊號、日期與來源、最近一次明確記錄；資料完整度不代表論點成立。要回找當時判斷、後續結果與已記錄心得，請到 <Button variant="link" className="inline min-h-0 px-0 py-0 align-baseline" onClick={onOpenHistory}>復盤與學習</Button>。交易紀錄核對是另一項工作；PersonalOS 目前沒有對應入口。</p>
     {narrative ? <StateNote state={narrative.state} reason={narrative.state_reason} /> : null}
     {DEMO_MODE ? <p className="text-caption text-ink-3">展示內容全為合成範例；個人論點與持倉保持未知。</p> : null}
     {query.isPending && !data ? <p role="status" className="text-body text-ink-3">正在讀取論點來源；讀取完成前不顯示健康狀態。</p> : null}

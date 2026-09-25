@@ -49,7 +49,7 @@ function WatchReminderRow({item, today}: {item: InvestmentWork; today: string}) 
   </li>
 }
 
-/** Personal reminders and their promotion controls live under 待關注, apart from source events. */
+/** Personal reminders and their promotion controls stay under Research & Strategy, apart from source events. */
 export function InvestmentWatchNotes() {
   const query = useQuery({queryKey:["investment-work"], queryFn:getInvestmentWork, refetchOnWindowFocus:false})
   const create = useWrite(addInvestmentWork, ["investment-work"])

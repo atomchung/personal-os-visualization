@@ -7,7 +7,7 @@ import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyReadingOrder, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -68,7 +68,7 @@ test("Today projection keeps intraday delta inside the daily flow", async () => 
   assert.match(data.today.updates[0].source_path, /^wiki\/morning\//)
 })
 
-test("personal reminder dates and promotion remain stored under 待關注", async () => {
+test("personal reminder dates and promotion remain stored under Research & Strategy", async () => {
   const today = "2026-09-25"
   assert.equal(taipeiCalendarToday(new Date("2026-09-24T16:30:00Z")), today, "UTC evening maps to the next Taipei calendar day")
 
@@ -567,4 +567,15 @@ test("history reading order puts dated records first", () => {
     { id: "b", date: "2026-09-14", title: "new" },
   ] as Parameters<typeof historyReadingOrder>[0]
   assert.deepEqual(historyReadingOrder(items).map(item => item.id), ["b", "a", "u"])
+})
+
+test("only an explicit producer learning role becomes a reusable framework", () => {
+  const items = [
+    { id: "framework", learning_role: "reusable_framework", kind: "mistake", heading: "## P1 — Verify the shipment" },
+    { id: "unresolved-question", kind: "mistake", heading: "## Q1 — Still open" },
+    { id: "dated-case", kind: "mistake", heading: "### 2026-09-20 · A dated case" },
+    { id: "historical", learning_role: "historical_case", kind: "mistake", heading: "## P3 — Historical case" },
+    { id: "unknown", learning_role: "unknown", kind: "mistake", heading: "## Q2 — Classification unknown" },
+  ]
+  assert.deepEqual(reusableLearningItems(items).map(item => item.id), ["framework"])
 })
