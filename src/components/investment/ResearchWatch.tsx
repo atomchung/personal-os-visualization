@@ -17,8 +17,8 @@ export function ResearchWatch({data,brief}: {data: InvestmentWatch; brief?:Inves
   const end=endDate.toISOString().slice(0,10)
   const events=buildTimeline(data,brief,today,end)
   const months=data.catalysts.filter(e=>e.date_precision==="month"&&e.date!==null&&e.date>=today.slice(0,7)&&e.date<=end.slice(0,7))
-  return <section className="flex flex-col gap-3" aria-label="什麼時候要看什麼">
-    <SectionHeading>什麼時候要看什麼</SectionHeading><p className="text-body text-ink-3">未來 30 天（{today} 至 {end}）需要留意的事件：研究筆記記下的日期，以及簡報提到的近期事件；同一天同一檔只列一次。事件名稱沿用來源原文，避免只顯示資料夾代號。</p>
+  return <section className="flex flex-col gap-3" aria-label="研究與事件">
+    <SectionHeading>研究與事件</SectionHeading><p className="text-body text-ink-3">未來 30 天（{today} 至 {end}）來源已列日期的研究事件與正式簡報提及事項。這是來源閱讀清單，不是個人待辦；要列入今日，請在「我的提醒」明確加入。事件名稱沿用來源原文，避免只顯示資料夾代號。</p>
     {events.length===0?<p className="text-body text-ink-3">目前筆記與簡報沒有記下這段期間的確切日期；資料缺日期，不代表這段期間沒有事件。</p>:null}
     <ul className="divide-y divide-line-soft">{events.map(e=>{
       const raw=e.raw.trim()

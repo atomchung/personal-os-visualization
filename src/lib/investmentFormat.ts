@@ -84,6 +84,28 @@ export function sourceTimestamp(value: string | null | undefined): string {
   return `${parts.year}/${parts.month}/${parts.day} ${parts.hour}:${parts.minute} 台北`
 }
 
+/** Calendar day shown to the user, independent of the browser host timezone. */
+export function taipeiDateIso(now = new Date()): string {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(now).map(part => [part.type, part.value]))
+  return `${parts.year}-${parts.month}-${parts.day}`
+}
+
+/** Today shows only open personal reminders due in Taipei today or explicitly promoted. */
+export function todayWatchNotes<T extends {
+  kind: string
+  status: string
+  expires_on?: string | null
+  promoted_to_today?: boolean
+}>(items: readonly T[], today: string): T[] {
+  return items
+    .filter(item => item.kind === "watch" && item.status !== "done"
+      && (item.expires_on === today || item.promoted_to_today === true))
+    .slice()
+    .sort((a, b) => (a.expires_on ?? "").localeCompare(b.expires_on ?? ""))
+}
+
 export type BriefSessionRow = {
   session: BriefSession
   label: string
