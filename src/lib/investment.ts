@@ -332,6 +332,15 @@ export type InvestmentHistorySourceRef = {
   label?: string
 }
 
+export type InvestmentHistoryEvidence = string | InvestmentHistorySourceRef[]
+
+export type InvestmentHistoryCheckpoint = {
+  date: string | null
+  what: string | null
+  outcome: { text: string | null; state: "unknown" | "recorded" }
+  source: InvestmentHistorySourceRef | null
+}
+
 export type InvestmentHistoryItem = {
   id: string
   source_id: string | null
@@ -351,9 +360,10 @@ export type InvestmentHistoryItem = {
   missing: string[]
   source: InvestmentHistorySourceRef
   reason?: string | null
-  evidence?: string | null
+  evidence?: InvestmentHistoryEvidence | null
   outcome?: { text: string | null; state: "unknown" | "recorded" }
   learning?: string | null
+  checkpoints?: InvestmentHistoryCheckpoint[]
 }
 
 export type InvestmentHistory = InvestmentReadModelEnvelope & {

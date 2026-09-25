@@ -11,6 +11,7 @@ import {
   type InvestmentHistory,
   type InvestmentHistoryDetail,
   type InvestmentHistoryItem,
+  type InvestmentHistorySourceRef,
   type InvestmentReadState,
 } from "@/lib/investment"
 
@@ -38,23 +39,28 @@ function outcomeLabel(item: InvestmentHistoryItem) {
   return item.outcome_state === "recorded" ? "已有後續結果" : "後續結果未知"
 }
 
-function sourceLocation(item: InvestmentHistoryItem) {
-  const { source } = item
+function sourceRefLocation(source: InvestmentHistorySourceRef) {
   const line = source.line == null
     ? ""
     : ` · ${source.line}${source.line_end && source.line_end !== source.line ? `–${source.line_end}` : ""}`
   return `${source.path}${line}`
 }
 
+function sourceLocation(item: InvestmentHistoryItem) {
+  return sourceRefLocation(item.source)
+}
+
 function HistoryDetail({ data }: { data: InvestmentHistoryDetail | undefined }) {
   if (!data) return null
   const item = data.history.item
+  const recordedOutcome = item?.outcome?.state === "recorded" || item?.outcome_state === "recorded"
   return (
     <div className="flex min-w-0 flex-col gap-2 border-t border-line-soft pt-2">
       {item ? <>
         {item.reason ? <div><p className="text-caption font-medium text-ink-3">當時記錄的理由</p><p className="break-words text-body text-ink-2">{item.reason}</p></div> : null}
-        {item.evidence ? <div><p className="text-caption font-medium text-ink-3">當時記錄的關鍵事實</p><p className="break-words text-body text-ink-2">{item.evidence}</p></div> : null}
-        <p className="break-words text-caption text-ink-3">後續結果：{item.outcome?.state === "recorded" ? item.outcome.text || "已記錄，文字未提供" : "未知"}</p>
+        {typeof item.evidence === "string" ? <div><p className="text-caption font-medium text-ink-3">當時記錄的關鍵事實</p><p className="break-words text-body text-ink-2">{item.evidence}</p></div> : Array.isArray(item.evidence) && item.evidence.length ? <div><p className="text-caption font-medium text-ink-3">當時引用的來源位置</p><ul className="list-disc pl-4 text-caption text-ink-2">{item.evidence.map((source, index) => <li key={`${index}:${source.path}`}>{sourceRefLocation(source)}</li>)}</ul></div> : null}
+        <p className="break-words text-caption text-ink-3">後續結果：{recordedOutcome ? item.outcome?.text || (item.checkpoints?.some((point) => point.outcome.state === "recorded") ? "已記錄檢查點結果，見下方" : "已記錄，文字未提供") : "未知"}</p>
+        {item.checkpoints?.length ? <div><p className="text-caption font-medium text-ink-3">後續檢查點</p><ul className="flex list-disc flex-col gap-1 pl-4 text-caption text-ink-2">{item.checkpoints.map((point, index) => <li key={`${index}:${point.date ?? "unknown"}`}>{point.date ?? "日期未知"}{point.what ? ` · ${point.what}` : ""}：{point.outcome.state === "recorded" ? point.outcome.text || "結果已記錄，文字未提供" : "結果未知"}{point.source ? ` · ${sourceRefLocation(point.source)}` : ""}</li>)}</ul></div> : null}
         <p className="break-words text-caption text-ink-3">已記錄心得：{item.learning_state === "recorded" ? item.learning || "已標記有記錄，文字未提供" : "尚未記錄"}</p>
         {item.learning_role === "reusable_framework" ? <Chip tone="ok">來源明確分類：可重用框架</Chip> : null}
         {data.history.source_text ? <div className="min-w-0"><p className="mb-1 text-caption font-medium text-ink-3">來源原文片段</p><ReadingText text={data.history.source_text} /></div> : <p className="text-caption text-ink-3">producer 沒有提供可展開原文；保留上方來源位置與結構化欄位。</p>}
