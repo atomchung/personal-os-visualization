@@ -308,9 +308,11 @@ export function workPanelView(query: {
   isPending: boolean
   isError: boolean
   data?: { items?: readonly unknown[] } | null
+  /** TanStack Query sets this when data came from a successful fetch. */
+  dataUpdatedAt?: number
 }): WorkPanelView {
   if (query.data == null) return query.isError ? "error" : "loading"
-  if (query.isError) return "stale"
+  if (query.isError) return (query.dataUpdatedAt ?? 0) > 0 ? "stale" : "error"
   return (query.data.items?.length ?? 0) > 0 ? "ready" : "empty"
 }
 

@@ -165,7 +165,7 @@ jobs:
               assert(await page.getByRole('heading', { name: '研究與事件', exact: true }).isVisible())
               await page.getByRole('tab', { name: '今日', exact: true }).click()
               const todayReminders = page.locator('[aria-label="今日個人提醒"]')
-              const emptyReminderCopy = todayReminders.getByText('尚未新增個人提醒。', { exact: true })
+              const emptyReminderCopy = todayReminders.locator('p').filter({ hasText: '尚未新增個人提醒。' })
               await emptyReminderCopy.waitFor({ state: 'visible', timeout: 5000 })
               assert.equal(await todayReminders.locator('ul').count(), 0, `${name}: empty reminders must not render a list card`)
               assert.equal(await todayReminders.locator('input[type="date"]').count(), 0, `${name}: Today must not render the reminder form`)
@@ -190,7 +190,7 @@ jobs:
             }
             // Modify only in-memory synthetic Responses. Do not rewrite generated fixtures,
             // introduce test routes into production, or use any private source material.
-            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error']) {
+            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility']) {
               const page = await browser.newPage({ viewport: { width: 320, height: 740 } })
               const errors = []
               page.on('pageerror', error => errors.push(error.message))
@@ -199,6 +199,20 @@ jobs:
                 Response.prototype.json = async function () {
                   const data = await original.call(this)
                   if (scenario === 'watch-read-error' && Object.keys(data ?? {}).length === 1 && Array.isArray(data?.items)) throw new Error('Synthetic reminder read failure')
+                  if (scenario === 'watch-eligibility' && Object.keys(data ?? {}).length === 1 && Array.isArray(data?.items)) {
+                    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).map(part => [part.type, part.value]))
+                    const today = `${parts.year}-${parts.month}-${parts.day}`
+                    const offsetDate = days => { const date = new Date(`${today}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + days); return date.toISOString().slice(0, 10) }
+                    const note = (id, kind, status, expires_on, promoted_to_today = false) => ({ id, kind, status, expires_on, promoted_to_today, text: `Synthetic ${id}`, source_id: '', source_label: '', conclusion: '', version: 1, updated_at: '' })
+                    data.items = [
+                      note('due-today', 'watch', 'open', today),
+                      note('promoted', 'watch', 'open', offsetDate(-1), true),
+                      note('future', 'watch', 'open', offsetDate(1)),
+                      note('expired', 'watch', 'open', offsetDate(-1)),
+                      note('completed', 'watch', 'done', today, true),
+                      note('research-event', 'research', 'open', today, true),
+                    ]
+                  }
                   if (scenario === 'narrative-stale-partial' && data?.narratives?.[0]?.thesis_evidence) {
                     data.narratives[0].state = 'stale'
                     data.narratives[0].state_reason = '合成測試：論點來源較舊；僅示範 aggregate 狀態。'
@@ -352,7 +366,12 @@ jobs:
                 const todayReminders = page.locator('[aria-label="今日個人提醒"]')
                 const readFailureCopy = todayReminders.getByRole('alert').getByText('個人提醒讀取失敗，暫時無法確認今天是否有提醒。', { exact: true })
                 await readFailureCopy.waitFor({ state: 'visible', timeout: 5000 })
-                assert.equal(await todayReminders.getByText('尚未新增個人提醒。', { exact: true }).count(), 0, 'a failed reminder read must not render the empty state')
+                assert.equal(await todayReminders.locator('p').filter({ hasText: '尚未新增個人提醒。' }).count(), 0, 'a failed reminder read must not render the empty state')
+              }
+              if (scenario === 'watch-eligibility') {
+                const todayReminders = page.locator('[aria-label="今日個人提醒"]')
+                for (const id of ['due-today', 'promoted']) await todayReminders.getByText(`Synthetic ${id}`, { exact: true }).waitFor({ state: 'visible', timeout: 5000 })
+                for (const id of ['future', 'expired', 'completed', 'research-event']) assert.equal(await todayReminders.getByText(`Synthetic ${id}`, { exact: true }).count(), 0, `${id} must not appear on Today`)
               }
               if (scenario.startsWith('session-')) {
                 const sessions = page.getByRole('region', { name: '盤前班次' })

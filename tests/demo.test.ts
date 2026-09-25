@@ -342,7 +342,7 @@ test("Today reminder selection uses Taipei dates and excludes future, completed,
 test("Today personal reminder copy keeps an empty result distinct from a failed read", () => {
   assert.equal(todayWatchNotes([], "2026-09-25").length, 0)
   assert.equal(workPanelView({isPending:false,isError:true}), "error")
-  assert.equal(workPanelView({isPending:false,isError:true,data:{items:[]}}), "stale")
+  assert.equal(workPanelView({isPending:false,isError:true,data:{items:[]},dataUpdatedAt:1}), "stale")
 })
 
 test("synthetic watch notes keep their expiry and only explicit promotion enters Today", async () => {
@@ -506,10 +506,11 @@ test("market context carries explicit market membership and keeps each producer 
 test("work panel view does not treat a failed fetch as an empty list", () => {
   assert.equal(workPanelView({ isPending: true, isError: false }), "loading")
   assert.equal(workPanelView({ isPending: false, isError: true }), "error")
-  assert.equal(workPanelView({ isPending: false, isError: true, data: { items: [] } }), "stale")
+  assert.equal(workPanelView({ isPending: false, isError: true, data: { items: [] }, dataUpdatedAt: 0 }), "error")
+  assert.equal(workPanelView({ isPending: false, isError: true, data: { items: [] }, dataUpdatedAt: 1 }), "stale")
   assert.equal(workPanelView({ isPending: false, isError: false, data: { items: [] } }), "empty")
   assert.equal(workPanelView({ isPending: false, isError: false, data: { items: [{ id: "w1" }] } }), "ready")
-  const stale = workPanelView({ isPending: false, isError: true, data: { items: [{ status: "done" }] } })
+  const stale = workPanelView({ isPending: false, isError: true, data: { items: [{ status: "done" }] }, dataUpdatedAt: 1 })
   assert.equal(stale, "stale")
   assert.equal(typeof stale === "string", true)
 })
