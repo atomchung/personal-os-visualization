@@ -165,7 +165,8 @@ jobs:
               assert(await page.getByRole('heading', { name: '研究與事件', exact: true }).isVisible())
               await page.getByRole('tab', { name: '今日', exact: true }).click()
               const todayReminders = page.locator('[aria-label="今日個人提醒"]')
-              assert(await todayReminders.getByText('尚未新增個人提醒。', { exact: true }).isVisible())
+              const emptyReminderCopy = todayReminders.getByText('尚未新增個人提醒。', { exact: true })
+              await emptyReminderCopy.waitFor({ state: 'visible', timeout: 5000 })
               assert.equal(await todayReminders.locator('ul').count(), 0, `${name}: empty reminders must not render a list card`)
               assert.equal(await todayReminders.locator('input[type="date"]').count(), 0, `${name}: Today must not render the reminder form`)
               const today = page.getByRole('tab', { name: '今日', exact: true })
@@ -349,7 +350,8 @@ jobs:
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
               if (scenario === 'watch-read-error') {
                 const todayReminders = page.locator('[aria-label="今日個人提醒"]')
-                assert(await todayReminders.getByRole('alert').getByText('個人提醒讀取失敗，暫時無法確認今天是否有提醒。', { exact: true }).isVisible())
+                const readFailureCopy = todayReminders.getByRole('alert').getByText('個人提醒讀取失敗，暫時無法確認今天是否有提醒。', { exact: true })
+                await readFailureCopy.waitFor({ state: 'visible', timeout: 5000 })
                 assert.equal(await todayReminders.getByText('尚未新增個人提醒。', { exact: true }).count(), 0, 'a failed reminder read must not render the empty state')
               }
               if (scenario.startsWith('session-')) {
