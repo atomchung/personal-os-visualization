@@ -27,6 +27,38 @@ export function briefEventInWindow(label: string, briefDate: string, today: stri
   return range!==null&&range.end>=today&&range.start<=end
 }
 
+/** Use only a valid producer timestamp to anchor the Watch calendar window. */
+export function watchDateWindow(generatedAt: string): { start: string; end: string } | null {
+  const dateOnly=generatedAt.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  const timestamp=generatedAt.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|([+-])(\d{2}):(\d{2}))$/)
+  const source=dateOnly??timestamp
+  if (!source) return null
+
+  const year=Number(source[1]), month=Number(source[2]), day=Number(source[3])
+  const calendarDate=new Date(Date.UTC(year,month-1,day))
+  if (calendarDate.getUTCFullYear()!==year||calendarDate.getUTCMonth()!==month-1||calendarDate.getUTCDate()!==day) return null
+
+  let start: string
+  if (dateOnly) {
+    start=generatedAt
+  } else {
+    const hour=Number(timestamp?.[4]), minute=Number(timestamp?.[5]), second=Number(timestamp?.[6])
+    const offsetHour=Number(timestamp?.[9]??0), offsetMinute=Number(timestamp?.[10]??0)
+    if (hour>23||minute>59||second>59||offsetHour>14||offsetMinute>59||(offsetHour===14&&offsetMinute!==0)) return null
+    const instant=new Date(generatedAt)
+    if (!Number.isFinite(instant.getTime())) return null
+    const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Taipei",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(instant)
+    const part=(type:string)=>parts.find(value=>value.type===type)?.value
+    const localYear=part("year"), localMonth=part("month"), localDay=part("day")
+    if (!localYear||!localMonth||!localDay) return null
+    start=`${localYear}-${localMonth}-${localDay}`
+  }
+
+  const endDate=new Date(`${start}T00:00:00Z`)
+  endDate.setUTCDate(endDate.getUTCDate()+30)
+  return {start,end:endDate.toISOString().slice(0,10)}
+}
+
 /** Whole-token match on the canonical ticker (e.g. MU must not match MUSK; 2330.TW matches 2330). */
 export function mentionsTicker(upperText: string, topic: string): boolean {
   const ticker=topic.toUpperCase().replace(/\.TWO?$/,"")

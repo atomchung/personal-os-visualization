@@ -3,7 +3,7 @@ import { test } from "node:test"
 import { createDemoRequest } from "../src/demo/transport.ts"
 import { investment as syntheticInvestment, investmentHistory, investmentResearch, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
 import { investmentScenario } from "../src/demo/generated/investment-scenario.ts"
-import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
+import { researchForToday, splitCatalyst, watchDateWindow } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
@@ -618,6 +618,14 @@ test("today research prefers topics already named in the brief", () => {
   ]
   assert.deepEqual(researchForToday(research, "CXMT 與 MU 9/30 是近端裁判").map(item => item.topic), ["MU"])
   assert.deepEqual(researchForToday(research, "今日沒有對應標的").map(item => item.topic), ["GOOG", "MU", "AVGO"])
+})
+
+test("Watch date windows require a valid timestamp and use the Taipei calendar day", () => {
+  assert.deepEqual(watchDateWindow("2026-09-25T16:30:00Z"), { start: "2026-09-26", end: "2026-10-26" })
+  assert.deepEqual(watchDateWindow("2026-09-26"), { start: "2026-09-26", end: "2026-10-26" })
+  assert.equal(watchDateWindow("unknown"), null)
+  assert.equal(watchDateWindow("2026-02-30T00:00:00Z"), null)
+  assert.equal(watchDateWindow("2026-09-26T24:00:00Z"), null)
 })
 
 test("history reading order puts dated records first", () => {
