@@ -153,12 +153,21 @@ jobs:
               await page.screenshot({ path: `${output}/${name}.png`, fullPage: true })
               await page.screenshot({ path: `${output}/${name}-first-screen.png` })
               const layout = await noOverflow(page, name)
-              for (const label of ['我的論點', '正在研究', '近期要留意', '舊判斷回看', '今日']) {
+              for (const label of ['我的論點', '正在研究', '待關注', '舊判斷回看', '今日']) {
                 const tab = page.getByRole('tab', { name: label, exact: true })
                 await tab.click()
                 assert.equal(await tab.getAttribute('aria-selected'), 'true')
                 await noOverflow(page, `${name}/${label}`)
               }
+              const watchTab = page.getByRole('tab', { name: '待關注', exact: true })
+              await watchTab.click()
+              assert(await page.getByRole('heading', { name: '我的提醒', exact: true }).isVisible())
+              assert(await page.getByRole('heading', { name: '研究與事件', exact: true }).isVisible())
+              await page.getByRole('tab', { name: '今日', exact: true }).click()
+              const todayReminders = page.locator('[aria-label="今日個人提醒"]')
+              assert(await todayReminders.getByText('尚未新增個人提醒。', { exact: true }).isVisible())
+              assert.equal(await todayReminders.locator('ul').count(), 0, `${name}: empty reminders must not render a list card`)
+              assert.equal(await todayReminders.locator('input[type="date"]').count(), 0, `${name}: Today must not render the reminder form`)
               const today = page.getByRole('tab', { name: '今日', exact: true })
               await today.focus()
               await page.keyboard.press('ArrowRight')
@@ -180,7 +189,7 @@ jobs:
             }
             // Modify only in-memory synthetic Responses. Do not rewrite generated fixtures,
             // introduce test routes into production, or use any private source material.
-            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times']) {
+            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error']) {
               const page = await browser.newPage({ viewport: { width: 320, height: 740 } })
               const errors = []
               page.on('pageerror', error => errors.push(error.message))
@@ -188,6 +197,7 @@ jobs:
                 const original = Response.prototype.json
                 Response.prototype.json = async function () {
                   const data = await original.call(this)
+                  if (scenario === 'watch-read-error' && Object.keys(data ?? {}).length === 1 && Array.isArray(data?.items)) throw new Error('Synthetic reminder read failure')
                   if (scenario === 'narrative-stale-partial' && data?.narratives?.[0]?.thesis_evidence) {
                     data.narratives[0].state = 'stale'
                     data.narratives[0].state_reason = '合成測試：論點來源較舊；僅示範 aggregate 狀態。'
@@ -337,6 +347,11 @@ jobs:
                 }
               }, scenario)
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
+              if (scenario === 'watch-read-error') {
+                const todayReminders = page.locator('[aria-label="今日個人提醒"]')
+                assert(await todayReminders.getByRole('alert').getByText('個人提醒讀取失敗，暫時無法確認今天是否有提醒。', { exact: true }).isVisible())
+                assert.equal(await todayReminders.getByText('尚未新增個人提醒。', { exact: true }).count(), 0, 'a failed reminder read must not render the empty state')
+              }
               if (scenario.startsWith('session-')) {
                 const sessions = page.getByRole('region', { name: '盤前班次' })
                 if (scenario === 'session-tw') {

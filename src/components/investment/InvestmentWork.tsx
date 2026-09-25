@@ -61,7 +61,7 @@ export function TodayInvestmentWatchNotes({onManage}: {onManage: () => void}) {
 
   const emptyCopy = view === "stale"
     ? "上次成功讀取時，沒有今日到期或加入今日的個人提醒。"
-    : "尚未新增今日個人提醒。"
+    : "尚未新增個人提醒。"
   return <section aria-label="今日個人提醒" className="flex min-w-0 flex-col gap-2">
     {view === "stale" ? <p role="status" className="text-caption text-warn">個人提醒更新失敗，以下沿用上次讀取。</p> : null}
     {reminders.length ? <>

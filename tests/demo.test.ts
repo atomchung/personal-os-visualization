@@ -339,6 +339,12 @@ test("Today reminder selection uses Taipei dates and excludes future, completed,
   assert.deepEqual(todayWatchNotes(rows, today).map(row=>row.id), ["promoted", "due"])
 })
 
+test("Today personal reminder copy keeps an empty result distinct from a failed read", () => {
+  assert.equal(todayWatchNotes([], "2026-09-25").length, 0)
+  assert.equal(workPanelView({isPending:false,isError:true}), "error")
+  assert.equal(workPanelView({isPending:false,isError:true,data:{items:[]}}), "stale")
+})
+
 test("synthetic watch notes keep their expiry and only explicit promotion enters Today", async () => {
   const request = createDemoRequest()
   const body = {kind:"watch",text:"Synthetic personal reminder",expires_on:"2026-09-25"}
