@@ -107,9 +107,9 @@ function ContinuationList({ items, compact = false, olderCount = 0, onOpenWork }
   return <div className="flex min-w-0 flex-col gap-2">
     <div className="flex flex-wrap items-baseline justify-between gap-2">
       <SubsectionHeading>尚未結束的行動</SubsectionHeading>
-      {onOpenWork ? <Button variant="link" onClick={onOpenWork}>到正在研究</Button> : null}
+      {onOpenWork ? <Button variant="link" onClick={onOpenWork}>到研究與策略</Button> : null}
     </div>
-    <p className="text-caption text-ink-3">{compact ? "還沒結束；可到正在研究接著看。" : "來自判斷與研究紀錄，和你在本機記下的問題分開。"}{olderCount ? ` 更早的 ${olderCount} 項留在「正在研究」。` : ""}</p>
+    <p className="text-caption text-ink-3">{compact ? "還沒結束；可到研究與策略接著看。" : "來自判斷與研究紀錄，和你在本機記下的問題分開。"}{olderCount ? ` 更早的 ${olderCount} 項留在「研究與策略」。` : ""}</p>
     <ul className="flex min-w-0 flex-col gap-2">{shown.map(item => <ContinuationRow key={item.id} item={item} showDate={!compact} />)}</ul>
     {rest.length ? <details><summary className="cursor-pointer py-2 text-caption font-medium">另有 {rest.length} 項尚未結束</summary><ul className="mt-2 flex min-w-0 flex-col gap-2">{rest.map(item => <ContinuationRow key={item.id} item={item} showDate={!compact} />)}</ul></details> : null}
   </div>

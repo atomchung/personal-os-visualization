@@ -68,7 +68,7 @@ test("Today projection keeps intraday delta inside the daily flow", async () => 
   assert.match(data.today.updates[0].source_path, /^wiki\/morning\//)
 })
 
-test("personal reminder dates and promotion remain stored under 待關注", async () => {
+test("personal reminder dates and promotion remain stored under Research & Strategy", async () => {
   const today = "2026-09-25"
   assert.equal(taipeiCalendarToday(new Date("2026-09-24T16:30:00Z")), today, "UTC evening maps to the next Taipei calendar day")
 
@@ -569,12 +569,13 @@ test("history reading order puts dated records first", () => {
   assert.deepEqual(historyReadingOrder(items).map(item => item.id), ["b", "a", "u"])
 })
 
-test("only source-marked P/Q categories become reusable learning frameworks", () => {
+test("only an explicit producer learning role becomes a reusable framework", () => {
   const items = [
-    { id: "p1", kind: "mistake", heading: "## P1 — Verify the shipment" },
-    { id: "q2", kind: "mistake", heading: "## Q2- Check the denominator" },
+    { id: "framework", learning_role: "reusable_framework", kind: "mistake", heading: "## P1 — Verify the shipment" },
+    { id: "unresolved-question", kind: "mistake", heading: "## Q1 — Still open" },
     { id: "dated-case", kind: "mistake", heading: "### 2026-09-20 · A dated case" },
-    { id: "other-kind", kind: "decision_review", heading: "## P3 — Not a framework" },
+    { id: "historical", learning_role: "historical_case", kind: "mistake", heading: "## P3 — Historical case" },
+    { id: "unknown", learning_role: "unknown", kind: "mistake", heading: "## Q2 — Classification unknown" },
   ]
-  assert.deepEqual(reusableLearningItems(items).map(item => item.id), ["p1", "q2"])
+  assert.deepEqual(reusableLearningItems(items).map(item => item.id), ["framework"])
 })

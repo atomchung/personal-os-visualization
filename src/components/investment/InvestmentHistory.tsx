@@ -122,6 +122,7 @@ function ContextBlock({ context }: { context: InvestmentContext }) {
 export function InvestmentHistory({ data, context }: { data: InvestmentHistory; context?: InvestmentContext }) {
   const [showAll, setShowAll] = useState(false)
   const frameworks = reusableLearningItems(data.items)
+  const learningClassificationUnknown = data.items.some((item) => !item.learning_role || item.learning_role === "unknown")
   const frameworkIds = new Set(frameworks.map((item) => item.id))
   const ordered = historyReadingOrder(data.items.filter((item) => !frameworkIds.has(item.id)))
   const visibleItems = showAll ? ordered : ordered.slice(0, 12)
@@ -136,7 +137,7 @@ export function InvestmentHistory({ data, context }: { data: InvestmentHistory; 
       {data.coverage.errors.length ? <div className="flex flex-col gap-1 text-caption text-warn">{data.coverage.errors.map((error) => <p key={error.source_id}>{error.path}：{error.message}</p>)}</div> : null}
       <section className="flex min-w-0 flex-col gap-2" aria-label="可重用框架">
         <div className="flex flex-wrap items-baseline gap-2"><SectionHeading>可重用框架</SectionHeading><span className="text-caption text-ink-3">{frameworks.length} 項</span></div>
-        {frameworks.length ? <div className="flex min-w-0 flex-col gap-2">{frameworks.map((item) => <LearningFramework key={item.id} item={item} />)}</div> : <p className="text-body text-ink-3">目前讀取到的歷史資料沒有明確標記的 P/Q 框架；未讀到不代表來源不存在。</p>}
+        {frameworks.length ? <div className="flex min-w-0 flex-col gap-2">{frameworks.map((item) => <LearningFramework key={item.id} item={item} />)}</div> : <p className="text-body text-ink-3">{learningClassificationUnknown ? "來源尚未提供可確認的學習分類；此頁不從標題或項目類型推導可重用框架。" : "來源未標記可重用框架。"}</p>}
       </section>
       <details className="border-t border-line-soft pt-2">
         <summary className="cursor-pointer py-1 text-body font-medium text-ink">歷史紀錄與後續結果 · {ordered.length} 筆</summary>

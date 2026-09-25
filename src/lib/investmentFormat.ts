@@ -307,9 +307,9 @@ export function historyReadingOrder<T extends { id: string; date: string | null 
   return [...dated, ...undated]
 }
 
-/** Only source-marked P/Q category headings are reusable frameworks; dated cases stay in history. */
-export function reusableLearningItems<T extends { kind: string; heading: string }>(items: readonly T[]): T[] {
-  return items.filter((item) => item.kind === "mistake" && /^##\s+(?:P|Q)\d+\s*[—-]/i.test(item.heading))
+/** Only an explicit producer classification can promote history into a reusable framework. */
+export function reusableLearningItems<T extends { learning_role?: string }>(items: readonly T[]): T[] {
+  return items.filter((item) => item.learning_role === "reusable_framework")
 }
 
 export type WorkPanelView = "loading" | "error" | "stale" | "empty" | "ready"

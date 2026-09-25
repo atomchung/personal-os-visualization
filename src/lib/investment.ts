@@ -320,6 +320,8 @@ export type InvestmentHistoryItem = {
   excerpt_truncated: boolean
   result_state: "known" | "unknown"
   result: string
+  /** Producer classification; absent/unknown items must not be promoted by title or kind. */
+  learning_role?: "reusable_framework" | "historical_case" | "unknown"
   detail_state: "available" | "truncated"
   source: {
     id: string
