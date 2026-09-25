@@ -82,8 +82,8 @@ jobs:
               const attentionTab = page.getByRole('tab', { name: '待關注', exact: true })
               assert.equal(await attentionTab.getAttribute('aria-selected'), 'true')
               const attentionPanel = page.locator('#investment-panel-month')
-              assert(await attentionPanel.getByRole('region', { name: '我的提醒' }).isVisible(), `${name}: personal reminders have a named group`)
-              assert(await attentionPanel.getByRole('region', { name: '研究與事件' }).isVisible(), `${name}: source-derived events have a separate named group`)
+              await attentionPanel.getByRole('region', { name: '我的提醒' }).waitFor({ state: 'visible' })
+              await attentionPanel.getByRole('region', { name: '研究與事件' }).waitFor({ state: 'visible' })
               await page.getByRole('tab', { name: '今日', exact: true }).click()
               assert(await page.getByText('星島設備發表新一代儲能產品（虛構）', { exact: true }).isVisible(),
                 `${name}: formal brief baseline must remain visible in the story card`)
