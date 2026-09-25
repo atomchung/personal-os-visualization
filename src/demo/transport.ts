@@ -57,14 +57,16 @@ export function createDemoRequest() {
           return reply(path.endsWith("quote") ? quote : momentum)
         case "/api/investment/research": return reply(investmentResearch)
         case "/api/investment/research/detail": {
-          const item = investmentResearchDetails[url.searchParams.get("id") ?? ""]
+          const id=url.searchParams.get("id") ?? ""
+          const item=Object.prototype.hasOwnProperty.call(investmentResearchDetails,id)?investmentResearchDetails[id]:undefined
           return item ? reply(item) : rejected("找不到這段合成 Research 來源。", 404)
         }
         case "/api/investment/watch/read-model": return reply(watch)
         case "/api/investment/history": return reply(investmentHistory)
         case "/api/investment/context": return reply(investmentContext)
         case "/api/investment/history/source": {
-          const item = investmentHistorySources[url.searchParams.get("id") ?? ""]
+          const id=url.searchParams.get("id") ?? ""
+          const item=Object.prototype.hasOwnProperty.call(investmentHistorySources,id)?investmentHistorySources[id]:undefined
           return item ? reply(item) : rejected("找不到這段合成歷史來源。", 404)
         }
         case "/api/investment/pending/read-model": return reply(pending)

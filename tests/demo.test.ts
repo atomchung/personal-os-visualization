@@ -73,7 +73,9 @@ test("formal Research and legacy Watch retain separate typed producer envelopes"
   assert.equal(detail.artifact, "investment-research-detail")
   assert.equal(detail.research.item.id, itemId)
   assert.equal(typeof detail.research.detail.text, "string")
-  assert.equal((await request("/api/investment/research/detail?id=source%3Aresearch%2Fprivate.md")).status, 404)
+  for (const id of ["source:research/private.md", "__proto__", "constructor"]) {
+    assert.equal((await request(`/api/investment/research/detail?id=${encodeURIComponent(id)}`)).status, 404, id)
+  }
 
   const watch = await (await request("/api/investment/watch/read-model")).json()
   assert.equal(watch.artifact, "investment-watch")
@@ -352,6 +354,9 @@ test("history exposes the producer envelope and exact typed detail without infer
   assert.equal(detail.history.item.id, itemId)
   assert.equal(detail.history.item.outcome.state, "unknown")
   assert.equal(detail.history.source_text, investmentScenario.history[0].detail)
+  for (const id of ["private", "__proto__", "constructor"]) {
+    assert.equal((await request(`/api/investment/history/source?id=${encodeURIComponent(id)}`)).status, 404, id)
+  }
   const episode = history.history.items.find((item: { kind: string }) => item.kind === "decision_episode")
   const episodeDetail = await (await request(`/api/investment/history/source?id=${encodeURIComponent(episode.id)}`)).json()
   assert.equal(episodeDetail.history.item.id, episode.id)
