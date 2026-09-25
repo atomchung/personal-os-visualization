@@ -209,6 +209,7 @@ jobs:
             await todayReminders.getByRole('button', { name: '待關注', exact: true }).click()
             const attentionTab = reminderPage.getByRole('tab', { name: '待關注', exact: true })
             const attentionPanel = reminderPage.locator('#investment-panel-month')
+            await attentionPanel.getByRole('button', { name: '新增提醒', exact: true }).click()
             const reminderInput = attentionPanel.getByRole('textbox', { name: '新增個人提醒' })
             const dates = await reminderPage.evaluate(() => {
               const parts = new Intl.DateTimeFormat('en', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
