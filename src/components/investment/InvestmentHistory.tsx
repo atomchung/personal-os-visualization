@@ -4,7 +4,7 @@ import { Card, SectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { Button } from "@/components/ui/button"
 import { ReadingText } from "./ReadingText"
-import { historyReadingOrder, reusableLearningItems } from "@/lib/investmentFormat"
+import { historyDetailLookupId, historyReadingOrder, reusableLearningItems } from "@/lib/investmentFormat"
 import {
   getInvestmentHistorySource,
   type InvestmentContext,
@@ -75,14 +75,31 @@ function HistoryDetail({ data }: { data: InvestmentHistoryDetail | undefined }) 
   )
 }
 
-function HistoryItem({ item }: { item: InvestmentHistoryItem }) {
-  const [open, setOpen] = useState(false)
-  const detail = useQuery({
-    queryKey: ["investment-history-source", item.id],
-    queryFn: ({ signal }) => getInvestmentHistorySource(item.id, signal),
-    enabled: open,
+function UnindexedHistoryDetail({ item }: { item: InvestmentHistoryItem }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-2 border-t border-line-soft pt-2">
+      <p className="text-body text-warn">producer 沒有提供有效的 stable ID，無法安全讀取這筆明細；來源位置與 partial 狀態仍保留。</p>
+      {item.missing.map((missing, index) => <p key={`${index}:${missing}`} className="break-words text-caption text-warn">{missing}</p>)}
+    </div>
+  )
+}
+
+function useHistoryDetail(item: InvestmentHistoryItem, open: boolean) {
+  const detailId = historyDetailLookupId(item)
+  const query = useQuery({
+    queryKey: ["investment-history-source", detailId ?? `unindexed:${item.source.path}:${item.source.line ?? "unknown"}`],
+    queryFn: ({ signal }) => detailId === null
+      ? Promise.reject(new Error("History item has no explicit stable ID."))
+      : getInvestmentHistorySource(detailId, signal),
+    enabled: open && detailId !== null,
     retry: false,
   })
+  return { detailId, query }
+}
+
+function HistoryItem({ item }: { item: InvestmentHistoryItem }) {
+  const [open, setOpen] = useState(false)
+  const { detailId, query: detail } = useHistoryDetail(item, open)
   return (
     <Card className="flex min-w-0 flex-col gap-2 p-3">
       <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
@@ -100,9 +117,11 @@ function HistoryItem({ item }: { item: InvestmentHistoryItem }) {
       <details onToggle={(event) => setOpen(event.currentTarget.open)}>
         <summary className="cursor-pointer text-caption font-medium text-ink-3">讀取這筆 producer 明細</summary>
         <div className="min-w-0 pt-2">
-          {detail.isPending ? <p className="text-body text-ink-3">讀取明細中…</p> : null}
-          {detail.isError ? <p role="alert" className="text-body text-warn">這筆歷史明細目前無法讀取。</p> : null}
-          {detail.data ? <HistoryDetail data={detail.data} /> : null}
+          {detailId === null ? <UnindexedHistoryDetail item={item} /> : <>
+            {detail.isPending ? <p className="text-body text-ink-3">讀取明細中…</p> : null}
+            {detail.isError ? <p role="alert" className="text-body text-warn">這筆歷史明細目前無法讀取。</p> : null}
+            {detail.data ? <HistoryDetail data={detail.data} /> : null}
+          </>}
         </div>
       </details>
     </Card>
@@ -111,12 +130,7 @@ function HistoryItem({ item }: { item: InvestmentHistoryItem }) {
 
 function LearningFramework({ item }: { item: InvestmentHistoryItem }) {
   const [open, setOpen] = useState(false)
-  const detail = useQuery({
-    queryKey: ["investment-history-source", item.id],
-    queryFn: ({ signal }) => getInvestmentHistorySource(item.id, signal),
-    enabled: open,
-    retry: false,
-  })
+  const { detailId, query: detail } = useHistoryDetail(item, open)
   return (
     <Card className="flex min-w-0 flex-col gap-2 p-3">
       <h3 className="break-words text-body font-medium text-ink">{item.title}</h3>
@@ -125,9 +139,11 @@ function LearningFramework({ item }: { item: InvestmentHistoryItem }) {
       <details onToggle={(event) => setOpen(event.currentTarget.open)}>
         <summary className="cursor-pointer text-caption font-medium text-ink-3">讀取來源心得</summary>
         <div className="min-w-0 pt-2">
-          {detail.isPending ? <p className="text-body text-ink-3">讀取明細中…</p> : null}
-          {detail.isError ? <p role="alert" className="text-body text-warn">這筆學習明細目前無法讀取。</p> : null}
-          {detail.data ? <HistoryDetail data={detail.data} /> : null}
+          {detailId === null ? <UnindexedHistoryDetail item={item} /> : <>
+            {detail.isPending ? <p className="text-body text-ink-3">讀取明細中…</p> : null}
+            {detail.isError ? <p role="alert" className="text-body text-warn">這筆學習明細目前無法讀取。</p> : null}
+            {detail.data ? <HistoryDetail data={detail.data} /> : null}
+          </>}
         </div>
       </details>
     </Card>
@@ -197,7 +213,7 @@ export function InvestmentHistory({ data, context }: { data: InvestmentHistory; 
       {data.limitations.map((limitation, index) => <p key={`${index}:${limitation}`} className="break-words text-caption text-warn">資料限制：{limitation}</p>)}
       <section className="flex min-w-0 flex-col gap-2" aria-label="可重用框架">
         <div className="flex flex-wrap items-baseline gap-2"><SectionHeading>可重用框架</SectionHeading><span className="text-caption text-ink-3">{frameworks.length} 項</span></div>
-        {frameworks.length ? <div className="flex min-w-0 flex-col gap-2">{frameworks.map((item) => <LearningFramework key={item.id} item={item} />)}</div> : <p className="text-body text-ink-3">{frameworkEmptyMessage}</p>}
+        {frameworks.length ? <div className="flex min-w-0 flex-col gap-2">{frameworks.map((item, index) => <LearningFramework key={item.id ?? `unindexed:${item.source.path}:${item.source.line ?? "unknown"}:${index}`} item={item} />)}</div> : <p className="text-body text-ink-3">{frameworkEmptyMessage}</p>}
       </section>
       <details className="border-t border-line-soft pt-2">
         <summary className="cursor-pointer py-1 text-body font-medium text-ink">歷史紀錄與後續結果 · {data.history.count} 筆</summary>
@@ -205,7 +221,7 @@ export function InvestmentHistory({ data, context }: { data: InvestmentHistory; 
           {ordered.length ? <>
             <p className="text-caption text-ink-3">有日期的紀錄在前；每筆保留 producer 的狀態、限制與來源位置。{undatedCount ? `其中 ${undatedCount} 筆沒有日期，列在有日期的紀錄之後。` : ""}</p>
             <p className="text-caption text-ink-3">先顯示 {visibleItems.length} / {ordered.length} 筆。</p>
-            <div className="flex min-w-0 flex-col gap-2">{visibleItems.map((item) => <HistoryItem key={item.id} item={item} />)}</div>
+            <div className="flex min-w-0 flex-col gap-2">{visibleItems.map((item, index) => <HistoryItem key={item.id ?? `unindexed:${item.source.path}:${item.source.line ?? "unknown"}:${index}`} item={item} />)}</div>
             {hiddenCount > 0 ? <Button type="button" className="self-start" onClick={() => setShowAll(true)}>顯示其餘 {hiddenCount} 筆歷史</Button> : null}
             {showAll && ordered.length > 12 ? <Button type="button" variant="link" className="self-start" onClick={() => setShowAll(false)}>收合到前 12 筆</Button> : null}
           </> : <p className="text-body text-ink-3">{noItemsMessage(data.state)}</p>}

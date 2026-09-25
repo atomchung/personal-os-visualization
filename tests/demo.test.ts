@@ -7,7 +7,7 @@ import { researchForToday, splitCatalyst } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -301,11 +301,17 @@ test("history exposes the producer envelope and exact typed detail without infer
   assert.equal(history.state, "partial")
   assert.equal(history.as_of, "unknown")
   assert.equal(history.source_cutoff, "unknown")
-  assert.equal(history.history.count, 2)
+  assert.equal(history.history.count, 3)
   assert.equal(history.history.items[0].date, "2026-09-13")
   assert.equal(history.history.items[0].outcome_state, "unknown")
   assert.equal(history.history.items[0].learning_state, "unknown")
   assert.deepEqual(reusableLearningItems(history.history.items), [])
+  const unindexed = history.history.items.find((item: { id: string | null }) => item.id === null)
+  assert.ok(unindexed)
+  assert.equal(unindexed.state, "partial")
+  assert.match(unindexed.missing[0], /no explicit learning_id/)
+  assert.equal(historyDetailLookupId(unindexed), null)
+  assert.equal(historyDetailLookupId(history.history.items[0]), history.history.items[0].id)
   const itemId = history.history.items[0].id
   const detailResponse = await request(`/api/investment/history/source?id=${encodeURIComponent(itemId)}`)
   assert.equal(detailResponse.status, 200)
@@ -589,6 +595,13 @@ test("history reading order puts dated records first", () => {
     { id: "b", date: "2026-09-14", title: "new" },
   ] as Parameters<typeof historyReadingOrder>[0]
   assert.deepEqual(historyReadingOrder(items).map(item => item.id), ["b", "a", "u"])
+})
+
+test("history items without producer IDs remain unindexed and cannot request details", () => {
+  const item = { id: null, date: "2026-09-20", source: { path: "research/history.md", line: 12 } }
+  assert.equal(historyDetailLookupId(item), null)
+  assert.equal(historyDetailLookupId({ id: "episode:explicit-id" }), "episode:explicit-id")
+  assert.deepEqual(historyReadingOrder([item, { id: "episode:explicit-id", date: "2026-09-20" }]).map(row => row.id), [null, "episode:explicit-id"])
 })
 
 test("only an explicit producer learning role becomes a reusable framework", () => {

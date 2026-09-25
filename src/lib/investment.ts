@@ -342,7 +342,8 @@ export type InvestmentHistoryCheckpoint = {
 }
 
 export type InvestmentHistoryItem = {
-  id: string
+  /** Null when the producer preserves a partial source row without a valid stable ID. */
+  id: string | null
   source_id: string | null
   kind: string
   title: string
@@ -366,6 +367,8 @@ export type InvestmentHistoryItem = {
   checkpoints?: InvestmentHistoryCheckpoint[]
 }
 
+export type InvestmentHistoryDetailItem = Omit<InvestmentHistoryItem, "id"> & { id: string }
+
 export type InvestmentHistory = InvestmentReadModelEnvelope & {
   artifact: "investment-history-index"
   id: "history-index"
@@ -375,9 +378,9 @@ export type InvestmentHistory = InvestmentReadModelEnvelope & {
 export type InvestmentHistoryDetail = InvestmentReadModelEnvelope & {
   artifact: "investment-history-detail"
   history: {
-    item: InvestmentHistoryItem | null
+    item: InvestmentHistoryDetailItem | null
     source_text?: string | null
-    conflicts?: InvestmentHistoryItem[]
+    conflicts?: InvestmentHistoryDetailItem[]
   }
 }
 

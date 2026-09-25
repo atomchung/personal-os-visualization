@@ -582,6 +582,23 @@ const investmentDecisionEpisode: InvestmentHistoryItem = {
   learning: null,
   checkpoints: [{ date: null, what: null, outcome: { text: null, state: "unknown" }, source: null }],
 }
+const investmentUnindexedHistoryItem: InvestmentHistoryItem = {
+  id: null,
+  source_id: null,
+  kind: "thesis_learning",
+  title: "未建立穩定識別的時間線列（合成）",
+  date: null,
+  ticker: null,
+  narrative_id: null,
+  story_id: null,
+  evidence_ids: [],
+  decision_id: null,
+  outcome_state: "unknown",
+  learning_state: "unknown",
+  state: "partial",
+  missing: ["source row has no explicit learning_id; detail lookup is unavailable"],
+  source: { path: investmentScenario.source_path, line: 9, label: "Scorecard 時間線項目（合成）" },
+}
 
 export const investmentHistory: InvestmentHistory = {
   schema_version: "1.0",
@@ -594,7 +611,7 @@ export const investmentHistory: InvestmentHistory = {
   state: "partial",
   limitations: ["合成歷史沒有共同 source_cutoff，也沒有 producer 明示的 learning_role 分類。"],
   sources: [investmentScenario.source_path],
-  history: { items: [investmentHistoryItem, investmentDecisionEpisode], count: 2 },
+  history: { items: [investmentHistoryItem, investmentDecisionEpisode, investmentUnindexedHistoryItem], count: 3 },
 }
 
 export const investmentHistorySources: Record<string, InvestmentHistoryDetail> = Object.fromEntries(

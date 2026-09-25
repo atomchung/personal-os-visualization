@@ -301,10 +301,15 @@ export function recentActions(items: readonly InvestmentActionItem[], asOf: stri
   return items.filter(item => !item.date || (item.date >= start && item.date <= end))
 }
 
-export function historyReadingOrder<T extends { id: string; date: string | null }>(items: readonly T[]): T[] {
-  const dated = items.filter((item) => item.date).sort((a, b) => (b.date || "").localeCompare(a.date || "") || a.id.localeCompare(b.id))
+export function historyReadingOrder<T extends { id: string | null; date: string | null }>(items: readonly T[]): T[] {
+  const dated = items.filter((item) => item.date).sort((a, b) => (b.date || "").localeCompare(a.date || "") || (a.id ?? "").localeCompare(b.id ?? ""))
   const undated = items.filter((item) => !item.date)
   return [...dated, ...undated]
+}
+
+/** Only an explicit producer ID may be sent to the exact detail endpoint. */
+export function historyDetailLookupId(item: { id: string | null }): string | null {
+  return typeof item.id === "string" && item.id.length > 0 ? item.id : null
 }
 
 /** Only an explicit producer classification can promote history into a reusable framework. */
