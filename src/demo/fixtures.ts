@@ -559,6 +559,29 @@ const investmentHistoryItem: InvestmentHistoryItem = {
   outcome: { text: null, state: "unknown" },
   learning: null,
 }
+const demoEpisodeRow = investmentScenario.history[2]
+const investmentDecisionEpisode: InvestmentHistoryItem = {
+  id: `episode:${demoEpisodeRow.id}`,
+  source_id: demoEpisodeRow.id,
+  kind: "decision_episode",
+  title: demoEpisodeRow.title,
+  date: demoEpisodeRow.date,
+  ticker: null,
+  narrative_id: null,
+  story_id: null,
+  evidence_ids: [],
+  decision_id: null,
+  outcome_state: "unknown",
+  learning_state: "unknown",
+  state: "partial",
+  missing: ["No recorded checkpoint outcome; outcome is unknown.", "No separate learning field is recorded; learning is unknown."],
+  source: { path: investmentScenario.source_path, label: "Decision View sidecar (synthetic)" },
+  reason: demoEpisodeRow.excerpt,
+  evidence: [{ path: investmentScenario.source_path, line: demoEpisodeRow.source.line_start }],
+  outcome: { text: null, state: "unknown" },
+  learning: null,
+  checkpoints: [{ date: null, what: null, outcome: { text: null, state: "unknown" }, source: null }],
+}
 
 export const investmentHistory: InvestmentHistory = {
   schema_version: "1.0",
@@ -571,11 +594,12 @@ export const investmentHistory: InvestmentHistory = {
   state: "partial",
   limitations: ["合成歷史沒有共同 source_cutoff，也沒有 producer 明示的 learning_role 分類。"],
   sources: [investmentScenario.source_path],
-  history: { items: [investmentHistoryItem], count: 1 },
+  history: { items: [investmentHistoryItem, investmentDecisionEpisode], count: 2 },
 }
 
 export const investmentHistorySources: Record<string, InvestmentHistoryDetail> = Object.fromEntries(
-  [[investmentHistoryItem.id, {
+  [
+    [investmentHistoryItem.id, {
       schema_version: "1.0",
       artifact: "investment-history-detail",
       id: `history-detail:${investmentHistoryItem.id}`,
@@ -587,7 +611,21 @@ export const investmentHistorySources: Record<string, InvestmentHistoryDetail> =
       limitations: investmentHistoryItem.missing,
       sources: [investmentScenario.source_path],
       history: { item: investmentHistoryItem, source_text: demoHistoryRow.detail },
-    }]],
+    }],
+    [investmentDecisionEpisode.id, {
+      schema_version: "1.0",
+      artifact: "investment-history-detail",
+      id: `history-detail:${investmentDecisionEpisode.id}`,
+      as_of: investmentDecisionEpisode.date ?? "unknown",
+      generated_at: STAMP,
+      source_cutoff: "unknown",
+      producer: "tools/history_view.py",
+      state: "partial",
+      limitations: investmentDecisionEpisode.missing,
+      sources: [investmentScenario.source_path],
+      history: { item: investmentDecisionEpisode, source_text: null },
+    }],
+  ],
 ) as Record<string, InvestmentHistoryDetail>
 
 export const investmentContext: InvestmentContext = {
