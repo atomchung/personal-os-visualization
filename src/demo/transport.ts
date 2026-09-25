@@ -1,22 +1,27 @@
 /** Closed, browser-memory-only adapter. No network, storage, or live fallback. */
 import { cockpit, createState, DATE, focus, goals, health, home, ideal, investment, investmentActions, investmentContext, investmentHistory, investmentHistorySources, investmentNarrative, leaders, market, marketExplore, momentum, pending, pulse, quote, STAMP, timeData, todos, universe, watch } from "./fixtures.ts"
 import { investmentScenario } from "./generated/investment-scenario.ts"
+import { taipeiCalendarToday } from "../lib/investmentFormat.ts"
+import type { InvestmentWork } from "../lib/investment.ts"
+
+function addDays(date: string, days: number): string {
+  const value = new Date(`${date}T00:00:00Z`)
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
+}
+
+function resolveWatchExpiry(raw: unknown): string | null {
+  const value = typeof raw === "string" && raw.trim() ? raw.trim() : addDays(taipeiCalendarToday(), 7)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const parsed = Date.parse(`${value}T00:00:00Z`)
+  if (!Number.isFinite(parsed) || new Date(parsed).toISOString().slice(0, 10) !== value) return null
+  return value
+}
 
 export function createDemoRequest() {
   const state = createState()
   const reply = (data: unknown, status = 200) => Response.json(data, { status })
   const rejected = (detail: string, status = 422) => reply({ detail }, status)
-  const resolveWatchExpiry = (value: string): string | null => {
-    if (!value) {
-      const date = new Date(`${DATE}T00:00:00.000Z`)
-      date.setUTCDate(date.getUTCDate() + 7)
-      return date.toISOString().slice(0, 10)
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
-    const date = new Date(`${value}T00:00:00.000Z`)
-    return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : null
-  }
-
   return async (input: string, init: RequestInit = {}): Promise<Response> => {
     if (init.signal?.aborted) throw new DOMException("Request aborted", "AbortError")
     // Only relative API paths are accepted; absolute URLs never reach a server.
@@ -120,7 +125,7 @@ export function createDemoRequest() {
       const existing = state.investmentWork.find(item => item.kind === kind && item.text === text && item.source_id === source_id
         && (kind !== "watch" || (item.expires_on === expires_on && item.status !== "done")))
       if (existing) return reply(existing)
-      const item = { id: `demo-work-${++state.sequence}`, kind, text, source_id, source_label: String(body.source_label ?? ""), status: "open" as const, conclusion: "", ...(kind === "watch" ? {expires_on, promoted_to_today: false} : {}), version: 1, updated_at: STAMP }
+      const item: InvestmentWork = { id: `demo-work-${++state.sequence}`, kind, text, source_id, source_label: String(body.source_label ?? ""), status: "open", conclusion: "", ...(kind === "watch" ? {expires_on, promoted_to_today: false} : {}), version: 1, updated_at: STAMP }
       state.investmentWork.push(item)
       return reply(item)
     }

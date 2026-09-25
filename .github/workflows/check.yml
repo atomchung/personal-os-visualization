@@ -60,6 +60,9 @@ jobs:
               page.on('request', request => { if (!request.url().startsWith(origin)) externalRequests.push(request.url()) })
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
               await page.getByText('今天發生了什麼', { exact: true }).waitFor()
+              const todayReminders = page.getByRole('region', { name: '今日個人提醒' })
+              await todayReminders.getByText('尚未新增個人提醒', { exact: true }).waitFor()
+              assert(await todayReminders.getByRole('button', { name: '新增提醒', exact: true }).isVisible(), `${name}: empty Today stays a compact add affordance`)
               const briefSessions = page.getByRole('region', { name: '盤前班次' })
               const briefSessionRows = briefSessions.locator('li')
               assert.equal(await briefSessionRows.count(), 2)
@@ -75,6 +78,13 @@ jobs:
                 `${name}: matching brief event and update must share one story card`)
               assert(await page.getByRole('heading', { name: /隔夜價格反應確認前一版事件/ }).isVisible(),
                 `${name}: latest update must be the story heading`)
+              await todayReminders.getByRole('button', { name: '新增提醒', exact: true }).click()
+              const attentionTab = page.getByRole('tab', { name: '待關注', exact: true })
+              assert.equal(await attentionTab.getAttribute('aria-selected'), 'true')
+              const attentionPanel = page.locator('#investment-panel-month')
+              assert(await attentionPanel.getByRole('region', { name: '我的提醒' }).isVisible(), `${name}: personal reminders have a named group`)
+              assert(await attentionPanel.getByRole('region', { name: '研究與事件' }).isVisible(), `${name}: source-derived events have a separate named group`)
+              await page.getByRole('tab', { name: '今日', exact: true }).click()
               assert(await page.getByText('星島設備發表新一代儲能產品（虛構）', { exact: true }).isVisible(),
                 `${name}: formal brief baseline must remain visible in the story card`)
               const thesisTab = page.getByRole('tab', { name: '我的論點', exact: true })
@@ -188,6 +198,49 @@ jobs:
               assert.deepEqual(externalRequests, [], `${name}: demo must remain network-isolated`)
               await page.close()
             }
+            const reminderPage = await browser.newPage({ viewport: { width: 390, height: 844 } })
+            const reminderErrors = []
+            const reminderExternalRequests = []
+            reminderPage.on('pageerror', error => reminderErrors.push(error.message))
+            reminderPage.on('request', request => { if (!request.url().startsWith(origin)) reminderExternalRequests.push(request.url()) })
+            await reminderPage.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
+            const todayReminders = reminderPage.getByRole('region', { name: '今日個人提醒' })
+            await todayReminders.getByText('尚未新增個人提醒', { exact: true }).waitFor()
+            await todayReminders.getByRole('button', { name: '新增提醒', exact: true }).click()
+            const attentionTab = reminderPage.getByRole('tab', { name: '待關注', exact: true })
+            const attentionPanel = reminderPage.locator('#investment-panel-month')
+            const reminderForm = attentionPanel.getByRole('form', { name: '新增個人提醒' })
+            const dates = await reminderPage.evaluate(() => {
+              const parts = new Intl.DateTimeFormat('en', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
+              const part = type => parts.find(item => item.type === type)?.value ?? ''
+              const today = `${part('year')}-${part('month')}-${part('day')}`
+              const tomorrow = new Date(`${today}T00:00:00Z`)
+              tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
+              return { today, tomorrow: tomorrow.toISOString().slice(0, 10) }
+            })
+            await reminderForm.getByRole('textbox', { name: '個人提醒內容' }).fill('合成未來個人提醒')
+            await reminderForm.getByLabel('個人提醒到期日期').fill(dates.tomorrow)
+            await reminderForm.getByRole('button', { name: '新增提醒', exact: true }).click()
+            await attentionPanel.getByText('合成未來個人提醒', { exact: true }).waitFor()
+            assert.equal(await todayReminders.getByText('合成未來個人提醒', { exact: true }).count(), 0, 'future reminders stay off Today by default')
+            await attentionPanel.getByRole('button', { name: '加入今日', exact: true }).click()
+            await attentionPanel.getByText('已加入今日', { exact: false }).waitFor()
+            await reminderPage.getByRole('tab', { name: '今日', exact: true }).click()
+            await todayReminders.getByText('合成未來個人提醒', { exact: true }).waitFor()
+            assert.equal(await todayReminders.getByText('交付說明會', { exact: false }).count(), 0, 'source-derived events do not become Today reminders')
+            await attentionTab.click()
+            await reminderForm.getByRole('textbox', { name: '個人提醒內容' }).fill('合成今日到期提醒')
+            await reminderForm.getByLabel('個人提醒到期日期').fill(dates.today)
+            await reminderForm.getByRole('button', { name: '新增提醒', exact: true }).click()
+            await attentionPanel.getByText('合成今日到期提醒', { exact: true }).waitFor()
+            await reminderPage.getByRole('tab', { name: '今日', exact: true }).click()
+            await todayReminders.getByText('合成今日到期提醒', { exact: true }).waitFor()
+            await attentionTab.click()
+            assert(await attentionPanel.getByRole('region', { name: '研究與事件' }).isVisible(), 'source-derived research/events keep their own group')
+            await noOverflow(reminderPage, 'reminders/390px')
+            assert.deepEqual(reminderErrors, [], 'reminder interactions must not create browser errors')
+            assert.deepEqual(reminderExternalRequests, [], 'reminder interactions stay network-isolated')
+            await reminderPage.close()
             // Modify only in-memory synthetic Responses. Do not rewrite generated fixtures,
             // introduce test routes into production, or use any private source material.
             for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility']) {
@@ -391,6 +444,15 @@ jobs:
                 if (scenario === 'session-malformed-times') {
                   assert.match(await sessions.locator('li').nth(1).innerText(), /報告日 時間未能辨識 · 實際產出 時間未能辨識 · 資訊截至 未提供/)
                 }
+              }
+              if (scenario === 'reminders-read-error') {
+                const todayReminders = page.getByRole('region', { name: '今日個人提醒' })
+                await todayReminders.getByRole('alert').waitFor()
+                assert.equal(await todayReminders.getByText('尚未新增個人提醒', { exact: true }).count(), 0, 'a failed read must not look like a confirmed empty Today list')
+                await page.getByRole('tab', { name: '待關注', exact: true }).click()
+                const personalReminders = page.getByRole('region', { name: '我的提醒' })
+                await personalReminders.getByRole('alert').waitFor()
+                assert.equal(await personalReminders.getByText('尚未新增個人提醒。', { exact: true }).count(), 0, 'a failed read must not look like a confirmed empty attention list')
               }
               if (scenario === 'unlinked-long') {
                 await page.getByText('其他判斷變化', { exact: true }).click()
