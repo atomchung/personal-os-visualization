@@ -162,6 +162,7 @@ function TodayStoryCard({ story, briefDate }: {
       {item.portfolio_impact ? <ul className="flex min-w-0 flex-col gap-2 pl-5 text-body leading-relaxed text-ink-2 [list-style-type:disc]">
         {item.portfolio_impact ? <StoryPoint label="對判斷的影響" text={item.portfolio_impact} date={taipeiCalendarDate(item.observed_at)} /> : null}
       </ul> : null}
+      {item.action ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">這筆更新的原始提醒</summary><p className="pt-1 text-body leading-relaxed text-ink-2"><InlineText text={todayBriefText(item.action, taipeiCalendarDate(item.observed_at))} /></p></details> : null}
     </div>)}
     {story.events.map(({ event, event_index }, index) => <details key={event_index} open={!story.updates.length} className="min-w-0 text-ink-3">
       <summary className="cursor-pointer py-1 text-caption font-medium">{index === 0 ? "正式簡報基線與論據" : "同故事中的另一份正式簡報"}</summary>
