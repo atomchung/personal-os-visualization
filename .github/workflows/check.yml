@@ -176,7 +176,9 @@ jobs:
               }
               const researchTab = page.getByRole('tab', { name: '研究與策略', exact: true })
               await researchTab.click()
-              await page.getByText('我的待續工作與提醒', { exact: true }).click()
+              const remindersDisclosure = page.locator('#investment-panel-research > details')
+              assert.equal(await remindersDisclosure.evaluate(element => element.open), true,
+                `${name}: reminder section stays open after switching tabs`)
               assert(await page.getByRole('heading', { name: '我的提醒', exact: true }).isVisible())
               assert(await page.getByRole('heading', { name: '研究與事件', exact: true }).isVisible())
               await page.getByRole('tab', { name: '今日', exact: true }).click()
