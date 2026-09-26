@@ -31,7 +31,7 @@ export default function App() {
   }
 
   return (
-    <main className="mx-auto flex max-w-[1080px] flex-col gap-6 p-6">
+    <main className="mx-auto flex min-w-0 max-w-[1080px] flex-col gap-6 p-3 sm:p-6">
       <AppNav tab={tab} onChange={handleTabChange} />
 
       {DEMO_MODE && (

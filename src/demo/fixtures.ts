@@ -1,6 +1,6 @@
 /** Synthetic showcase fixture; never generated from a real API or private vault. */
 import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
-import type { InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchDetail, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
+import type { TwRelativeStrength, InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchDetail, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, StockMomentumData, StockQuote } from "../lib/investment"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 
 export const DATE = investmentScenario.as_of
@@ -227,6 +227,7 @@ const demoChallengeSignalSource: InvestmentNarrativeSource = {
 
 const demoEvidenceLayers: InvestmentNarrativeEvidenceLayer[] = [
   {
+    opposing_coverage: { state: "insufficient", checked_at: DATE, scope: "虛構案例的兩份公開文件", reason: "此合成示例只檢查兩份文件，尚不足以確認反方涵蓋。", source: { path: "synthetic/coverage.md", line: 1 } },
     layer_id: "L0", pillar_id: "l0_hardware", label: "硬體供應",
     who_earns: "合成硬體供應商", evidence_examples: "例如：已出貨的設備數量",
     what_it_proves: "只說明硬體需求已反映在出貨，不代表下游已獲利。", direction_state: "supports",
@@ -435,6 +436,13 @@ const demoThesisEvidence: InvestmentNarrativeThesisEvidence = {
 }
 
 export const investmentNarrative: InvestmentNarrative = {
+  catalysts_30d: {
+    state: "partial", window_start: DATE, window_end: "2026-10-20",
+    items: [{ ticker: "DEMO", type: "虛構財報", raw: "2026-10-05 公布虛構公司財報，核對需求是否延續。", date_precision: "day", date: "2026-10-05", date_label: "2026-10-05", source_qualifiers: [], source: { path: "synthetic/catalysts.md", line: 1 }, window_membership: "within" }],
+    uncertain_items: [{ ticker: "DEMO", type: "虛構產品驗證", raw: "2026-10 月可能公布驗證結果，日期尚未確認。", date_precision: "month", date: null, date_label: "2026-10", source_qualifiers: ["日期未確認"], source: { path: "synthetic/catalysts.md", line: 2 }, window_membership: "possible" },
+      { ticker: "DEMO-C", type: "虛構待公布事項", raw: "虛構事項尚未登記日期與窗口關係。", date_precision: "imprecise", date: null, date_label: null, source_qualifiers: ["窗口關係未知"], source: { path: "synthetic/catalysts.md", line: 3 }, window_membership: "unknown" }],
+    coverage_gaps: [{ ticker: "DEMO-B", reason: "合成來源尚未登記下一個事件。" }], limitations: ["合成案例只示範部分催化劑來源。"],
+  },
   artifact: "personalos-investment-hub",
   schema_version: "1.0",
   id: "investment-hub:demo",
@@ -734,6 +742,28 @@ export const pulseIntegrityScenarios = {
   } satisfies InvestmentMarketPulse,
 }
 export const pulse: InvestmentMarketPulse = pulseIntegrityScenarios.needsReview
+export const twRelativeStrength: TwRelativeStrength = {
+  schema_version: "1.0", artifact: "tw-holdings-relative-strength", id: "tw-rs:synthetic",
+  market: "tw", state: "partial", as_of: PREVIOUS_DATE, requested_date: DATE,
+  read_at: null, generated_at: STAMP, source_cutoff: PREVIOUS_DATE,
+  producer: "tools/tw_relative_strength.py", window_trading_days: 60,
+  limitations: ["合成資料示範已核實的前一交易日；同業籃子尚未提供。"], sources: ["synthetic/tw-rs"],
+  holdings: [
+    { symbol: "DEMO-TW-A", market: "tw", exchange: "TWSE", provider_symbol: "DEMO-TW-A.TW", as_of: PREVIOUS_DATE,
+      window_start: "2026-06-24", window_trading_days: 60, state: "partial", reason_codes: ["peer_group_unavailable"], limitations: ["同業籃子尚未提供，不以大盤代替。"],
+      market_rs_pp: 3.25, market_benchmark: { id: "^TWII", label: "臺灣證交所發行量加權股價指數" }, peer_rs_pp: null, peer_group: null,
+      coverage: { expected_sessions: 61, holding_sessions: 61 }, price_source: "Synthetic adjusted daily close", benchmark_source: "synthetic/official-calendar" },
+    { symbol: "DEMO-TW-B", market: "tw", exchange: "TPEx", provider_symbol: "DEMO-TW-B.TWO", as_of: PREVIOUS_DATE,
+      window_start: "2026-06-24", window_trading_days: 60, state: "unavailable", reason_codes: ["holding_endpoint_mismatch", "peer_group_unavailable"], limitations: ["個股與大盤收盤日不同。", "同業籃子尚未提供。"],
+      market_rs_pp: null, market_benchmark: { id: "^TWII", label: "臺灣證交所發行量加權股價指數" }, peer_rs_pp: null, peer_group: null,
+      coverage: { expected_sessions: 61, holding_sessions: 60 }, price_source: "Synthetic adjusted daily close", benchmark_source: "synthetic/official-calendar" },
+    { symbol: "DEMO-TW-C", market: "tw", exchange: null, provider_symbol: null, as_of: null, window_start: null,
+      window_trading_days: 60, state: "unavailable", reason_codes: ["exchange_unverified", "peer_group_unavailable"], limitations: ["交易所身分尚未核實。", "同業籃子尚未提供。"],
+      market_rs_pp: null, market_benchmark: { id: "^TWII", label: "臺灣證交所發行量加權股價指數" }, peer_rs_pp: null, peer_group: null,
+      coverage: { expected_sessions: 61, holding_sessions: 0 }, price_source: "Synthetic adjusted daily close", benchmark_source: "synthetic/official-calendar" },
+  ],
+}
+
 export const universe: MomentumUniverse = { state: "ready", symbols: [investmentScenario.symbol], label: "虛構標的", note: `${investmentScenario.symbol} 為展示代號，沒有真實持倉。`, source: "合成資料", excluded_count: 0 }
 export const quote: StockQuote = { symbol: investmentScenario.symbol, label: investmentScenario.label, value: investmentScenario.price.value, unit: "範例幣", change: investmentScenario.price.change, change_percent: investmentScenario.price.change_percent, quoted_at: STAMP, session: "closed", state: "available", error: null, source_url: "#demo-source", fetched_at: STAMP, cached: true }
 export const momentum: StockMomentumData = { symbol: investmentScenario.symbol, fetched_at: STAMP, cached: true, state: "ready",

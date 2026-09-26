@@ -1,5 +1,5 @@
 /** Closed, browser-memory-only adapter. No network, storage, or live fallback. */
-import { cockpit, createState, DATE, focus, goals, health, home, ideal, investment, investmentActions, investmentContext, investmentHistory, investmentHistorySources, investmentNarrative, investmentResearch, investmentResearchDetails, leaders, market, marketExplore, momentum, pending, pulse, quote, STAMP, timeData, todos, universe, watch } from "./fixtures.ts"
+import { cockpit, createState, DATE, focus, goals, health, home, ideal, investment, investmentActions, investmentContext, investmentHistory, investmentHistorySources, investmentNarrative, investmentResearch, investmentResearchDetails, leaders, market, marketExplore, momentum, pending, pulse, quote, STAMP, timeData, todos, universe, watch, twRelativeStrength } from "./fixtures.ts"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 import { taipeiCalendarToday } from "../lib/investmentFormat.ts"
 import type { InvestmentWork } from "../lib/investment.ts"
@@ -49,6 +49,7 @@ export function createDemoRequest() {
         case "/api/investment/explore": return reply(marketExplore)
         case "/api/investment/market": return reply(market)
         case "/api/investment/pulse": return reply(pulse)
+        case "/api/investment/tw-relative-strength": return reply(twRelativeStrength)
         case "/api/investment/momentum/universe": return reply(universe)
         case "/api/investment/momentum/leaders": return reply(leaders)
         case "/api/investment/quote":

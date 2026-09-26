@@ -87,8 +87,9 @@ jobs:
               assert.equal(await researchPanelTab.getAttribute('aria-selected'), 'true')
               const researchPanel = page.locator('#investment-panel-research')
               await researchPanel.getByRole('region', { name: '正式 Research' }).waitFor({ state: 'visible' })
-              await researchPanel.getByRole('region', { name: 'Watch 來源日期' }).waitFor({ state: 'visible' })
-              await researchPanel.getByText('我的待續工作與提醒', { exact: true }).click()
+              await researchPanel.getByText('既有 Watch 與簡報日期清單（涵蓋獨立）', { exact: true }).click()
+              await researchPanel.getByRole('region', { name: '接下來會改變判斷的事情', exact: true }).waitFor({ state: 'visible' })
+              await researchPanel.getByText('Owner 的問題與待續工作', { exact: true }).click()
               await researchPanel.getByRole('region', { name: '我的提醒' }).waitFor({ state: 'visible' })
               await page.getByRole('tab', { name: '今日', exact: true }).click()
               await page.getByText('正式簡報基線與論據', { exact: true }).click()
@@ -108,7 +109,14 @@ jobs:
               assert(await thesis.getByText('證據覆蓋：資料部分可用', { exact: true }).isVisible(),
                 `${name}: evidence coverage must remain distinct from aggregate narrative state`)
               assert(await thesis.getByText(/合成測試：證據尚未映射到五層/).isVisible())
-              const challengeSourceDisclosure = thesis.getByText('訊號日期與來源', { exact: true }).first()
+              const judgmentY = await thesis.getByRole('heading', { name: '當下判斷', exact: true }).boundingBox()
+              const supportY = await thesis.getByText('來源列出的支持訊號', { exact: true }).boundingBox()
+              const challengeY = await thesis.getByText('來源列出的挑戰訊號', { exact: true }).boundingBox()
+              const recordedY = await thesis.getByRole('heading', { name: '最近一次明確記錄的判斷與驗證', exact: true }).boundingBox()
+              const checkpointY = await thesis.getByRole('heading', { name: '下一個驗證點', exact: true }).boundingBox()
+              const layersY = await thesis.getByRole('heading', { name: '五層證據', exact: true }).boundingBox()
+              assert(judgmentY.y < supportY.y && supportY.y < challengeY.y && challengeY.y < recordedY.y && recordedY.y < checkpointY.y && checkpointY.y < layersY.y, `${name}: judgment signals and explicit records precede detailed evidence`)
+              const challengeSourceDisclosure = thesis.getByText('來源列出的挑戰訊號', { exact: true }).locator('..').getByText('訊號日期與來源', { exact: true }).first()
               const challengeSignal = challengeSourceDisclosure.locator('xpath=ancestor::li[1]')
               await challengeSourceDisclosure.click()
               assert(await challengeSignal.getByText(/訊號日期：\s*未提供/).isVisible(),
@@ -150,6 +158,14 @@ jobs:
               const usMarket = page.getByRole('tab', { name: '美股', exact: true })
               assert.equal(await twMarket.getAttribute('aria-selected'), 'true')
               const taiwanPulse = page.locator('[aria-label="台股整體盤感"]')
+              const taiwanRs = page.getByRole('region', { name: '台股持倉相對大盤強弱', exact: true })
+              assert(await taiwanRs.getByText(/完整交易日 2026-09-19 · 要求日期 2026-09-20/).isVisible(), `${name}: Taiwan RS keeps its own verified session`)
+              const listedRs = taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-A"]')
+              assert.match(await listedRs.innerText(), /相對大盤：\+3.25 個百分點/)
+              assert.match(await listedRs.innerText(), /同業比較：未提供/)
+              assert.match(await taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-B"]').innerText(), /相對大盤：未取得/)
+              assert.match(await taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-C"]').innerText(), /交易所未確認/)
+
               assert(await taiwanPulse.getByText(/最近可用交易日 2026-09-19 · 收盤／休市狀態未提供/).isVisible(),
                 `${name}: unknown exchange status must stay unknown`)
               assert(await taiwanPulse.getByText('漲跌方向待核對', { exact: true }).isVisible(),
@@ -169,7 +185,7 @@ jobs:
               await page.keyboard.press('Space')
               assert.equal(await pulseIntegrityDetails.getAttribute('open'), null,
                 `${name}: disclosure must collapse by keyboard`)
-              assert(await page.getByText(/報價時間/).first().isVisible())
+              assert(await page.getByText(/資料日期／報價/).first().isVisible())
               await usMarket.click()
               assert.equal(await usMarket.getAttribute('aria-selected'), 'true')
               assert(await page.getByText(/美股 breadth、成交額與 sector／theme 摘要未提供/).isVisible())
@@ -181,8 +197,8 @@ jobs:
               await page.keyboard.press('Home')
               assert.equal(await twMarket.getAttribute('aria-selected'), 'true')
               await noOverflow(page, `${name}/market keyboard`)
-              const hero = await page.getByText('今天發生了什麼', { exact: true }).boundingBox()
-              assert(hero && hero.y + hero.height < height, `${name}: key judgment must begin in first screen`)
+              const hero = await page.getByTestId('primary-next-step').locator('p').nth(1).boundingBox()
+              assert(hero && hero.y + hero.height < height, `${name}: primary next step must begin in first screen`)
               await page.screenshot({ path: `${output}/${name}.png`, fullPage: true })
               await page.screenshot({ path: `${output}/${name}-first-screen.png` })
               const layout = await noOverflow(page, name)
@@ -194,12 +210,12 @@ jobs:
               }
               const researchTab = page.getByRole('tab', { name: '研究與策略', exact: true })
               await researchTab.click()
-              const remindersDisclosure = page.locator('#investment-panel-research > details')
+              const remindersDisclosure = researchPanel.getByText('Owner 的問題與待續工作', { exact: true }).locator('..')
               assert.equal(await remindersDisclosure.evaluate(element => element.open), true,
                 `${name}: reminder section stays open after switching tabs`)
               assert(await page.getByRole('heading', { name: '我的提醒', exact: true }).isVisible())
               assert(await researchPanel.getByRole('region', { name: '正式 Research' }).isVisible())
-              assert(await researchPanel.getByRole('region', { name: 'Watch 來源日期' }).isVisible())
+              assert(await researchPanel.getByRole('region', { name: '接下來會改變判斷的事情', exact: true }).isVisible())
               await page.getByRole('tab', { name: '今日', exact: true }).click()
               assert.equal(await page.locator('[aria-label="今日個人提醒"]').count(), 0, `${name}: Today reminder section stays removed`)
               assert.equal(await page.locator('#investment-panel-today input[type="date"]').count(), 0, `${name}: Today has no reminder form`)
@@ -245,7 +261,7 @@ jobs:
             await reminderPage.waitForFunction(() => document.querySelector('#investment-tab-research')?.getAttribute('aria-selected') === 'true')
             const attentionPanel = reminderPage.locator('#investment-panel-research')
             await attentionPanel.waitFor({ state: 'visible' })
-            await attentionPanel.getByText('我的待續工作與提醒', { exact: true }).click()
+            await attentionPanel.getByText('Owner 的問題與待續工作', { exact: true }).click()
             const addReminderButton = attentionPanel.getByRole('button', { name: '新增提醒', exact: true })
             await addReminderButton.waitFor({ state: 'visible' })
             await addReminderButton.click()
@@ -272,7 +288,8 @@ jobs:
             assert.equal(await todayPanel.getByText('合成今日到期提醒', { exact: true }).count(), 0, 'due-today reminder stays in Research & Strategy')
             await attentionTab.click()
             assert(await attentionPanel.getByRole('region', { name: '正式 Research' }).isVisible(), 'formal Research stays distinct')
-            assert(await attentionPanel.getByRole('region', { name: 'Watch 來源日期' }).isVisible(), 'source-derived Watch dates stay separate')
+            await attentionPanel.getByText('既有 Watch 與簡報日期清單（涵蓋獨立）', { exact: true }).click()
+            assert(await attentionPanel.getByRole('region', { name: '接下來會改變判斷的事情', exact: true }).isVisible(), 'source-derived Watch dates stay separate')
             await noOverflow(reminderPage, 'reminders/390px')
             assert.deepEqual(reminderErrors, [], 'reminder interactions must not create browser errors')
             assert.deepEqual(reminderExternalRequests, [], 'reminder interactions stay network-isolated')
@@ -454,7 +471,7 @@ jobs:
               if (scenario === 'watch-read-error') {
                 assert.equal(await page.locator('[aria-label="今日個人提醒"]').count(), 0)
                 await page.getByRole('tab', { name: '研究與策略', exact: true }).click()
-                await page.getByText('我的待續工作與提醒', { exact: true }).click()
+                await page.getByText('Owner 的問題與待續工作', { exact: true }).click()
                 const personalReminders = page.locator('[aria-label="我的提醒"]')
                 await personalReminders.getByRole('alert').waitFor({ state: 'visible', timeout: 5000 })
                 assert.equal(await personalReminders.getByText('目前沒有未到期或加入今日的個人提醒。', { exact: true }).count(), 0, 'a failed read must not look like a confirmed empty attention list')
@@ -462,7 +479,7 @@ jobs:
               if (scenario === 'watch-eligibility') {
                 assert.equal(await page.locator('[aria-label="今日個人提醒"]').count(), 0)
                 await page.getByRole('tab', { name: '研究與策略', exact: true }).click()
-                await page.getByText('我的待續工作與提醒', { exact: true }).click()
+                await page.getByText('Owner 的問題與待續工作', { exact: true }).click()
                 const personalReminders = page.locator('[aria-label="我的提醒"]')
                 for (const id of ['due-today', 'promoted', 'future']) await personalReminders.getByText(`Synthetic ${id}`, { exact: true }).waitFor({ state: 'visible', timeout: 5000 })
                 for (const id of ['completed', 'research-event']) assert.equal(await personalReminders.getByText(`Synthetic ${id}`, { exact: true }).count(), 0, `${id} is not an open personal reminder`)
@@ -496,7 +513,7 @@ jobs:
                 }
               }
               if (scenario === 'unlinked-long') {
-                await page.getByText('其他判斷變化', { exact: true }).click()
+                await page.getByText('未連結故事的判斷與風險', { exact: true }).click()
                 const todayPanel = page.locator('#investment-panel-today')
                 for (const text of ['合成未關聯判斷', '合成越界判斷', '合成缺少關聯的風險']) {
                   const item = todayPanel.getByText(text, { exact: true })
@@ -511,9 +528,9 @@ jobs:
                 const overflowAction = page.getByText('加碼', { exact: true })
                 assert.equal(await overflowAction.count(), 1)
                 assert.equal(await overflowAction.isVisible(), false, 'overflow actions remain reachable without crowding the first screen')
-                await page.getByText('另有 3 項行動', { exact: true }).click()
+                await page.getByText('來源另列 2 項', { exact: true }).click()
                 assert(await overflowAction.isVisible(), 'expanding the overflow list must reveal every remaining action')
-                assert.equal(await page.getByText('尚未結束的行動', { exact: true }).count(), 0)
+                assert.equal(await page.getByText('來源記錄的待續行動', { exact: true }).count(), 0)
                 assert.equal(await page.getByText('繼續研究', { exact: true }).count(), 0)
               }
               if (scenario === 'blank-summary') {
@@ -534,18 +551,16 @@ jobs:
               if (scenario === 'actions-partial') {
                 const todayPanel = page.locator('#investment-panel-today')
                 assert(await todayPanel.getByRole('status').filter({ hasText: '今日簡報資料不完整' }).isVisible())
-                assert(await todayPanel.getByText('目前未讀到可確認的立即行動。', { exact: true }).isVisible())
+                assert(await todayPanel.getByText(/^目前未讀到可確認的立即行動。/).isVisible())
                 assert.equal(await todayPanel.getByText('已確認本版簡報與今日更新沒有列出下一步行動。', { exact: true }).count(), 0)
               }
               if (scenario === 'research-only') {
                 const todayPanel = page.locator('#investment-panel-today')
-                assert(await todayPanel.getByText('已確認沒有列出立即行動；另有 1 項補研究，請展開查看。', { exact: true }).isVisible())
-                const researchSummary = todayPanel.getByText('補研究項目 · 1 項', { exact: true })
-                const researchItem = todayPanel.getByText('核對合成公開資料', { exact: true })
+                const researchStep = todayPanel.getByTestId('primary-next-step')
+                assert.match(await researchStep.innerText(), /查／研究/)
+                const researchItem = researchStep.getByText('核對合成公開資料', { exact: true })
                 assert.equal(await researchItem.count(), 1)
-                assert.equal(await researchItem.isVisible(), false)
-                await researchSummary.click()
-                assert(await researchItem.isVisible())
+                assert(await researchItem.isVisible(), 'research-only source step is the primary next step')
                 await todayPanel.getByText('查看來源', { exact: true }).click()
                 assert(await todayPanel.getByText('來源：daily-brief', { exact: true }).isVisible())
               }
@@ -639,7 +654,7 @@ jobs:
                 await pulse.locator('details > summary').click()
                 assert(await pulse.getByText(/要求日期：2001-01-03 · 本頁讀取：.* · 資料產出：2001\/03\/04 12:00 台北/).isVisible())
                 assert(await pulse.getByText('TWSE 行情日：2001-01-02 · TPEx 行情日：2001-01-03', { exact: true }).isVisible())
-                assert(await page.getByText(/報價時間 2001\/05\/06 09:30/).isVisible())
+                assert(await page.getByText(/資料日期／報價 2001\/05\/06 09:30/).isVisible())
                 assert(await page.getByText(/資料日 2001-02-03 · 來源截止/).isVisible())
               }
               if (scenario === 'market-known-breadth-no-ratio') {

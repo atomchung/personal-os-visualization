@@ -3,11 +3,11 @@ import { test } from "node:test"
 import { createDemoRequest } from "../src/demo/transport.ts"
 import { investment as syntheticInvestment, investmentHistory, investmentHistorySources, investmentResearch, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
 import { investmentScenario } from "../src/demo/generated/investment-scenario.ts"
-import { researchForToday, splitCatalyst, watchDateWindow } from "../src/lib/investmentDates.ts"
+import { buildTimeline, researchForToday, splitCatalyst, watchDateWindow } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
-import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { researchDirectionView, actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyChainDetailLinked, historyChainLinked, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { anchorRelativeDay, catalystDateGroups, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
+import { researchDirectionView, actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyChainDetailLinked, historyChainLinked, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayNextSteps, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -717,4 +717,86 @@ test("historical chain requires explicit identity, recorded outcome and source p
   assert.equal(historyChainDetailLinked(oneLine), true, "an explicit producer line is a complete source location without a range end")
   assert.equal(historyChainDetailLinked({ ...oneLine, decision_source: { path: linked.decision_source!.path } }), false)
   assert.equal(historyChainDetailLinked({ ...oneLine, learning_source: { ...linked.learning_source!, line_end: linked.learning_source!.line! - 1 } }), false)
+})
+
+
+test("the first Today surface bounds source-ordered steps and preserves source classification", () => {
+  const brief = { ...syntheticInvestment.brief, action_items: undefined, actions: ["觀察：等公告", "行動：讀文件", "補研究：核對資料", "第四項", "第五項"] }
+  const plan = todayActionPlan(brief)
+  const surface = todayNextSteps(plan)
+  assert.equal(surface.primary?.text, "等公告")
+  assert.equal(surface.primary?.sourceKind, "watch")
+  assert.equal(surface.secondary.length, 2)
+  assert.equal(surface.secondary[0]?.sourceKind, "action")
+  assert.equal(surface.remaining.length, 2)
+  assert.equal(surface.primary?.sourceStatus, undefined, "absence does not invent now or waiting status")
+  const empty = todayNextSteps(todayActionPlan({ ...brief, actions: [] }))
+  assert.equal(empty.primary, null)
+  assert.deepEqual(empty.secondary, [])
+  const research = todayNextSteps(todayActionPlan({ ...brief, actions: ["補研究：核對資料"] }))
+  assert.equal(research.primary?.sourceKind, "research")
+})
+
+test("same date and same ticker never merge independent future-event sources", async () => {
+  const request = createDemoRequest()
+  const watch = await (await request("/api/investment/watch/read-model")).json()
+  const synthetic = { ...watch, watch: { ...watch.watch, catalysts: [{ id: "a", date_precision: "day", date: "2026-09-21", estimated: false, topic: "DEMO", raw: "2026-09-21 DEMO", source: { path: "synthetic-a" } }] } }
+  const brief = { ...syntheticInvestment.brief, date: "2026-09-20", upcoming: [{ date_label: "09/21", event: "DEMO", check: "核對來源" }] }
+  const events = buildTimeline(synthetic, brief, "2026-09-20", "2026-10-20")
+  assert.equal(events.length, 2)
+  assert.deepEqual(events.map(item => item.sources), [["synthetic-a"], ["簡報 2026-09-20"]])
+})
+
+
+test("30-day catalyst projection preserves exact, approximate, missing and partial coverage", async () => {
+  const request = createDemoRequest()
+  const narrative = await (await request("/api/investment/narrative")).json()
+  const projection = narrative.catalysts_30d
+  const view = catalystDateGroups(projection)
+  assert.equal(view.state, "partial")
+  assert.equal(view.exact[0]?.date, "2026-10-05", "future event beyond brief seven-day horizon remains visible")
+  assert.equal(view.uncertain[0]?.date, null)
+  assert.equal(view.uncertain[0]?.window_membership, "possible")
+  assert.equal(view.uncertain[1]?.window_membership, "unknown", "unknown window membership stays unknown alongside possible items")
+  assert.equal(view.uncertain[1]?.date, null)
+  assert.equal(projection.coverage_gaps.length, 1)
+  const approximate = { ...projection.items[0], date_precision: "approximate_day", date: null, window_membership: "possible" }
+  assert.equal(catalystDateGroups({ ...projection, items: [approximate], uncertain_items: [] }).exact.length, 0)
+  assert.equal(catalystDateGroups({ ...projection, state: "unknown", items: [], uncertain_items: [] }).state, "unknown")
+  assert.deepEqual(catalystDateGroups(undefined), { exact: [], uncertain: [], state: "unknown" })
+  assert.equal(narrative.narratives[0].thesis_evidence.layers[0].opposing_coverage.state, "insufficient")
+  assert.equal(narrative.narratives[0].thesis_evidence.layers[1].opposing_coverage, undefined, "no receipt remains absent rather than sufficient")
+})
+
+
+test("Taiwan RS uses the exact producer symbols, benchmark windows and nullable tiers", async () => {
+  const request = createDemoRequest()
+  const rs = await (await request("/api/investment/tw-relative-strength")).json()
+  assert.equal(rs.artifact, "tw-holdings-relative-strength")
+  assert.equal(rs.producer, "tools/tw_relative_strength.py")
+  assert.equal(rs.state, "partial")
+  assert.equal(rs.window_trading_days, 60)
+  assert.notEqual(rs.as_of, rs.requested_date, "requested calendar date is distinct from verified trading session")
+  assert.equal(rs.read_at, null, "producer does not invent a consumer read time")
+  assert.deepEqual(rs.holdings.map(row => row.symbol), ["DEMO-TW-A", "DEMO-TW-B", "DEMO-TW-C"])
+  const listed = rs.holdings.find(row => row.symbol === "DEMO-TW-A")
+  assert.equal(listed.exchange, "TWSE")
+  assert.equal(listed.provider_symbol, "DEMO-TW-A.TW")
+  assert.equal(rs.holdings.find(row => row.symbol === "DEMO-TW-A.TW"), undefined, "provider spelling is not a canonical symbol join")
+  assert.equal(listed.market_rs_pp, 3.25)
+  assert.equal(listed.market_benchmark.id, "^TWII")
+  assert.deepEqual(listed.coverage, { expected_sessions: 61, holding_sessions: 61 })
+  assert.equal(listed.window_start, "2026-06-24")
+  const otc = rs.holdings.find(row => row.symbol === "DEMO-TW-B")
+  assert.equal(otc.exchange, "TPEx")
+  assert.equal(otc.provider_symbol, "DEMO-TW-B.TWO")
+  assert.equal(otc.state, "unavailable")
+  assert.equal(otc.market_rs_pp, null)
+  assert.ok(otc.reason_codes.includes("holding_endpoint_mismatch"))
+  assert.equal(rs.holdings[2].exchange, null)
+  for (const row of rs.holdings) {
+    assert.equal(row.peer_rs_pp, null)
+    assert.equal(row.peer_group, null)
+    assert.ok(row.limitations.length > 0)
+  }
 })

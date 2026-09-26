@@ -182,6 +182,8 @@ export type TodayActionEntry = {
   date: string | null
   source: string | null
   id: string | null
+  sourceStatus?: ActionItemStatus | null
+  sourceKind?: "action" | "watch" | "research" | null
 }
 
 export type TodayActionPlan = {
@@ -212,7 +214,8 @@ export function todayActionPlan(
     if (seen.has(identity)) return
     seen.add(identity)
     const isResearch = /^(?:補研究|补研究)(?:[：:]|\s|$)/.test(text)
-    const entry = { ...input, key: `${input.origin}:${input.id ?? `legacy-${sequence}`}`, text }
+    const sourceKind = /^(?:繼續觀察|觀察)[：:]/.test(normalized) ? "watch" as const : /^(?:行動)[：:]/.test(normalized) ? "action" as const : isResearch ? "research" as const : null
+    const entry = { ...input, sourceKind, key: `${input.origin}:${input.id ?? `legacy-${sequence}`}`, text }
     sequence += 1
     ;(isResearch ? research : actions).push(entry)
   }
@@ -221,7 +224,7 @@ export function todayActionPlan(
   }
   if (brief.action_items?.length) {
     for (const item of brief.action_items) {
-      add({ text: item.text, origin: "brief", date: item.date || brief.date, source: item.source || brief.source?.title || "正式簡報", id: item.id })
+      add({ text: item.text, origin: "brief", date: item.date || brief.date, source: item.source || brief.source?.title || "正式簡報", id: item.id, sourceStatus: item.status })
     }
   } else {
     for (const text of brief.actions) add({ text, origin: "brief", date: brief.date, source: brief.source?.title || "正式簡報", id: null })
@@ -247,6 +250,12 @@ export function todayActionPlan(
       ? `已確認沒有列出立即行動；另有 ${research.length} 項補研究，請展開查看。`
       : "已確認本版簡報與今日更新沒有列出下一步行動。"
   return { actions, research, coverageMessage, emptyMessage }
+}
+
+/** Bound the first decision surface without inventing priority or linking by prose. */
+export function todayNextSteps(plan: TodayActionPlan) {
+  const entries = [...plan.actions, ...plan.research]
+  return { primary: entries[0] ?? null, secondary: entries.slice(1, 3), remaining: entries.slice(3) }
 }
 
 /** Keep structured next steps in source order; drop only pure no-information labels. */

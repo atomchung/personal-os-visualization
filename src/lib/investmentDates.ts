@@ -85,7 +85,7 @@ export function splitCatalyst(raw: string): { event: string; verify: string } {
 
 type TimelineItem = { key: string; date: string; estimated: boolean; topic: string; title: string; verify: string; raw: string; sources: string[] }
 
-/** One list: registered events from the wiki and the brief's next-7-days rows, same day + same ticker folded into one line. */
+/** Keep dated source events independent: dates and tickers do not establish identity. */
 export function buildTimeline(data: InvestmentWatch, brief: InvestmentBrief | undefined, today: string, end: string): TimelineItem[] {
   const items: TimelineItem[] = data.watch.catalysts
     .filter(e=>e.date_precision==="day"&&e.date!==null&&e.date>=today&&e.date<=end)
@@ -96,9 +96,6 @@ export function buildTimeline(data: InvestmentWatch, brief: InvestmentBrief | un
       if (!range||range.end<today||range.start>end) continue
       // A range that began before today still matters today; list it on today, keep the label in the raw text.
       const shown=range.start<today?today:range.start
-      const text=`${e.event} ${e.check}`.toUpperCase()
-      const match=items.find(item=>item.date===shown&&item.sources.length===1&&mentionsTicker(text,item.title))
-      if (match) { match.verify=match.verify?`${match.verify}；簡報：${e.check}`:e.check; match.sources.push(`簡報 ${brief.date}`); continue }
       items.push({key:`brief:${i}`,date:shown,estimated:false,topic:e.event,title:e.event,verify:e.check,raw:`${e.date_label} ${e.event}`,sources:[`簡報 ${brief.date}`]})
     }
   }
