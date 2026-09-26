@@ -135,7 +135,7 @@ jobs:
               assert(await history.getByText('部分資料可讀', { exact: true }).first().isVisible())
               assert(await history.getByText(/source_cutoff：.*unknown/).isVisible())
               await history.getByText('歷史紀錄與後續結果 · 4 筆', { exact: true }).click()
-              const unknownHistory = history.getByRole('heading', { name: '目前判斷與下一步', exact: true }).locator('xpath=ancestor::div[contains(@class, "p-3")][1]')
+              const unknownHistory = history.getByRole('heading', { name: '目前判斷與下一步', exact: true }).locator('xpath=ancestor::div[contains(concat(" ", normalize-space(@class), " "), " p-3 ")][1]')
               assert(await unknownHistory.getByText('後續結果未知', { exact: true }).isVisible(),
                 `${name}: unclassified episode outcome remains unknown beside a linked case`)
               assert(await unknownHistory.getByText('learning 分類：未知或未提供', { exact: true }).isVisible(),
