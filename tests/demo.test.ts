@@ -1,13 +1,13 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { createDemoRequest } from "../src/demo/transport.ts"
-import { investment as syntheticInvestment, investmentHistory, investmentResearch, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
+import { investment as syntheticInvestment, investmentHistory, investmentHistorySources, investmentResearch, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
 import { investmentScenario } from "../src/demo/generated/investment-scenario.ts"
 import { researchForToday, splitCatalyst, watchDateWindow } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { researchDirectionView, actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { researchDirectionView, actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyChainDetailLinked, historyChainLinked, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -335,11 +335,11 @@ test("history exposes the producer envelope and exact typed detail without infer
   assert.equal(history.state, "partial")
   assert.equal(history.as_of, "unknown")
   assert.equal(history.source_cutoff, "unknown")
-  assert.equal(history.history.count, 3)
+  assert.equal(history.history.count, 4)
   assert.equal(history.history.items[0].date, "2026-09-13")
   assert.equal(history.history.items[0].outcome_state, "unknown")
   assert.equal(history.history.items[0].learning_state, "unknown")
-  assert.deepEqual(reusableLearningItems(history.history.items), [])
+  assert.equal(reusableLearningItems(history.history.items).length, 1)
   const unindexed = history.history.items.find((item: { id: string | null }) => item.id === null)
   assert.ok(unindexed)
   assert.equal(unindexed.state, "partial")
@@ -684,4 +684,20 @@ test("Research directions consume explicit membership only and preserve every so
   degraded.research.direction_groups!.schema_version=2
   assert.equal(researchDirectionView(degraded).state,"unavailable")
   assert.equal(researchDirectionView(degraded).other.length,7)
+})
+
+test("historical chain requires explicit identity, recorded outcome and source provenance", () => {
+  const linked = Object.values(investmentHistorySources).find(detail => detail.history.item?.chain_state === "linked")!.history.item!
+  assert.equal(historyChainLinked(linked, investmentHistory.history.items), true)
+  assert.equal(historyChainDetailLinked(linked), true)
+  const { reason, decision_source, learning, learning_source, checkpoints, ...summary } = linked
+  assert.equal(historyChainLinked(summary), true)
+  assert.equal(historyChainDetailLinked(summary), false)
+  assert.ok(reason && decision_source && learning && learning_source && checkpoints)
+  for (const patch of [{ decision_id: null }, { chain_state: "unknown" }, { outcome_state: "unknown" }, { checkpoints: [] }, { decision_source: null }, { learning_source: null }, { learning_role: "unknown" }, { state: "conflict" }]) {
+    assert.equal(historyChainDetailLinked({ ...linked, ...patch } as typeof linked), false)
+  }
+  assert.equal(historyChainLinked(linked, [linked, { ...linked }]), false)
+  assert.equal(historyChainLinked({ ...linked, state: "partial" }), true)
+  assert.equal(historyChainDetailLinked({ ...linked, checkpoints: [{ ...linked.checkpoints![0], relation_state: "unknown" }] }), false)
 })

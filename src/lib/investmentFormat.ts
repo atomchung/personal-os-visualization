@@ -361,3 +361,19 @@ export function researchDirectionView(data: import("./investment.ts").Investment
     limitations: projection?.limitations ?? ["Research 方向分類尚未提供；保留全部研究，不推定方向。"],
   }
 }
+
+/** Validate explicit producer linkage without joining records or substituting IDs.
+ * Partial coverage remains partial even when this one recorded chain is linked. */
+export function historyChainLinked(item: import("./investment.ts").InvestmentHistoryItem, peers: readonly import("./investment.ts").InvestmentHistoryItem[] = [item]): boolean {
+  return item.chain_state === "linked" && item.kind === "decision_episode" && Boolean(item.id && item.decision_id && item.date)
+    && item.state !== "conflict" && peers.filter(row => row.id === item.id || (row.decision_id && row.decision_id === item.decision_id)).length === 1
+    && item.learning_state === "recorded" && item.learning_role === "reusable_framework" && item.outcome_state === "recorded"
+}
+
+/** Detail carries the exact source slices; index intentionally omits prose and checkpoints. */
+export function historyChainDetailLinked(item: import("./investment.ts").InvestmentHistoryItem, peers: readonly import("./investment.ts").InvestmentHistoryItem[] = [item]): boolean {
+  const located = (ref: import("./investment.ts").InvestmentHistorySourceRef | null | undefined) => Boolean(ref?.path && ref.line && ref.line_end && ref.line_end >= ref.line)
+  return historyChainLinked(item, peers) && Boolean(item.reason?.trim()) && located(item.decision_source)
+    && Boolean(item.learning?.trim()) && located(item.learning_source)
+    && Boolean(item.checkpoints?.some(point => point.relation_state === "linked" && point.date && point.date > item.date! && point.outcome.state === "recorded" && point.outcome.text?.trim() && located(point.source)))
+}

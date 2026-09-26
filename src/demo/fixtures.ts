@@ -600,6 +600,21 @@ const investmentUnindexedHistoryItem: InvestmentHistoryItem = {
   source: { path: investmentScenario.source_path, line: 9, label: "Scorecard 時間線項目（合成）" },
 }
 
+const investmentLinkedHistoryItem: InvestmentHistoryItem = {
+  ...investmentDecisionEpisode,
+  id: "episode:synthetic-linked-20260901", source_id: "synthetic-linked-20260901",
+  title: "範例研究 B：判斷、後續結果與心得", date: "2026-09-01",
+  decision_id: "decision:synthetic-episode-20260901", chain_state: "linked",
+  reason: "合成案例：先等待需求證據，再評估假設。",
+  decision_source: { path: "synthetic/history-chain.md", line: 2, line_end: 2 },
+  outcome_state: "recorded", outcome: { state: "recorded", text: null },
+  checkpoints: [{ date: "2026-09-08", what: "檢查原先假設", outcome: { state: "recorded", text: "合成案例：後續觀察未支持原先需求假設。" }, source: { path: "synthetic/history-chain.md", line: 4, line_end: 4 }, relation_state: "linked" }],
+  learning_state: "recorded", learning_role: "reusable_framework",
+  learning: "合成心得：把可檢查的需求證據與假設分開記錄。",
+  learning_source: { path: "synthetic/history-chain.md", line: 6, line_end: 6 },
+  state: "ready", missing: [], source: { path: "synthetic/history-chain.md", line: 1, line_end: 6 },
+}
+
 export const investmentHistory: InvestmentHistory = {
   schema_version: "1.0",
   artifact: "investment-history-index",
@@ -609,13 +624,14 @@ export const investmentHistory: InvestmentHistory = {
   source_cutoff: "unknown",
   producer: "tools/history_view.py",
   state: "partial",
-  limitations: ["合成歷史沒有共同 source_cutoff，也沒有 producer 明示的 learning_role 分類。"],
+  limitations: ["合成歷史沒有共同 source_cutoff；部分紀錄仍缺身份、結果或學習分類。"],
   sources: [investmentScenario.source_path],
-  history: { items: [investmentHistoryItem, investmentDecisionEpisode, investmentUnindexedHistoryItem], count: 3 },
+  history: { items: [investmentHistoryItem, investmentDecisionEpisode, investmentUnindexedHistoryItem, { ...investmentLinkedHistoryItem, reason: undefined, decision_source: undefined, learning: undefined, learning_source: undefined, checkpoints: undefined }], count: 4 },
 }
 
 export const investmentHistorySources: Record<string, InvestmentHistoryDetail> = Object.fromEntries(
   [
+    [investmentLinkedHistoryItem.id, { ...investmentHistory, artifact: "investment-history-detail", id: "history-detail:synthetic-linked", state: "ready", limitations: [], history: { item: investmentLinkedHistoryItem, source_text: null } }],
     [investmentHistoryItem.id, {
       schema_version: "1.0",
       artifact: "investment-history-detail",

@@ -399,6 +399,7 @@ export type InvestmentHistoryCheckpoint = {
   what: string | null
   outcome: { text: string | null; state: "unknown" | "recorded" }
   source: InvestmentHistorySourceRef | null
+  relation_state?: "linked" | "unknown"
 }
 
 export type InvestmentHistoryItem = {
@@ -413,6 +414,9 @@ export type InvestmentHistoryItem = {
   story_id: string | null
   evidence_ids: string[]
   decision_id: string | null
+  chain_state?: "linked" | "unknown"
+  decision_source?: InvestmentHistorySourceRef | null
+  learning_source?: InvestmentHistorySourceRef | null
   outcome_state: "unknown" | "recorded"
   learning_state: "unknown" | "recorded"
   /** Producer-owned classification; absent/unknown items stay unclassified. */

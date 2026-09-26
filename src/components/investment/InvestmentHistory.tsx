@@ -4,7 +4,7 @@ import { Card, SectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { Button } from "@/components/ui/button"
 import { ReadingText } from "./ReadingText"
-import { historyDetailLookupId, historyReadingOrder, reusableLearningItems } from "@/lib/investmentFormat"
+import { historyChainDetailLinked, historyChainLinked, historyDetailLookupId, historyReadingOrder, reusableLearningItems } from "@/lib/investmentFormat"
 import {
   getInvestmentHistorySource,
   type InvestmentContext,
@@ -50,13 +50,17 @@ function sourceLocation(item: InvestmentHistoryItem) {
   return sourceRefLocation(item.source)
 }
 
-function HistoryDetail({ data }: { data: InvestmentHistoryDetail | undefined }) {
+function HistoryDetail({ data, peers }: { data: InvestmentHistoryDetail | undefined; peers: InvestmentHistoryItem[] }) {
   if (!data) return null
   const item = data.history.item
   const recordedOutcome = item?.outcome?.state === "recorded" || item?.outcome_state === "recorded"
   return (
     <div className="flex min-w-0 flex-col gap-2 border-t border-line-soft pt-2">
       {item ? <>
+        <p className="text-caption text-ink-3">歷史判斷 → 後續結果 → 已記錄心得：{historyChainDetailLinked(item, peers) ? "來源明確連結" : "關係未知或不完整"}；這不代表 owner 核可或今日建議。</p>
+        <p className="break-words text-caption text-ink-3">歷史 decision ID：{item.decision_id ?? "未提供"}</p>
+        {item.decision_source ? <p className="break-words text-caption text-ink-3">判斷出處：{sourceRefLocation(item.decision_source)}</p> : null}
+        {item.learning_source ? <p className="break-words text-caption text-ink-3">心得出處：{sourceRefLocation(item.learning_source)}</p> : null}
         {item.reason ? <div><p className="text-caption font-medium text-ink-3">當時記錄的理由</p><p className="break-words text-body text-ink-2">{item.reason}</p></div> : null}
         {typeof item.evidence === "string" ? <div><p className="text-caption font-medium text-ink-3">當時記錄的關鍵事實</p><p className="break-words text-body text-ink-2">{item.evidence}</p></div> : Array.isArray(item.evidence) && item.evidence.length ? <div><p className="text-caption font-medium text-ink-3">當時引用的來源位置</p><ul className="list-disc pl-4 text-caption text-ink-2">{item.evidence.map((source, index) => <li key={`${index}:${source.path}`}>{sourceRefLocation(source)}</li>)}</ul></div> : null}
         <p className="break-words text-caption text-ink-3">後續結果：{recordedOutcome ? item.outcome?.text || (item.checkpoints?.some((point) => point.outcome.state === "recorded") ? "已記錄檢查點結果，見下方" : "已記錄，文字未提供") : "未知"}</p>
@@ -97,7 +101,7 @@ function useHistoryDetail(item: InvestmentHistoryItem, open: boolean) {
   return { detailId, query }
 }
 
-function HistoryItem({ item }: { item: InvestmentHistoryItem }) {
+function HistoryItem({ item, peers }: { item: InvestmentHistoryItem; peers: InvestmentHistoryItem[] }) {
   const [open, setOpen] = useState(false)
   const { detailId, query: detail } = useHistoryDetail(item, open)
   return (
@@ -120,7 +124,7 @@ function HistoryItem({ item }: { item: InvestmentHistoryItem }) {
           {detailId === null ? <UnindexedHistoryDetail item={item} /> : <>
             {detail.isPending ? <p className="text-body text-ink-3">讀取明細中…</p> : null}
             {detail.isError ? <p role="alert" className="text-body text-warn">這筆歷史明細目前無法讀取。</p> : null}
-            {detail.data ? <HistoryDetail data={detail.data} /> : null}
+            {detail.data ? <HistoryDetail data={detail.data} peers={peers} /> : null}
           </>}
         </div>
       </details>
@@ -128,7 +132,7 @@ function HistoryItem({ item }: { item: InvestmentHistoryItem }) {
   )
 }
 
-function LearningFramework({ item }: { item: InvestmentHistoryItem }) {
+function LearningFramework({ item, peers }: { item: InvestmentHistoryItem; peers: InvestmentHistoryItem[] }) {
   const [open, setOpen] = useState(false)
   const { detailId, query: detail } = useHistoryDetail(item, open)
   return (
@@ -142,7 +146,7 @@ function LearningFramework({ item }: { item: InvestmentHistoryItem }) {
           {detailId === null ? <UnindexedHistoryDetail item={item} /> : <>
             {detail.isPending ? <p className="text-body text-ink-3">讀取明細中…</p> : null}
             {detail.isError ? <p role="alert" className="text-body text-warn">這筆學習明細目前無法讀取。</p> : null}
-            {detail.data ? <HistoryDetail data={detail.data} /> : null}
+            {detail.data ? <HistoryDetail data={detail.data} peers={peers} /> : null}
           </>}
         </div>
       </details>
@@ -195,14 +199,15 @@ function noFrameworkMessage(state: InvestmentReadState, hasItems: boolean, class
 export function InvestmentHistory({ data, context }: { data: InvestmentHistory; context?: InvestmentContext }) {
   const [showAll, setShowAll] = useState(false)
   const items = data.history.items
-  const frameworks = reusableLearningItems(items)
+  const linked = items.filter(item => historyChainLinked(item, items))
+  const frameworks = reusableLearningItems(items).filter(item => !linked.includes(item))
   const learningClassificationUnknown = items.some((item) => !item.learning_role || item.learning_role === "unknown")
   const frameworkIds = new Set(frameworks.map((item) => item.id))
-  const ordered = historyReadingOrder(items.filter((item) => !frameworkIds.has(item.id)))
+  const ordered = historyReadingOrder(items.filter((item) => !frameworkIds.has(item.id) && !linked.includes(item)))
   const visibleItems = showAll ? ordered : ordered.slice(0, 12)
   const hiddenCount = ordered.length - visibleItems.length
   const undatedCount = ordered.filter((item) => !item.date).length
-  const frameworkEmptyMessage = noFrameworkMessage(data.state, items.length > 0, learningClassificationUnknown)
+  const frameworkEmptyMessage = linked.length ? "來源明確分類的框架已顯示在上方完整案例。" : noFrameworkMessage(data.state, items.length > 0, learningClassificationUnknown)
   return (
     <section className="flex min-w-0 flex-col gap-3" aria-label="復盤與學習">
       <div className="flex flex-col gap-1">
@@ -211,9 +216,14 @@ export function InvestmentHistory({ data, context }: { data: InvestmentHistory; 
         <p className="text-body text-ink-3">只呈現來源明示的理由、結果與學習分類；未知關係不補猜。</p>
       </div>
       {data.limitations.map((limitation, index) => <p key={`${index}:${limitation}`} className="break-words text-caption text-warn">資料限制：{limitation}</p>)}
+      <section className="flex min-w-0 flex-col gap-2" aria-label="已連結的歷史判斷">
+        <SectionHeading>當時判斷 → 後續結果 → 已記錄心得</SectionHeading>
+        <p className="text-caption text-ink-3">只顯示來源明確連結的歷史案例；不代表 owner 核可或今日建議。整體資料完整度仍以上方狀態為準。</p>
+        {linked.length ? linked.map(item => <HistoryItem key={item.id} item={item} peers={items} />) : <p className="text-body text-ink-3">尚未讀到可確認完整關係的案例。</p>}
+      </section>
       <section className="flex min-w-0 flex-col gap-2" aria-label="可重用框架">
         <div className="flex flex-wrap items-baseline gap-2"><SectionHeading>可重用框架</SectionHeading><span className="text-caption text-ink-3">{frameworks.length} 項</span></div>
-        {frameworks.length ? <div className="flex min-w-0 flex-col gap-2">{frameworks.map((item, index) => <LearningFramework key={item.id ?? `unindexed:${item.source.path}:${item.source.line ?? "unknown"}:${index}`} item={item} />)}</div> : <p className="text-body text-ink-3">{frameworkEmptyMessage}</p>}
+        {frameworks.length ? <div className="flex min-w-0 flex-col gap-2">{frameworks.map((item, index) => <LearningFramework key={item.id ?? `unindexed:${item.source.path}:${item.source.line ?? "unknown"}:${index}`} item={item} peers={items} />)}</div> : <p className="text-body text-ink-3">{frameworkEmptyMessage}</p>}
       </section>
       <details className="border-t border-line-soft pt-2">
         <summary className="cursor-pointer py-1 text-body font-medium text-ink">歷史紀錄與後續結果 · {data.history.count} 筆</summary>
@@ -221,7 +231,7 @@ export function InvestmentHistory({ data, context }: { data: InvestmentHistory; 
           {ordered.length ? <>
             <p className="text-caption text-ink-3">有日期的紀錄在前；每筆保留 producer 的狀態、限制與來源位置。{undatedCount ? `其中 ${undatedCount} 筆沒有日期，列在有日期的紀錄之後。` : ""}</p>
             <p className="text-caption text-ink-3">先顯示 {visibleItems.length} / {ordered.length} 筆。</p>
-            <div className="flex min-w-0 flex-col gap-2">{visibleItems.map((item, index) => <HistoryItem key={item.id ?? `unindexed:${item.source.path}:${item.source.line ?? "unknown"}:${index}`} item={item} />)}</div>
+            <div className="flex min-w-0 flex-col gap-2">{visibleItems.map((item, index) => <HistoryItem key={item.id ?? `unindexed:${item.source.path}:${item.source.line ?? "unknown"}:${index}`} item={item} peers={items} />)}</div>
             {hiddenCount > 0 ? <Button type="button" className="self-start" onClick={() => setShowAll(true)}>顯示其餘 {hiddenCount} 筆歷史</Button> : null}
             {showAll && ordered.length > 12 ? <Button type="button" variant="link" className="self-start" onClick={() => setShowAll(false)}>收合到前 12 筆</Button> : null}
           </> : <p className="text-body text-ink-3">{noItemsMessage(data.state)}</p>}
