@@ -132,7 +132,7 @@ jobs:
               assert(await linkedHistory.getByText(/判斷出處：.*synthetic\/history-chain.md.*2/).isVisible())
               assert(await linkedHistory.getByText(/心得出處：.*synthetic\/history-chain.md.*6/).isVisible())
               const history = page.locator('section[aria-label="復盤與學習"]')
-              assert(await history.getByText('部分資料可讀', { exact: true }).isVisible())
+              assert(await history.getByText('部分資料可讀', { exact: true }).first().isVisible())
               assert(await history.getByText(/source_cutoff：.*unknown/).isVisible())
               await history.getByText('歷史紀錄與後續結果 · 4 筆', { exact: true }).click()
               const unknownHistory = history.getByRole('heading', { name: '目前判斷與下一步', exact: true }).locator('xpath=ancestor::div[contains(@class, "p-3")][1]')
