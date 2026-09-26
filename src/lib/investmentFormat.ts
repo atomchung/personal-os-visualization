@@ -343,3 +343,21 @@ export function groupBriefRows<T extends { event_index?: number | null }>(rows: 
   }
   return { byEvent, unlinked }
 }
+
+/** Only producer group identities and exact membership IDs define this navigation lens.
+ * All items outside usable explicit memberships remain visible, including old envelopes. */
+export function researchDirectionView(data: import("./investment.ts").InvestmentResearch) {
+  const projection = data.research.direction_groups
+  const groups = (projection?.schema_version === 1 ? projection.groups : []).map(group => ({
+    ...group,
+    items: data.research.items.filter(item => group.item_ids.includes(item.id)),
+    missingItemIds: group.item_ids.filter(id => !data.research.items.some(item => item.id === id)),
+  }))
+  const linked = new Set(groups.flatMap(group => group.items.map(item => item.id)))
+  return {
+    groups,
+    other: data.research.items.filter(item => !linked.has(item.id)),
+    state: projection?.schema_version === 1 ? projection.state : "unavailable",
+    limitations: projection?.limitations ?? ["Research 方向分類尚未提供；保留全部研究，不推定方向。"],
+  }
+}

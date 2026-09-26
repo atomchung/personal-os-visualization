@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import type { InvestmentResearch, InvestmentResearchItem, InvestmentWatch, InvestmentBrief, InvestmentReadState } from "@/lib/investment"
 import { getInvestmentResearchDetail } from "@/lib/investment"
+import { researchDirectionView } from "@/lib/investmentFormat"
 import { buildTimeline, watchDateWindow } from "@/lib/investmentDates"
 import { Card, SectionHeading } from "@/components/ui/card"
 import { ReadingText, InlineText } from "./ReadingText"
@@ -45,12 +46,29 @@ function ResearchCard({item}: {item: InvestmentResearchItem}) {
   </Card>
 }
 
+function ResearchDirection({group}: {group: ReturnType<typeof researchDirectionView>["groups"][number]}) {
+  return <details data-testid="research-direction" className="min-w-0 rounded-sm border border-line-soft p-3">
+    <summary className="cursor-pointer break-words text-body font-medium">{group.title} · {group.items.length} 項</summary>
+    <div className="flex min-w-0 flex-col gap-3 pt-3">
+      <p className="text-caption text-ink-3">{readStateLabel(group.state)}。此方向只包含來源明示的研究；主要問題、持倉關係與下一個 checkpoint 尚無方向摘要欄位。</p>
+      {group.limitations.map((note,index)=><p key={index} className="break-words text-caption text-warn">{note}</p>)}
+      {group.missingItemIds.length?<p role="status" className="break-words text-caption text-warn">部分明示成員不可用：{group.missingItemIds.join("、")}</p>:null}
+      {group.items.map(item=><div key={item.id} className="flex min-w-0 flex-col gap-1"><ResearchCard item={item}/><details><summary className="cursor-pointer text-caption text-ink-3">方向關聯來源</summary>{group.relations.filter(relation=>relation.item_id===item.id).map((relation,index)=><p key={index} className="break-words text-caption text-ink-3">{relation.source.path}:{relation.source.line ?? "unknown"} · {relation.source.expect ?? "明示成員"}</p>)}</details></div>)}
+      {!group.items.length?<p className="text-caption text-warn">此方向目前沒有可讀的明示研究成員。</p>:null}
+      <details><summary className="cursor-pointer text-caption text-ink-3">方向定義來源</summary><p className="break-words text-caption text-ink-3">{group.source.path}:{group.source.line ?? "unknown"} · {group.source.expect}</p></details>
+    </div>
+  </details>
+}
+
 export function ResearchLibrary({data}: {data: InvestmentResearch}) {
+  const view=researchDirectionView(data)
   return <section className="flex min-w-0 flex-col gap-2" aria-label="正式 Research">
-    <div className="flex flex-wrap items-baseline gap-2"><SectionHeading>正式 Research · {data.research.count} 項</SectionHeading><span className="text-caption text-ink-3">{readStateLabel(data.state)}</span></div>
-    <p className="break-words text-caption text-ink-3">producer：{data.producer} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at}</p>
-    {data.state!=="ready"&&data.state!=="empty"?<div role="status" className="flex flex-col gap-1 text-caption text-warn">{data.limitations.map((note,index)=><p key={index}>{note}</p>)}</div>:null}
-    {data.research.items.map(item=><ResearchCard key={item.id} item={item}/>)}
+    <SectionHeading>主要研究方向</SectionHeading>
+    <p className="text-caption text-ink-3">從研究方向展開到個別問題與來源。</p>
+    {view.state!=="ready"?<p role="status" className="text-caption text-warn">方向分類{readStateLabel(view.state)}；未能確認方向的研究保留在其他研究。</p>:null}
+    {view.groups.map(group=><ResearchDirection key={group.id} group={group}/>)}
+    {view.other.length?<details className="min-w-0 rounded-sm border border-line-soft p-3" data-testid="research-other"><summary className="cursor-pointer text-body font-medium">其他研究（Other） · {view.other.length} 項</summary><div className="flex min-w-0 flex-col gap-3 pt-3"><p className="text-caption text-ink-3">未連結或方向未知的研究，不依標題、ticker 或內文推定分類。</p>{view.other.map(item=><div key={item.id}><p className="text-caption text-ink-3">方向：{item.direction?.state==="unlinked"?"未連結":item.direction?.state==="linked"?"明示分類無可用方向，待核對":"未知"}</p><ResearchCard item={item}/></div>)}</div></details>:null}
+    <details><summary className="cursor-pointer text-caption text-ink-3">研究來源與讀取狀況 · {data.research.count} 項</summary><div className="flex flex-col gap-1 pt-2"><p className="break-words text-caption text-ink-3">{readStateLabel(data.state)} · producer：{data.producer} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at}</p>{[...data.limitations,...view.limitations].map((note,index)=><p key={index} className="break-words text-caption text-warn">{note}</p>)}</div></details>
     {!data.research.items.length&&(data.state==="ready"||data.state==="empty")?<p className="text-body text-ink-3">正式 Research index 已讀取，來源確認目前沒有項目。</p>:null}
     {!data.research.items.length&&data.state!=="ready"&&data.state!=="empty"?<p className="text-body text-warn">目前沒有可確認的 Research 項目；來源狀態不完整，不能判定為空。</p>:null}
   </section>
