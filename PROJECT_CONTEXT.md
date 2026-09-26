@@ -48,7 +48,9 @@ repo／網站 revision／owner 使用驗收仍是分開證據。
 
 ## 雲端與本機各負責什麼
 
-`personal-os-visualization` 是共用元件、設計 token 與資料契約的 canonical source。
+`personal-os-visualization` 是共用元件與可編輯資料契約的 canonical source。
+`src/tokens.css` 由私人端 `core/styles.py` 生成；`src/demo/generated/` 由私人端
+情境產生器生成。這兩類只往外匯出，不作為私人端匯入來源。
 本機 `web/ui` 是 private integration checkout，不應另行長期演化一套 UI；本機只
 注入 FastAPI/private adapter，展示端只注入 generator 產出的 synthetic scenario。
 情境 brief 與生成過程留在 PersonalOS，只有通過 allowlist 與人工 review 的產物進入
