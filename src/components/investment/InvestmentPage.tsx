@@ -7,10 +7,10 @@ import { Chip } from "@/components/ui/chip"
 import { PageHeader } from "@/components/ui/page-header"
 import { MarketIndicators } from "./MarketIndicators"
 import {
-  actionStatusLabel, actionStatusNote, briefSessionRows, BRIEF_SESSION_LABELS, groupBriefRows, numberedTargets, openActionItems, todayActionPlan, todayActionSection,
+  actionStatusLabel, actionStatusNote, briefSessionRows, BRIEF_SESSION_LABELS, groupBriefRows, numberedTargets, openActionItems, todayActionPlan, todayActionSection, todayNextSteps,
   sourceTimestamp,
 } from "@/lib/investmentFormat"
-import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
+import { ResearchWatch, ResearchLibrary, CatalystProjection } from "./ResearchWatch"
 import { ReadingText, InlineText } from "./ReadingText"
 import { InvestmentWorkPanel, InvestmentWatchNotes } from "./InvestmentWork"
 import { PendingBoard } from "./InvestmentPending"
@@ -22,7 +22,7 @@ import {
   getInvestmentPending, getInvestmentHistory, getInvestmentContext, getInvestmentResearch,
   getInvestmentSource, getInvestmentWork,
   getInvestmentActions, getMarketExplore, getInvestmentNarrative,
-  type InvestmentActionItem, type InvestmentBrief, type InvestmentSource, type InvestmentTodayView,
+  type InvestmentCatalysts30d, type InvestmentActionItem, type InvestmentBrief, type InvestmentSource, type InvestmentTodayView,
 } from "@/lib/investment"
 
 function SourceText({ source }: { source: InvestmentSource }) {
@@ -106,23 +106,28 @@ function ContinuationList({ items, compact = false, olderCount = 0, onOpenWork }
   const rest = items.slice(limit)
   return <div className="flex min-w-0 flex-col gap-2">
     <div className="flex flex-wrap items-baseline justify-between gap-2">
-      <SubsectionHeading>尚未結束的行動</SubsectionHeading>
+      <SubsectionHeading>來源記錄的待續行動</SubsectionHeading>
       {onOpenWork ? <Button variant="link" onClick={onOpenWork}>到研究與策略</Button> : null}
     </div>
     <p className="text-caption text-ink-3">{compact ? "還沒結束；可到研究與策略接著看。" : "來自判斷與研究紀錄，和你在本機記下的問題分開。"}{olderCount ? ` 更早的 ${olderCount} 項留在「研究與策略」。` : ""}</p>
     <ul className="flex min-w-0 flex-col gap-2">{shown.map(item => <ContinuationRow key={item.id} item={item} showDate={!compact} />)}</ul>
-    {rest.length ? <details><summary className="cursor-pointer py-2 text-caption font-medium">另有 {rest.length} 項尚未結束</summary><ul className="mt-2 flex min-w-0 flex-col gap-2">{rest.map(item => <ContinuationRow key={item.id} item={item} showDate={!compact} />)}</ul></details> : null}
+    {rest.length ? <details><summary className="cursor-pointer py-2 text-caption font-medium">來源另列 {rest.length} 項</summary><ul className="mt-2 flex min-w-0 flex-col gap-2">{rest.map(item => <ContinuationRow key={item.id} item={item} showDate={!compact} />)}</ul></details> : null}
   </div>
 }
 
-function TodayActionRow({ entry, brief }: {
+function TodayActionRow({ entry, brief, primary = false }: {
   entry: ReturnType<typeof todayActionPlan>["actions"][number]
   brief: InvestmentBrief
+  primary?: boolean
 }) {
   const formalVersion = brief.session ? BRIEF_SESSION_LABELS[brief.session] : "版次未標示"
   const sourceDate = entry.origin === "update" ? taipeiCalendarDate(entry.date) : brief.date
-  return <li className="flex min-w-0 flex-col gap-1">
+  return <li data-testid={primary ? "primary-next-step" : "secondary-next-step"} className={`flex min-w-0 flex-col gap-2 ${primary ? "border-l-2 border-accent pl-3" : ""}`}>
+    <p className="text-caption font-medium text-ink-3">{primary ? "優先閱讀的下一步" : "其他下一步"} · {entry.sourceKind === "watch" ? "等／觀察" : entry.sourceKind === "research" ? "查／研究" : entry.sourceKind === "action" ? "做／行動" : "做／等／查分類未提供"}</p>
     <p className="text-body leading-relaxed text-ink-2"><InlineText text={todayBriefText(entry.text.replace(/^(?:補研究|补研究)(?:[：:]|\s)+/, ""), sourceDate)} /></p>
+    <p className="text-caption text-ink-3">為什麼現在：來源未提供此項獨立理由。</p>
+    <p className="text-caption text-ink-3">何時再看：來源未提供此項明確日期或觸發條件；保留上方原文。</p>
+    <p className="text-caption text-ink-3">目前狀態：{entry.sourceStatus ? actionStatusLabel(entry.sourceStatus) : "來源未提供"}</p>
     {entry.origin === "update" ? <p className="text-caption text-ink-3">盤中更新 · {sourceTimestamp(entry.date)}</p> : null}
     <details>
       <summary className="cursor-pointer py-1 text-caption text-ink-3">查看來源</summary>
@@ -208,9 +213,10 @@ function TodayBriefSessions({ brief, hasUpdates }: { brief: InvestmentBrief; has
 }
 
 /** Reading structure only. Meaning, order, changes and event links come from the source. */
-function TodayBrief({ b, today, readFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed: boolean }) {
+function TodayBrief({ b, today, readFailed, catalysts, catalystsPending, catalystsFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed: boolean; catalysts?: InvestmentCatalysts30d | null; catalystsPending: boolean; catalystsFailed: boolean }) {
   const actionPlan = todayActionPlan(b, today, readFailed)
   const actionSection = todayActionSection(b)
+  const nextSteps = todayNextSteps(actionPlan)
   const updates = today?.updates ?? []
   const stories = buildTodayStories(b.date, b.events, updates)
   const theses = groupBriefRows(b.thesis_changes, b.events.length)
@@ -218,6 +224,29 @@ function TodayBrief({ b, today, readFailed }: { b: InvestmentBrief; today?: Inve
   const hasUnlinked = theses.unlinked.length > 0 || risks.unlinked.length > 0 || b.thesis_notes.length > 0 || b.risk_notes.length > 0
   const envelopeIncomplete = b.envelope && b.envelope.completeness !== "ready"
   return <section aria-label="今日簡報" className="flex min-w-0 flex-col gap-6 break-words">
+    <section className="flex min-w-0 flex-col gap-3" aria-label={actionSection.heading}>
+      <div className="flex min-w-0 flex-col gap-1">
+        <SectionHeading>{actionSection.heading}</SectionHeading>
+        {actionSection.context ? <p className="text-caption text-warn">{actionSection.context}</p> : null}
+      </div>
+      <Card className="min-w-0 p-4 sm:p-5">
+        {today?.decision_summary ? <p className="mb-3 text-body font-medium leading-relaxed text-ink"><InlineText text={todayBriefText(today.decision_summary, today.decision_summary_date ?? null)} /></p> : null}
+        {actionPlan.coverageMessage ? <p role="status" className="mb-3 text-caption leading-relaxed text-warn">{actionPlan.coverageMessage}</p> : null}
+        <p className="mb-3 text-caption text-ink-3">依來源既有順序閱讀；此排序不是新增的投資優先級。</p>
+        {nextSteps.primary ? <ul className="flex min-w-0 flex-col gap-4"><TodayActionRow entry={nextSteps.primary} brief={b} primary />{nextSteps.secondary.map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul> : <p className="text-body text-ink-3">{actionPlan.emptyMessage} 未列出項目不代表今天不用動；行動狀態與再看條件仍未知。</p>}
+        {nextSteps.remaining.length ? <details className="mt-3 border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">來源另列 {nextSteps.remaining.length} 項</summary><ul className="mt-2 flex min-w-0 flex-col gap-3">{nextSteps.remaining.map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul></details> : null}
+        {b.upcoming.length ? <details className="mt-3 border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">來源明示的下一次檢查 · 簡報未來 7 天</summary><p className="py-2">以下檢查點未提供與行動的明確關係，獨立列出。</p><ul className="flex flex-col gap-2">{b.upcoming.map((item, index) => <li key={index}>{item.date_label} · <InlineText text={item.event} />{item.check ? <p>要看什麼：<InlineText text={item.check} /></p> : <p>驗證條件未提供。</p>}</li>)}</ul></details> : null}
+        {b.thesis_changes.length || b.risks.length ? <p className="mt-4 border-t border-line-soft pt-3 text-caption leading-relaxed text-ink-3">論點變化 {b.thesis_changes.length} 條、風險 {b.risks.length} 條；見下方事件與「未連結故事的判斷與風險」。來源未標明與哪項行動相關。</p> : null}
+        {b.headline ? <details className="mt-4 border-t border-line-soft pt-3 text-caption text-ink-3"><summary className="cursor-pointer py-1">晨報判斷</summary><div className="max-w-[960px] pt-2 text-body leading-relaxed text-ink-2"><ReadingText text={todayBriefText(b.headline, b.date)} /></div></details> : null}
+        {b.source?.limitations.length || b.envelope?.limitations.length ? <details className="mt-3 border-t border-line-soft pt-3 text-caption text-ink-3"><summary className="cursor-pointer py-1">資料完整度</summary>
+          {b.envelope?.producer ? <p className="mt-2">產出方式：{b.envelope.producer}</p> : null}
+          {b.envelope?.limitations.length ? <ul className="mt-2 list-disc pl-4 text-warn">{b.envelope.limitations.map((limitation, index) => <li key={`envelope-${index}`}>{limitation}</li>)}</ul> : null}
+          {b.source?.limitations.length ? <ul className="mt-2 list-disc pl-4 text-warn">{b.source.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul> : null}
+        </details> : null}
+      </Card>
+    </section>
+
+    <CatalystProjection data={catalysts} pending={catalystsPending} failed={catalystsFailed} />
     <TodayBriefSessions brief={b} hasUpdates={updates.length > 0} />
     <section aria-label="今天發生了什麼" className="flex min-w-0 flex-col gap-3">
       <SectionHeading>今天發生了什麼</SectionHeading>
@@ -228,38 +257,12 @@ function TodayBrief({ b, today, readFailed }: { b: InvestmentBrief; today?: Inve
         {stories.map(story => <TodayStoryCard key={story.key} story={story} theses={theses} risks={risks} briefDate={b.date} />)}
       </Card> : b.headline ? <Card className="min-w-0 p-4 sm:p-5"><ReadingText text={todayBriefText(b.headline, b.date)} /></Card> : <p className="text-body text-ink-3">尚未取得可讀的今日變化。</p>}
       {b.event_notes.length ? <ReadingText text={todayBriefText(b.event_notes.join("\n\n"), b.date)} /> : null}
-      {hasUnlinked ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">其他判斷變化</summary><Card className="mt-2 grid min-w-0 gap-5 p-4 sm:p-5">
+      {hasUnlinked ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">未連結故事的判斷與風險</summary><Card className="mt-2 grid min-w-0 gap-5 p-4 sm:p-5">
         {theses.unlinked.length > 0 || b.thesis_notes.length > 0 ? <div className="flex min-w-0 flex-col gap-3"><ThesisRows rows={theses.unlinked} briefDate={b.date} />{b.thesis_notes.length ? <ReadingText text={todayBriefText(b.thesis_notes.join("\n\n"), b.date)} /> : null}</div> : null}
         {risks.unlinked.length > 0 || b.risk_notes.length > 0 ? <div className="flex min-w-0 flex-col gap-3"><p className="text-caption font-medium text-warn">要留意的風險</p><RiskRows rows={risks.unlinked} briefDate={b.date} />{b.risk_notes.length ? <ReadingText text={todayBriefText(b.risk_notes.join("\n\n"), b.date)} /> : null}</div> : null}
       </Card></details> : null}
     </section>
 
-    <section className="flex min-w-0 flex-col gap-3" aria-label={actionSection.heading}>
-      <div className="flex min-w-0 flex-col gap-1">
-        <SectionHeading>{actionSection.heading}</SectionHeading>
-        {actionSection.context ? <p className="text-caption text-warn">{actionSection.context}</p> : null}
-      </div>
-      <Card className="min-w-0 p-4 sm:p-5">
-        {today?.decision_summary ? <p className="mb-3 text-body font-medium leading-relaxed text-ink"><InlineText text={todayBriefText(today.decision_summary, today.decision_summary_date ?? null)} /></p> : null}
-        {actionPlan.coverageMessage ? <p role="status" className="mb-3 text-caption leading-relaxed text-warn">{actionPlan.coverageMessage}</p> : null}
-        {actionPlan.actions.length ? <ul className="flex min-w-0 flex-col gap-3">{actionPlan.actions.slice(0, 2).map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul> : <p className="text-body text-ink-3">{actionPlan.emptyMessage}</p>}
-        {actionPlan.actions.length > 2 ? <details className="mt-3 border-t border-line-soft pt-2 text-caption text-ink-3">
-          <summary className="cursor-pointer py-1">另有 {actionPlan.actions.length - 2} 項行動</summary>
-          <ul className="mt-2 flex min-w-0 flex-col gap-3">{actionPlan.actions.slice(2).map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul>
-        </details> : null}
-        {actionPlan.research.length ? <details className="mt-3 border-t border-line-soft pt-2 text-caption text-ink-3">
-          <summary className="cursor-pointer py-1">補研究項目 · {actionPlan.research.length} 項</summary>
-          <ul className="mt-2 flex min-w-0 flex-col gap-3">{actionPlan.research.map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul>
-        </details> : null}
-        {b.thesis_changes.length || b.risks.length ? <p className="mt-4 border-t border-line-soft pt-3 text-caption leading-relaxed text-ink-3">論點變化 {b.thesis_changes.length} 條、風險 {b.risks.length} 條；見上方事件與「其他判斷變化」。來源未標明與哪項行動相關。</p> : null}
-        {b.headline ? <details className="mt-4 border-t border-line-soft pt-3 text-caption text-ink-3"><summary className="cursor-pointer py-1">晨報判斷</summary><div className="max-w-[960px] pt-2 text-body leading-relaxed text-ink-2"><ReadingText text={todayBriefText(b.headline, b.date)} /></div></details> : null}
-        {b.source?.limitations.length || b.envelope?.limitations.length ? <details className="mt-3 border-t border-line-soft pt-3 text-caption text-ink-3"><summary className="cursor-pointer py-1">資料完整度</summary>
-          {b.envelope?.producer ? <p className="mt-2">產出方式：{b.envelope.producer}</p> : null}
-          {b.envelope?.limitations.length ? <ul className="mt-2 list-disc pl-4 text-warn">{b.envelope.limitations.map((limitation, index) => <li key={`envelope-${index}`}>{limitation}</li>)}</ul> : null}
-          {b.source?.limitations.length ? <ul className="mt-2 list-disc pl-4 text-warn">{b.source.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul> : null}
-        </details> : null}
-      </Card>
-    </section>
 
     {b.source ? <div className="border-t border-line-soft"><SourceText key={b.source.id} source={b.source} /></div> : null}
   </section>
@@ -280,6 +283,7 @@ export function InvestmentPage() {
   const actions = useQuery({ queryKey: ["investment-actions"], queryFn: ({ signal }) => getInvestmentActions(signal), enabled: view === "research", retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
   const history = useQuery({ queryKey: ["investment-history"], queryFn: ({ signal }) => getInvestmentHistory(signal), enabled: view === "review", retry: false, refetchOnWindowFocus: false })
   const context = useQuery({ queryKey: ["investment-context"], queryFn: ({ signal }) => getInvestmentContext(signal), enabled: view === "review", retry: false, refetchOnWindowFocus: false })
+  const hub = useQuery({ queryKey: ["investment-narrative"], queryFn: ({ signal }) => getInvestmentNarrative(signal), enabled: view === "today" || view === "research", retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
   const b = query.data?.brief
   const workContinuation = openActionItems(actions.data?.items ?? [])
   function openView(next: View) {
@@ -301,6 +305,7 @@ export function InvestmentPage() {
           run("市場行情", ["investment-market"], () => getInvestmentMarket(undefined, true)),
           run("市場探索", ["investment-explore"], () => getMarketExplore(undefined, true)),
           run("台股整體盤感", ["investment-pulse"], () => getInvestmentPulse()),
+          run("催化劑投影", ["investment-narrative"], () => getInvestmentNarrative()),
         ])
         if (brief?.brief.state === "invalid" || brief?.brief.state === "missing") failures.push("簡報內容")
         if (brief?.brief.source?.limitations.length) failures.push("簡報部分段落")
@@ -320,6 +325,7 @@ export function InvestmentPage() {
           run("我的投資事項", ["investment-work"], () => getInvestmentWork()),
           run("系統提醒", ["investment-pending"], () => getInvestmentPending()),
         ])
+        await run("催化劑投影", ["investment-narrative"], () => getInvestmentNarrative())
         if (research && research.state !== "ready" && research.state !== "empty") failures.push("正式 Research 部分來源")
         if (sourceDates && ((sourceDates.state !== "ready" && sourceDates.state !== "empty") || sourceDates.watch.coverage.errors.length)) failures.push("部分 Watch 日期來源")
         if (actionBoard?.state === "unavailable") failures.push("待續行動")
@@ -346,7 +352,7 @@ export function InvestmentPage() {
     <div id="investment-panel-today" role="tabpanel" aria-labelledby="investment-tab-today" hidden={view !== "today"} className={view === "today" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
       {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次內容。" : ""}請按更新資料重試。</p> : null}
       {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
-      {b ? <TodayBrief b={b} today={query.data?.today} readFailed={query.isError} /> : null}
+      {b ? <TodayBrief b={b} today={query.data?.today} readFailed={query.isError} catalysts={hub.data?.catalysts_30d} catalystsPending={hub.isPending} catalystsFailed={hub.isError} /> : null}
       <MarketIndicators />
     </div>
     <div id="investment-panel-judgment" role="tabpanel" aria-labelledby="investment-tab-judgment" hidden={view !== "judgment"} className={view === "judgment" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
@@ -357,13 +363,14 @@ export function InvestmentPage() {
       {researchIndex.isError ? <p role="alert" className="text-body text-warn">正式 Research index 讀取失敗；不以 Watch 項目代替。</p> : null}
       {actions.isError ? <p role="status" className="text-caption text-warn">待續行動這次讀不到。{actions.data ? "以下保留上次內容。" : ""}本機筆記仍可使用。</p> : null}
       {actions.data?.state === "unavailable" ? <p role="status" className="text-caption text-warn">{actions.data.message || "待續行動目前無法取得。"}</p> : null}
+      <CatalystProjection data={hub.data?.catalysts_30d} pending={hub.isPending} failed={hub.isError} />
+      {watch.data ? <details><summary className="cursor-pointer py-2 text-caption text-ink-3">既有 Watch 與簡報日期清單（涵蓋獨立）</summary><ResearchWatch data={watch.data} brief={b} /></details> : null}
       <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
         <section className="flex min-w-0 flex-col gap-3" aria-label="研究">
-          <div className="flex flex-col gap-1"><SectionHeading>研究</SectionHeading><p className="text-body text-ink-3">保留研究來源和事件各自的原始日期與出處；事件不會自動變成個人提醒。</p></div>
+          <div className="flex flex-col gap-1"><SectionHeading>加深公司、事件與未解問題</SectionHeading><p className="text-body text-ink-3">先看 owner 的研究問題，再看明確等待的事件；資料讀取狀態與系統提醒另列。</p></div>
           {researchIndex.isPending ? <p role="status" className="text-body text-ink-3">讀取正式 Research index…</p> : null}
           {researchIndex.data ? <ResearchLibrary data={researchIndex.data} /> : null}
           {watch.isPending ? <p className="text-body text-ink-3">讀取 Watch 日期…</p> : null}
-          {watch.data ? <ResearchWatch data={watch.data} brief={b} /> : null}
         </section>
         <section className="flex min-w-0 flex-col gap-3" aria-label="策略">
           <SectionHeading>策略</SectionHeading>
@@ -371,15 +378,15 @@ export function InvestmentPage() {
         </section>
       </div>
       <details className="border-t border-line-soft pt-2">
-        <summary className="cursor-pointer py-1 text-body font-medium text-ink">我的待續工作與提醒</summary>
+        <summary className="cursor-pointer py-1 text-body font-medium text-ink">Owner 的問題與待續工作</summary>
         <div className="flex min-w-0 flex-col gap-5 pt-3">
-          {workContinuation.length ? <section className="flex min-w-0 flex-col gap-2" aria-label="尚未結束的行動"><ContinuationList items={workContinuation} /></section> : null}
+          {workContinuation.length ? <section className="flex min-w-0 flex-col gap-2" aria-label="來源記錄的待續行動"><ContinuationList items={workContinuation} /></section> : null}
           <section className="flex min-w-0 flex-col gap-3" aria-label="我留下的問題與研究">
             <div className="flex flex-col gap-1"><SectionHeading>我留下的問題與研究</SectionHeading><p className="text-caption text-ink-3">個人筆記、待續行動和系統提醒維持各自來源，不會自動改寫正式判斷。</p></div>
             <InvestmentWorkPanel research={watch.data?.watch.research ?? []} />
           </section>
           <InvestmentWatchNotes />
-          <PendingBoard />
+          <details><summary className="cursor-pointer py-2 text-caption text-ink-3">機器／來源狀態提醒（不自動列為 owner 待辦）</summary><PendingBoard /></details>
         </div>
       </details>
     </div>

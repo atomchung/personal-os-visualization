@@ -194,6 +194,13 @@ export type InvestmentNarrativeLayerPlayer = {
   source: InvestmentNarrativeSource | null
 }
 export type InvestmentNarrativeLayerEvidenceItem = string | InvestmentNarrativeLayerRow
+export type InvestmentOpposingCoverage = {
+  state: "sufficient" | "insufficient" | "unavailable" | "unknown"
+  checked_at: string | null
+  scope: string | null
+  reason: string
+  source: InvestmentNarrativeSource
+}
 export type InvestmentNarrativeEvidenceLayer = {
   layer_id: string
   pillar_id?: string | null
@@ -208,6 +215,7 @@ export type InvestmentNarrativeEvidenceLayer = {
   evidence?: InvestmentNarrativeLayerRow[]
   supporting?: InvestmentNarrativeLayerEvidenceItem[]
   opposing?: InvestmentNarrativeLayerEvidenceItem[]
+  opposing_coverage?: InvestmentOpposingCoverage | null
   challenging?: InvestmentNarrativeLayerEvidenceItem[]
   unknown?: InvestmentNarrativeLayerEvidenceItem[]
   conflicts?: InvestmentNarrativeLayerRow[]
@@ -259,7 +267,28 @@ export type InvestmentNarrativeScorecardUpdate = {
   reason: string | null
   source: InvestmentNarrativeSource | null
 }
+export type InvestmentCatalystItem = {
+  ticker: string
+  type: string
+  raw: string
+  date_precision: "day" | "month" | "approximate_day" | "imprecise"
+  date: string | null
+  date_label: string | null
+  source_qualifiers: string[] | string | null
+  source: { path: string; line: number | null }
+  window_membership: "within" | "possible" | "unknown"
+}
+export type InvestmentCatalysts30d = {
+  state: "ready" | "partial" | "unknown"
+  window_start: string | null
+  window_end: string | null
+  items: InvestmentCatalystItem[]
+  uncertain_items: InvestmentCatalystItem[]
+  coverage_gaps: { ticker: string; reason: string; source?: { path: string; line: number } | null }[]
+  limitations: string[]
+}
 export type InvestmentNarrative = {
+  catalysts_30d?: InvestmentCatalysts30d | null
   artifact: "personalos-investment-hub"
   schema_version: string
   id: string

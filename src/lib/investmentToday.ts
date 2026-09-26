@@ -1,4 +1,4 @@
-import type { InvestmentBrief, InvestmentTodayUpdate } from "./investment"
+import type { InvestmentBrief, InvestmentTodayUpdate, InvestmentCatalysts30d } from "./investment"
 
 export type TodayStoryEvent = {
   event: InvestmentBrief["events"][number]
@@ -100,4 +100,11 @@ export function todayStoryHeadline(story: TodayStory): string {
     return story.updates[0].summary.trim() || "最新摘要未提供"
   }
   return story.events[0]?.event.event.trim() || "今日事件"
+}
+
+/** Exact dates are available only when the producer supplies day precision and within membership. */
+export function catalystDateGroups(projection?: InvestmentCatalysts30d | null) {
+  if (!projection) return { exact: [], uncertain: [], state: "unknown" as const }
+  const exact = projection.items.filter(item => item.date_precision === "day" && item.date !== null && item.window_membership === "within")
+  return { exact, uncertain: [...projection.items.filter(item => !exact.includes(item)), ...projection.uncertain_items], state: projection.state }
 }

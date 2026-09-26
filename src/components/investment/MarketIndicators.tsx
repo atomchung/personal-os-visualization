@@ -62,7 +62,7 @@ function QuoteRow({ item }: { item: InvestmentMarket["items"][number] }) {
       <span>{formatNumber(item.change, true)}</span>
       <span>({item.change_percent === null ? "—" : `${formatNumber(item.change_percent, true)}%`})</span>
     </p>
-    <p className="text-micro leading-body text-ink-3">報價時間 {quoteTime(item.quoted_at)}</p>
+    <p className="text-micro leading-body text-ink-3">資料日期／報價 {sourceTimestamp(item.quoted_at)}</p>
     {item.state !== "available" ? <div><Chip tone="warn">{item.state === "stale" ? "較早報價" : "未取得"}</Chip></div> : null}
   </Card>
 }
@@ -188,6 +188,10 @@ export function MarketIndicators() {
           {MARKETS.map(item => <Button key={item.key} id={`market-tab-${item.key}`} role="tab" aria-controls={`market-panel-${item.key}`} aria-selected={market === item.key} tabIndex={market === item.key ? 0 : -1} variant="link" className={`rounded-none border-b-2 px-0 py-2 text-body ${market === item.key ? "border-accent text-ink" : "border-transparent text-ink-3"}`} onClick={() => setMarket(item.key)} onKeyDown={selectByKey}>{item.label}</Button>)}
         </div>
         <Button disabled={refreshing} onClick={() => void refreshMarketData()}>{refreshing ? "更新中…" : "更新市場資料"}</Button>
+      </div>
+      <div aria-label="各市場資料日期" className="mt-3 grid min-w-0 gap-2 border-t border-line-soft pt-3 sm:grid-cols-2">
+        <p className="text-caption text-ink-2">台股日結資料日：{sourceTimestamp(pulseQuery.data?.as_of)} · {pulseQuery.isError ? "讀取失敗" : pulseQuery.data?.state ?? "讀取中"}；休市狀態未提供。</p>
+        <div className="min-w-0 text-caption text-ink-2"><p>美股各指標資料日期：</p>{quoteQuery.data?.items.filter(item => item.market === "us").map(item => <p key={item.symbol}>{item.label} · {sourceTimestamp(item.quoted_at)} · {item.session ? SESSION_LABELS[item.session] : "交易階段未提供"} · {item.state === "available" ? "已取得" : item.state === "stale" ? "較早報價" : "未取得報價"}</p>)}{!quoteQuery.data?.items.some(item => item.market === "us") ? <p>目前無法確認；日期未提供。</p> : null}</div>
       </div>
       {refreshNotice ? <p role="status" aria-live="polite" className="text-caption text-ink-3">{refreshNotice}</p> : null}
       <div id={`market-panel-${market}`} role="tabpanel" aria-labelledby={`market-tab-${market}`} className="flex min-w-0 flex-col gap-4 pt-4">

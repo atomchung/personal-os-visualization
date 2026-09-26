@@ -1,8 +1,9 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import type { InvestmentResearch, InvestmentResearchItem, InvestmentWatch, InvestmentBrief, InvestmentReadState } from "@/lib/investment"
+import type { InvestmentResearch, InvestmentResearchItem, InvestmentWatch, InvestmentBrief, InvestmentReadState, InvestmentCatalysts30d, InvestmentCatalystItem } from "@/lib/investment"
 import { getInvestmentResearchDetail } from "@/lib/investment"
 import { researchDirectionView } from "@/lib/investmentFormat"
+import { catalystDateGroups } from "@/lib/investmentToday"
 import { buildTimeline, watchDateWindow } from "@/lib/investmentDates"
 import { Card, SectionHeading } from "@/components/ui/card"
 import { ReadingText, InlineText } from "./ReadingText"
@@ -78,8 +79,8 @@ export function ResearchWatch({data,brief}: {data: InvestmentWatch; brief?:Inves
   const window=watchDateWindow(data.generated_at)
   const events=window?buildTimeline(data,brief,window.start,window.end):[]
   const months=window?data.watch.catalysts.filter(e=>e.date_precision==="month"&&e.date!==null&&e.date>=window.start.slice(0,7)&&e.date<=window.end.slice(0,7)):[]
-  return <section className="flex min-w-0 flex-col gap-3" aria-label="Watch 來源日期">
-    <SectionHeading>Watch 來源日期</SectionHeading><p className="text-body text-ink-3">{window?`未來 30 天（${window.start} 至 ${window.end}）Watch 索引提取的來源日期與正式簡報提及事項。這是日期讀取清單，和正式 Research index、個人待辦各自分開。`:"無法由 Watch producer timestamp 確定日期範圍；目前不推定未來日期事件。"}</p>
+  return <section className="flex min-w-0 flex-col gap-3" aria-label="接下來會改變判斷的事情">
+    <SectionHeading>接下來會改變判斷的事情</SectionHeading><p className="text-body text-ink-3">{window?`日期篩選範圍 ${window.start} 至 ${window.end}；目前可讀 Watch 登記日期與簡報的未來 7 天事項。這不是完整 30 天催化劑覆蓋；缺少事件不代表沒有催化劑。`:"無法由 Watch producer timestamp 確定日期範圍；目前不推定未來日期事件。"}</p>
     <p className="break-words text-caption text-ink-3">producer：{data.producer} · 狀態：{readStateLabel(data.state)} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at}</p>
     {data.state!=="ready"&&data.state!=="empty"?<div role="status" className="flex flex-col gap-1 text-caption text-warn">{data.limitations.map((note,index)=><p key={index}>{note}</p>)}</div>:null}
     {!window?<p role="status" className="text-body text-warn">generated_at 未提供可驗證的日期或時區時間；Watch 日期事件範圍未知，不能當作空清單。</p>:null}
@@ -98,5 +99,34 @@ export function ResearchWatch({data,brief}: {data: InvestmentWatch; brief?:Inves
       </li>
     })}</ul>
     {months.length>0?<details><summary className="cursor-pointer text-caption text-ink-3">只知道月份的 Watch 日期（{months.length}）</summary><div className="flex flex-col gap-2 pt-2">{months.map(e=><p key={e.id} className="text-body">{e.topic} · <InlineText text={e.raw}/></p>)}</div></details>:null}
+  </section>
+}
+
+function ProjectedCatalyst({ item }: { item: InvestmentCatalystItem }) {
+  const qualifiers = Array.isArray(item.source_qualifiers) ? item.source_qualifiers.join("；") : item.source_qualifiers
+  return <li className="flex min-w-0 flex-col gap-1 border-t border-line-soft py-2 first:border-0">
+    <p className="text-body font-medium text-ink">{item.date_precision === "day" && item.window_membership === "within" ? item.date : item.date_label || "日期未確定"} · {item.ticker} · {item.type}</p>
+    <p className="text-body text-ink-2"><InlineText text={item.raw} /></p>
+    {item.date_precision !== "day" || item.window_membership !== "within" ? <p className="text-caption text-warn">日期精度：{item.date_precision} · 範圍關係：{item.window_membership}；不轉成確定的日期。</p> : null}
+    {qualifiers ? <p className="text-caption text-ink-3">來源限定：{qualifiers}</p> : null}
+    <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">催化劑來源</summary><p className="break-all">{item.source.path} · {item.source.line ?? "行數未提供"}</p></details>
+  </li>
+}
+
+export function CatalystProjection({ data, pending = false, failed = false }: { data?: InvestmentCatalysts30d | null; pending?: boolean; failed?: boolean }) {
+  const view = catalystDateGroups(data)
+  return <section aria-label="來源投影的未來 30 天催化劑" className="flex min-w-0 flex-col gap-2">
+    <SectionHeading>接下來會改變判斷的事情</SectionHeading>
+    <p className="text-caption text-ink-3">Investment Note 的 30 天來源投影；事件不自動成為 owner 待辦，也不依 ticker 連到今日行動。</p>
+    {failed ? <p role="status" className="text-caption text-warn">催化劑來源本次讀取失敗；{data ? "保留上次投影與原日期。" : "涵蓋未知。"}</p> : null}
+    {pending && !data ? <p role="status" className="text-caption text-ink-3">讀取催化劑投影…</p> : null}
+    {!data && !pending ? <p role="status" className="text-body text-warn">來源尚未提供 30 天投影；涵蓋未知，不能把空列表當作沒有事件。</p> : null}
+    {data ? <>
+      <p className="text-caption text-ink-3">投影範圍：{data.window_start || "起日未知"} 至 {data.window_end || "迄日未知"} · {view.state === "ready" ? "來源投影已讀取" : view.state === "partial" ? "部分涵蓋" : "涵蓋未知"}</p>
+      {view.exact.length ? <ul className="flex min-w-0 flex-col">{view.exact.map((item, index) => <ProjectedCatalyst key={index} item={item} />)}</ul> : <p className="text-body text-ink-3">來源未列出此範圍內的確定日期事件；不代表沒有催化劑。</p>}
+      {view.uncertain.length ? <div className="flex min-w-0 flex-col gap-1"><p className="text-caption font-medium text-warn">可能在範圍內／日期未確定 · {view.uncertain.length} 項</p><ul>{view.uncertain.map((item, index) => <ProjectedCatalyst key={index} item={item} />)}</ul></div> : null}
+      {data.coverage_gaps.length ? <div className="text-caption text-warn"><p>來源涵蓋缺口</p>{data.coverage_gaps.map((gap, index) => <p key={index}>{gap.ticker}：{gap.reason}</p>)}</div> : null}
+      {data.limitations.map((note, index) => <p key={index} className="text-caption text-warn">{note}</p>)}
+    </> : null}
   </section>
 }

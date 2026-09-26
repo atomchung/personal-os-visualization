@@ -117,6 +117,11 @@ function HistoryItem({ item, peers }: { item: InvestmentHistoryItem; peers: Inve
           <Chip tone={item.outcome_state === "recorded" ? "ok" : "warn"}>{outcomeLabel(item)}</Chip>
         </div>
       </div>
+      <div className="flex min-w-0 flex-col gap-2 text-body text-ink-2" aria-label="記錄的決策結果與學習">
+        <p>當時決策／理由：{item.reason || "索引未提供；可展開明細"}</p>
+        <p>後續結果：{item.outcome?.state === "recorded" ? item.outcome.text || "已記錄，文字未提供" : item.outcome_state === "recorded" ? "已記錄，可展開明細" : "未知"}</p>
+        <p>已記錄心得：{item.learning_state === "recorded" ? item.learning || "已記錄，可展開明細" : "尚未記錄"}</p>
+      </div>
       <p className="break-words text-caption text-ink-3">learning 分類：{item.learning_role === "reusable_framework" ? "可重用框架" : item.learning_role === "historical_case" ? "歷史案例" : "未知或未提供"}</p>
       <details onToggle={(event) => setOpen(event.currentTarget.open)}>
         <summary className="cursor-pointer text-caption font-medium text-ink-3">讀取這筆 producer 明細</summary>
@@ -203,7 +208,8 @@ export function InvestmentHistory({ data, context }: { data: InvestmentHistory; 
   const frameworks = reusableLearningItems(items).filter(item => !linked.includes(item))
   const learningClassificationUnknown = items.some((item) => !item.learning_role || item.learning_role === "unknown")
   const frameworkIds = new Set(frameworks.map((item) => item.id))
-  const ordered = historyReadingOrder(items.filter((item) => !frameworkIds.has(item.id) && !linked.includes(item)))
+  const researchRecords = items.filter(item => item.kind === "research_checkpoint" && !linked.includes(item) && !frameworkIds.has(item.id))
+  const ordered = historyReadingOrder(items.filter((item) => !frameworkIds.has(item.id) && !linked.includes(item) && !researchRecords.includes(item)))
   const visibleItems = showAll ? ordered : ordered.slice(0, 12)
   const hiddenCount = ordered.length - visibleItems.length
   const undatedCount = ordered.filter((item) => !item.date).length
@@ -213,7 +219,7 @@ export function InvestmentHistory({ data, context }: { data: InvestmentHistory; 
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2"><SectionHeading>復盤與學習</SectionHeading><Chip tone={data.state === "ready" || data.state === "empty" ? "ok" : "warn"}>{stateLabel(data.state)}</Chip></div>
         <p className="break-words text-caption text-ink-3">producer：{data.producer} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at}</p>
-        <p className="text-body text-ink-3">只呈現來源明示的理由、結果與學習分類；未知關係不補猜。</p>
+        <p className="text-body text-ink-3">用已記錄的決策 → 後續結果 → 心得理解交易與決策過程。公司研究檢查點另列；來源未提供今年反覆模式，不由紀錄數量推算。</p>
       </div>
       {data.limitations.map((limitation, index) => <p key={`${index}:${limitation}`} className="break-words text-caption text-warn">資料限制：{limitation}</p>)}
       <section className="flex min-w-0 flex-col gap-2" aria-label="已連結的歷史判斷">
@@ -237,6 +243,7 @@ export function InvestmentHistory({ data, context }: { data: InvestmentHistory; 
           </> : <p className="text-body text-ink-3">{noItemsMessage(data.state)}</p>}
         </div>
       </details>
+      <details className="border-t border-line-soft pt-2"><summary className="cursor-pointer py-1 text-body font-medium text-ink">公司研究檢查點 · {researchRecords.length} 筆</summary><p className="py-2 text-caption text-ink-3">這些是來源明示的 research_checkpoint，不等同交易學習；未明示分類的紀錄保留原狀。</p><div className="flex min-w-0 flex-col gap-2">{historyReadingOrder(researchRecords).map((item, index) => <HistoryItem key={item.id ?? `research:${index}`} item={item} peers={items} />)}</div></details>
       {context ? <details className="border-t border-line-soft pt-2"><summary className="cursor-pointer py-1 text-body font-medium text-ink">目前工作的唯讀脈絡</summary><div className="pt-2"><ContextBlock context={context} /></div></details> : null}
       {data.sources.length ? <p className="break-words text-caption text-ink-3">來源索引：{data.sources.join("、")}</p> : null}
     </section>

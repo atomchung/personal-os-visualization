@@ -227,6 +227,7 @@ const demoChallengeSignalSource: InvestmentNarrativeSource = {
 
 const demoEvidenceLayers: InvestmentNarrativeEvidenceLayer[] = [
   {
+    opposing_coverage: { state: "insufficient", checked_at: DATE, scope: "虛構案例的兩份公開文件", reason: "此合成示例只檢查兩份文件，尚不足以確認反方涵蓋。", source: { path: "synthetic/coverage.md", line: 1 } },
     layer_id: "L0", pillar_id: "l0_hardware", label: "硬體供應",
     who_earns: "合成硬體供應商", evidence_examples: "例如：已出貨的設備數量",
     what_it_proves: "只說明硬體需求已反映在出貨，不代表下游已獲利。", direction_state: "supports",
@@ -435,6 +436,12 @@ const demoThesisEvidence: InvestmentNarrativeThesisEvidence = {
 }
 
 export const investmentNarrative: InvestmentNarrative = {
+  catalysts_30d: {
+    state: "partial", window_start: DATE, window_end: "2026-10-20",
+    items: [{ ticker: "DEMO", type: "虛構財報", raw: "2026-10-05 公布虛構公司財報，核對需求是否延續。", date_precision: "day", date: "2026-10-05", date_label: "2026-10-05", source_qualifiers: [], source: { path: "synthetic/catalysts.md", line: 1 }, window_membership: "within" }],
+    uncertain_items: [{ ticker: "DEMO", type: "虛構產品驗證", raw: "2026-10 月可能公布驗證結果，日期尚未確認。", date_precision: "month", date: null, date_label: "2026-10", source_qualifiers: ["日期未確認"], source: { path: "synthetic/catalysts.md", line: 2 }, window_membership: "possible" }],
+    coverage_gaps: [{ ticker: "DEMO-B", reason: "合成來源尚未登記下一個事件。" }], limitations: ["合成案例只示範部分催化劑來源。"],
+  },
   artifact: "personalos-investment-hub",
   schema_version: "1.0",
   id: "investment-hub:demo",

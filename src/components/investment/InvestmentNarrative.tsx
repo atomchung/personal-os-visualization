@@ -179,8 +179,12 @@ function LayerEvidenceCard({ layer }: { layer: InvestmentNarrativeEvidenceLayer 
       <h4 className="text-body font-semibold text-ink">{layer.layer_id} · {layer.label}</h4>
       {stateCopy ? <Chip tone={stateCopy.tone}>{stateCopy.label}</Chip> : null}
     </div>
+    <div className="flex min-w-0 flex-col gap-1 text-caption text-ink-3" aria-label="反方資料涵蓋">
+      <p>反方涵蓋：{layer.opposing_coverage?.state === "sufficient" ? "來源記錄已充分檢查" : layer.opposing_coverage?.state === "insufficient" ? "檢查涵蓋不足" : layer.opposing_coverage?.state === "unavailable" ? "檢查來源不可用" : "反方涵蓋未知／來源未提供"}</p>
+      {!opposing.length ? <p role="status" className="text-warn">目前未連結明確的挑戰證據；不能判定沒有反方。</p> : null}
+      {layer.opposing_coverage ? <><p>{layer.opposing_coverage.reason}</p><p>檢查日期：{sourceTimestamp(layer.opposing_coverage.checked_at)} · 範圍：{layer.opposing_coverage.scope || "未知"}</p><details><summary className="cursor-pointer py-1">反方檢查記錄來源</summary><ul><SourceReference source={layer.opposing_coverage.source} /></ul></details></> : null}
+    </div>
     {layer.unknown_reason ? <p className="text-caption leading-relaxed text-ink-3">{layer.unknown_reason}</p> : null}
-    <PlayerRelations players={players} />
     {linkedEvidenceCount ? <>
       <p className="text-caption text-ink-3" aria-label="明確連結的資料列數">已連結資料列：支持 {supporting.length} · 挑戰 {opposing.length} · 方向未定 {unknown.length}</p>
       <div className="grid min-w-0 gap-4 sm:grid-cols-2">{groups.map(group => <EvidenceGroup key={group.title} title={group.title} items={group.items} />)}</div>
@@ -197,6 +201,7 @@ function LayerEvidenceCard({ layer }: { layer: InvestmentNarrativeEvidenceLayer 
     <details className="text-caption text-ink-3">
       <summary className="cursor-pointer py-1">這層的背景與來源</summary>
       <div className="flex flex-col gap-2 pt-2">
+        <PlayerRelations players={players} />
         <p><span className="font-medium text-ink-2">價值鏈位置：</span>{layer.who_earns || "來源未提供"}</p>
         <p><span className="font-medium text-ink-2">證據例：</span>{layer.evidence_examples || "來源未提供"}</p>
         <p><span className="font-medium text-ink-2">可證明範圍：</span>{layer.what_it_proves || "來源未提供"}</p>
@@ -299,11 +304,12 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
   ])
   return <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
     <article className="flex min-w-0 flex-col gap-2 p-4 sm:p-5">
-      <SubsectionHeading>我在押什麼</SubsectionHeading>
-      {narrative.title ? <p className="text-caption text-ink-3">{narrative.title}</p> : null}
-      {narrative.what_i_bet.narrative.text ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.what_i_bet.narrative.text} /></p> : null}
-      {narrative.what_i_bet.owner_thesis.text ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.what_i_bet.owner_thesis.text} /></p> : null}
-      {!narrative.what_i_bet.narrative.text && !narrative.what_i_bet.owner_thesis.text ? <p className="text-body text-ink-3">來源尚未提供可讀的論點；不補寫投資主張。</p> : null}
+      <SubsectionHeading>當下判斷</SubsectionHeading>
+      {narrative.title ? <p className="text-body font-medium text-ink">{narrative.title}</p> : null}
+      <p className="text-body leading-relaxed text-ink-2">{narrative.what_i_bet.owner_thesis.text ? <InlineText text={narrative.what_i_bet.owner_thesis.text} /> : "來源未提供 owner 的當前論點；不從新聞或證據自行總結。"}</p>
+      <StateNote state={narrative.what_i_bet.owner_thesis.state} reason={narrative.what_i_bet.owner_thesis.reason} />
+      {narrative.current_tension.text ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium">目前張力：</span><InlineText text={narrative.current_tension.text} /></p> : null}
+      <StateNote state={narrative.current_tension.state} reason={narrative.current_tension.reason} />
     </article>
 
     <article className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
@@ -326,18 +332,23 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
 
     <article className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
       <SubsectionHeading>哪些訊號會支持或挑戰論點</SubsectionHeading>
-      {narrative.current_tension.text ? <div className="flex flex-col gap-1 border-l-2 border-line pl-3">
-        <p className="text-caption font-medium text-ink-2">目前張力</p>
-        <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.current_tension.text} /></p>
-      </div> : null}
-      <SignalGroup title="來源列出的挑戰訊號" signals={challengeSignals} emptyLabel="來源尚未列出明確的挑戰訊號。" />
       <SignalGroup title="來源列出的支持訊號" signals={supportSignals} emptyLabel="來源尚未列出明確的支持訊號。" />
+      <SignalGroup title="來源列出的挑戰訊號" signals={challengeSignals} emptyLabel="目前未連結明確的挑戰訊號；反方涵蓋未知／來源未提供。" />
       <div className="flex min-w-0 flex-col gap-1">
         <p className="text-caption font-medium text-ink-2">明確推翻條件</p>
         {explicitFalsifiers.length ? <ul className="list-disc pl-5 text-body leading-relaxed text-ink-2">{explicitFalsifiers.map((condition, index) => <li key={index}><InlineText text={condition} /></li>)}</ul> : <p className="text-caption leading-relaxed text-ink-3">{NARRATIVE_FALSIFIER_UNAVAILABLE_COPY}</p>}
       </div>
       {!evidence.directional_signals.length ? <p className="text-caption leading-relaxed text-ink-3">可用訊號缺失不等於反方不存在；不從文字或近期事件推測。</p> : null}
     </article>
+
+    <RecordedLearning record={evidence.latest_recorded_change} />
+    <article className="flex min-w-0 flex-col gap-2 p-4 sm:p-5"><SubsectionHeading>下一個驗證點</SubsectionHeading><p className="text-body text-ink-3">此論點來源未提供獨立的下一次日期或檢查點。請到研究與策略閱讀來源明示的事件；未提供明確 ID 關係的事件保持獨立。</p></article>
+    <details className="flex min-w-0 flex-col gap-2 p-4 text-ink-3 sm:p-5"><summary className="cursor-pointer text-body font-medium">詳細論點文字</summary>
+
+      {narrative.title ? <p className="text-caption text-ink-3">{narrative.title}</p> : null}
+      {narrative.what_i_bet.narrative.text ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={narrative.what_i_bet.narrative.text} /></p> : null}
+      {!narrative.what_i_bet.narrative.text && !narrative.what_i_bet.owner_thesis.text ? <p className="text-body text-ink-3">來源尚未提供可讀的論點；不補寫投資主張。</p> : null}
+    </details>
 
     <details className="p-4 text-caption text-ink-3 sm:p-5">
       <summary className="cursor-pointer">日期與來源</summary>
@@ -351,7 +362,6 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
       </div>
     </details>
 
-    <RecordedLearning record={evidence.latest_recorded_change} />
   </Card>
 }
 
@@ -369,7 +379,7 @@ export function InvestmentNarrativeSection({ enabled, onOpenHistory }: { enabled
   const state: DisplayState = query.isError ? "unavailable" : narrativeDisplayState(narrative?.state, narrative?.thesis_evidence.state, data?.state) ?? "unknown"
   return <section aria-label="我的論點｜五層證據" className="flex min-w-0 flex-col gap-3 break-words">
     <SectionHeading aside={<StateChip state={state} />}>我的論點｜五層證據</SectionHeading>
-    <p className="text-caption leading-relaxed text-ink-3">依序看五層證據、目前訊號、日期與來源、最近一次明確記錄；資料完整度不代表論點成立。要回找當時判斷、後續結果與已記錄心得，請到 <Button variant="link" className="inline min-h-0 px-0 py-0 align-baseline" onClick={onOpenHistory}>復盤與學習</Button>。交易紀錄核對是另一項工作；PersonalOS 目前沒有對應入口。</p>
+    <p className="text-caption leading-relaxed text-ink-3">先看當下判斷、支持與挑戰證據，再看最近明確記錄與下一個驗證點；詳細論點與來源可展開。資料完整度不代表論點成立。要回找當時判斷、後續結果與已記錄心得，請到 <Button variant="link" className="inline min-h-0 px-0 py-0 align-baseline" onClick={onOpenHistory}>復盤與學習</Button>。交易紀錄核對是另一項工作；PersonalOS 目前沒有對應入口。</p>
     {narrative ? <StateNote state={narrative.state} reason={narrative.state_reason} /> : null}
     {DEMO_MODE ? <p className="text-caption text-ink-3">展示內容全為合成範例；個人論點與持倉保持未知。</p> : null}
     {query.isPending && !data ? <p role="status" className="text-body text-ink-3">正在讀取論點來源；讀取完成前不顯示健康狀態。</p> : null}
