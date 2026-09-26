@@ -365,9 +365,10 @@ export function researchDirectionView(data: import("./investment.ts").Investment
 /** Validate explicit producer linkage without joining records or substituting IDs.
  * Partial coverage remains partial even when this one recorded chain is linked. */
 export function historyChainLinked(item: import("./investment.ts").InvestmentHistoryItem, peers: readonly import("./investment.ts").InvestmentHistoryItem[] = [item]): boolean {
+  const outcomeRecorded = item.outcome_state === "recorded" || (item.outcome_state == null && item.outcome?.state === "recorded")
   return item.chain_state === "linked" && item.kind === "decision_episode" && Boolean(item.id && item.decision_id && item.date)
     && item.state === "ready" && peers.filter(row => row.id === item.id || (row.decision_id && row.decision_id === item.decision_id)).length === 1
-    && item.learning_state === "recorded" && item.learning_role === "reusable_framework" && item.outcome_state === "recorded"
+    && item.learning_state === "recorded" && item.learning_role === "reusable_framework" && outcomeRecorded
 }
 
 /** Detail carries the exact source slices; index intentionally omits prose and checkpoints. */
