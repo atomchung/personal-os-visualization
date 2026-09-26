@@ -107,7 +107,7 @@ function ProjectedCatalyst({ item }: { item: InvestmentCatalystItem }) {
   return <li className="flex min-w-0 flex-col gap-1 border-t border-line-soft py-2 first:border-0">
     <p className="text-body font-medium text-ink">{item.date_precision === "day" && item.window_membership === "within" ? item.date : item.date_label || "日期未確定"} · {item.ticker} · {item.type}</p>
     <p className="text-body text-ink-2"><InlineText text={item.raw} /></p>
-    {item.date_precision !== "day" || item.window_membership !== "within" ? <p className="text-caption text-warn">日期精度：{item.date_precision} · 範圍關係：{item.window_membership}；不轉成確定的日期。</p> : null}
+    {item.date_precision !== "day" || item.window_membership !== "within" ? <p className="text-caption text-warn">日期精度：{item.date_precision} · 範圍關係：{item.window_membership === "possible" ? "可能在範圍內" : item.window_membership === "unknown" ? "未知（未確認是否在範圍內）" : "來源確認在範圍內"}；不轉成確定的日期。</p> : null}
     {qualifiers ? <p className="text-caption text-ink-3">來源限定：{qualifiers}</p> : null}
     <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">催化劑來源</summary><p className="break-all">{item.source.path} · {item.source.line ?? "行數未提供"}</p></details>
   </li>
@@ -124,7 +124,7 @@ export function CatalystProjection({ data, pending = false, failed = false }: { 
     {data ? <>
       <p className="text-caption text-ink-3">投影範圍：{data.window_start || "起日未知"} 至 {data.window_end || "迄日未知"} · {view.state === "ready" ? "來源投影已讀取" : view.state === "partial" ? "部分涵蓋" : "涵蓋未知"}</p>
       {view.exact.length ? <ul className="flex min-w-0 flex-col">{view.exact.map((item, index) => <ProjectedCatalyst key={index} item={item} />)}</ul> : <p className="text-body text-ink-3">來源未列出此範圍內的確定日期事件；不代表沒有催化劑。</p>}
-      {view.uncertain.length ? <div className="flex min-w-0 flex-col gap-1"><p className="text-caption font-medium text-warn">可能在範圍內／日期未確定 · {view.uncertain.length} 項</p><ul>{view.uncertain.map((item, index) => <ProjectedCatalyst key={index} item={item} />)}</ul></div> : null}
+      {view.uncertain.length ? <div className="flex min-w-0 flex-col gap-1"><p className="text-caption font-medium text-warn">日期或範圍關係未確定 · {view.uncertain.length} 項</p><ul>{view.uncertain.map((item, index) => <ProjectedCatalyst key={index} item={item} />)}</ul></div> : null}
       {data.coverage_gaps.length ? <div className="text-caption text-warn"><p>來源涵蓋缺口</p>{data.coverage_gaps.map((gap, index) => <p key={index}>{gap.ticker}：{gap.reason}</p>)}</div> : null}
       {data.limitations.map((note, index) => <p key={index} className="text-caption text-warn">{note}</p>)}
     </> : null}

@@ -439,7 +439,8 @@ export const investmentNarrative: InvestmentNarrative = {
   catalysts_30d: {
     state: "partial", window_start: DATE, window_end: "2026-10-20",
     items: [{ ticker: "DEMO", type: "虛構財報", raw: "2026-10-05 公布虛構公司財報，核對需求是否延續。", date_precision: "day", date: "2026-10-05", date_label: "2026-10-05", source_qualifiers: [], source: { path: "synthetic/catalysts.md", line: 1 }, window_membership: "within" }],
-    uncertain_items: [{ ticker: "DEMO", type: "虛構產品驗證", raw: "2026-10 月可能公布驗證結果，日期尚未確認。", date_precision: "month", date: null, date_label: "2026-10", source_qualifiers: ["日期未確認"], source: { path: "synthetic/catalysts.md", line: 2 }, window_membership: "possible" }],
+    uncertain_items: [{ ticker: "DEMO", type: "虛構產品驗證", raw: "2026-10 月可能公布驗證結果，日期尚未確認。", date_precision: "month", date: null, date_label: "2026-10", source_qualifiers: ["日期未確認"], source: { path: "synthetic/catalysts.md", line: 2 }, window_membership: "possible" },
+      { ticker: "DEMO-C", type: "虛構待公布事項", raw: "虛構事項尚未登記日期與窗口關係。", date_precision: "imprecise", date: null, date_label: null, source_qualifiers: ["窗口關係未知"], source: { path: "synthetic/catalysts.md", line: 3 }, window_membership: "unknown" }],
     coverage_gaps: [{ ticker: "DEMO-B", reason: "合成來源尚未登記下一個事件。" }], limitations: ["合成案例只示範部分催化劑來源。"],
   },
   artifact: "personalos-investment-hub",

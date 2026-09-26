@@ -757,6 +757,8 @@ test("30-day catalyst projection preserves exact, approximate, missing and parti
   assert.equal(view.exact[0]?.date, "2026-10-05", "future event beyond brief seven-day horizon remains visible")
   assert.equal(view.uncertain[0]?.date, null)
   assert.equal(view.uncertain[0]?.window_membership, "possible")
+  assert.equal(view.uncertain[1]?.window_membership, "unknown", "unknown window membership stays unknown alongside possible items")
+  assert.equal(view.uncertain[1]?.date, null)
   assert.equal(projection.coverage_gaps.length, 1)
   const approximate = { ...projection.items[0], date_precision: "approximate_day", date: null, window_membership: "possible" }
   assert.equal(catalystDateGroups({ ...projection, items: [approximate], uncertain_items: [] }).exact.length, 0)

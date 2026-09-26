@@ -22,7 +22,7 @@ import {
   getInvestmentPending, getInvestmentHistory, getInvestmentContext, getInvestmentResearch,
   getInvestmentSource, getInvestmentWork,
   getInvestmentActions, getMarketExplore, getInvestmentNarrative,
-  type InvestmentCatalysts30d, type InvestmentActionItem, type InvestmentBrief, type InvestmentSource, type InvestmentTodayView,
+  type InvestmentActionItem, type InvestmentBrief, type InvestmentSource, type InvestmentTodayView,
 } from "@/lib/investment"
 
 function SourceText({ source }: { source: InvestmentSource }) {
@@ -213,17 +213,11 @@ function TodayBriefSessions({ brief, hasUpdates }: { brief: InvestmentBrief; has
 }
 
 /** Reading structure only. Meaning, order, changes and event links come from the source. */
-function TodayBrief({ b, today, readFailed, catalysts, catalystsPending, catalystsFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed: boolean; catalysts?: InvestmentCatalysts30d | null; catalystsPending: boolean; catalystsFailed: boolean }) {
+function TodayNextSteps({ b, today, readFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed: boolean }) {
   const actionPlan = todayActionPlan(b, today, readFailed)
   const actionSection = todayActionSection(b)
   const nextSteps = todayNextSteps(actionPlan)
-  const updates = today?.updates ?? []
-  const stories = buildTodayStories(b.date, b.events, updates)
-  const theses = groupBriefRows(b.thesis_changes, b.events.length)
-  const risks = groupBriefRows(b.risks, b.events.length)
-  const hasUnlinked = theses.unlinked.length > 0 || risks.unlinked.length > 0 || b.thesis_notes.length > 0 || b.risk_notes.length > 0
-  const envelopeIncomplete = b.envelope && b.envelope.completeness !== "ready"
-  return <section aria-label="今日簡報" className="flex min-w-0 flex-col gap-6 break-words">
+  return (
     <section className="flex min-w-0 flex-col gap-3" aria-label={actionSection.heading}>
       <div className="flex min-w-0 flex-col gap-1">
         <SectionHeading>{actionSection.heading}</SectionHeading>
@@ -245,8 +239,19 @@ function TodayBrief({ b, today, readFailed, catalysts, catalystsPending, catalys
         </details> : null}
       </Card>
     </section>
+  )
+}
 
-    <CatalystProjection data={catalysts} pending={catalystsPending} failed={catalystsFailed} />
+function TodayBrief({ b, today }: { b: InvestmentBrief; today?: InvestmentTodayView }) {
+  const updates = today?.updates ?? []
+  const stories = buildTodayStories(b.date, b.events, updates)
+  const theses = groupBriefRows(b.thesis_changes, b.events.length)
+  const risks = groupBriefRows(b.risks, b.events.length)
+  const hasUnlinked = theses.unlinked.length > 0 || risks.unlinked.length > 0 || b.thesis_notes.length > 0 || b.risk_notes.length > 0
+  const envelopeIncomplete = b.envelope && b.envelope.completeness !== "ready"
+  return <section aria-label="今日簡報" className="flex min-w-0 flex-col gap-6 break-words">
+
+
     <TodayBriefSessions brief={b} hasUpdates={updates.length > 0} />
     <section aria-label="今天發生了什麼" className="flex min-w-0 flex-col gap-3">
       <SectionHeading>今天發生了什麼</SectionHeading>
@@ -352,7 +357,9 @@ export function InvestmentPage() {
     <div id="investment-panel-today" role="tabpanel" aria-labelledby="investment-tab-today" hidden={view !== "today"} className={view === "today" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
       {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次內容。" : ""}請按更新資料重試。</p> : null}
       {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
-      {b ? <TodayBrief b={b} today={query.data?.today} readFailed={query.isError} catalysts={hub.data?.catalysts_30d} catalystsPending={hub.isPending} catalystsFailed={hub.isError} /> : null}
+      {b ? <TodayNextSteps b={b} today={query.data?.today} readFailed={query.isError} /> : null}
+      <CatalystProjection data={hub.data?.catalysts_30d} pending={hub.isPending} failed={hub.isError} />
+      {b ? <TodayBrief b={b} today={query.data?.today} /> : null}
       <MarketIndicators />
     </div>
     <div id="investment-panel-judgment" role="tabpanel" aria-labelledby="investment-tab-judgment" hidden={view !== "judgment"} className={view === "judgment" ? "flex min-w-0 flex-col gap-6" : "hidden"}>

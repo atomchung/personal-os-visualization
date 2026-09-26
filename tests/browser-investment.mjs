@@ -23,8 +23,10 @@ try {
     await projection.waitFor()
     assert.match(await projection.innerText(), /2026-10-05/)
     assert.match(await projection.innerText(), /部分涵蓋/)
-    assert.match(await projection.innerText(), /可能在範圍內／日期未確定/)
+    assert.match(await projection.innerText(), /日期或範圍關係未確定/)
     assert.match(await projection.innerText(), /來源涵蓋缺口/)
+    assert.match(await projection.innerText(), /範圍關係：未知（未確認是否在範圍內）/)
+    assert.match(await projection.innerText(), /範圍關係：可能在範圍內/)
     await page.getByLabel('各市場資料日期').waitFor()
     assert.match(await page.getByLabel('各市場資料日期').innerText(), /台股日結資料日/)
     assert.match(await page.getByLabel('各市場資料日期').innerText(), /美股各指標資料日期/)
@@ -60,6 +62,36 @@ try {
     }
     assert.deepEqual(errors, [])
     await page.close()
+
+    // Fault only the synthetic brief response. Narrative projection remains available.
+    const briefFailurePage = await browser.newPage({ viewport: { width, height: 1000 } })
+    const failureErrors = []
+    briefFailurePage.on('pageerror', error => failureErrors.push(error.message))
+    let injected = false
+    await briefFailurePage.route('**/src/demo/transport.ts', async route => {
+      const response = await route.fetch()
+      const source = await response.text()
+      const body = source.replace(/case "\/api\/investment":\s*return reply\(investment\);/, 'case "/api/investment": return Response.json({ detail: "Synthetic brief failure" }, { status: 503 });')
+      injected = body !== source
+      await route.fulfill({ response, body })
+    })
+    await briefFailurePage.goto(`${process.env.UI_URL || 'http://127.0.0.1:5197'}/?tab=investment`)
+    await briefFailurePage.getByRole('alert').filter({ hasText: '簡報讀取失敗' }).waitFor()
+    assert.equal(injected, true, 'test injected the synthetic brief failure')
+    assert.equal(await briefFailurePage.getByTestId('primary-next-step').count(), 0, 'no cached brief exists')
+    const independentProjection = briefFailurePage.getByLabel('來源投影的未來 30 天催化劑').filter({ visible: true })
+    await independentProjection.waitFor()
+    assert.match(await independentProjection.innerText(), /2026-10-05/)
+    assert.match(await independentProjection.innerText(), /部分涵蓋/)
+    assert.doesNotMatch(await independentProjection.innerText(), /催化劑來源本次讀取失敗/)
+    const failureCollapsed = await briefFailurePage.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }))
+    await independentProjection.locator('details').evaluateAll(nodes => nodes.forEach(node => { node.open = true }))
+    const failureExpanded = await briefFailurePage.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }))
+    assert.ok(failureCollapsed.scroll <= failureCollapsed.client)
+    assert.ok(failureExpanded.scroll <= failureExpanded.client)
+    assert.deepEqual(failureErrors, [])
+    results.push({ width, scenario: 'brief-failed-narrative-ready', collapsed: failureCollapsed, expanded: failureExpanded })
+    await briefFailurePage.close()
   }
   console.log(JSON.stringify(results, null, 2))
 } finally { await browser.close() }
