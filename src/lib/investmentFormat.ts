@@ -372,7 +372,7 @@ export function historyChainLinked(item: import("./investment.ts").InvestmentHis
 
 /** Detail carries the exact source slices; index intentionally omits prose and checkpoints. */
 export function historyChainDetailLinked(item: import("./investment.ts").InvestmentHistoryItem, peers: readonly import("./investment.ts").InvestmentHistoryItem[] = [item], conflicts: readonly import("./investment.ts").InvestmentHistoryItem[] = []): boolean {
-  const located = (ref: import("./investment.ts").InvestmentHistorySourceRef | null | undefined) => Boolean(ref?.path && ref.line && ref.line_end && ref.line_end >= ref.line)
+  const located = (ref: import("./investment.ts").InvestmentHistorySourceRef | null | undefined) => Boolean(ref?.path && ref.line && (ref.line_end == null || ref.line_end >= ref.line))
   return conflicts.length === 0 && historyChainLinked(item, peers) && Boolean(item.reason?.trim()) && located(item.decision_source)
     && Boolean(item.learning?.trim()) && located(item.learning_source)
     && Boolean(item.checkpoints?.some(point => point.relation_state === "linked" && point.date && point.date > item.date! && point.outcome.state === "recorded" && point.outcome.text?.trim() && located(point.source)))

@@ -702,4 +702,15 @@ test("historical chain requires explicit identity, recorded outcome and source p
   assert.equal(historyChainLinked(linked, [linked, { ...linked }]), false)
   assert.equal(historyChainLinked({ ...linked, state: "partial" }), false)
   assert.equal(historyChainDetailLinked({ ...linked, checkpoints: [{ ...linked.checkpoints![0], relation_state: "unknown" }] }), false)
+  const oneLine = {
+    ...linked,
+    decision_source: { ...linked.decision_source!, line_end: undefined },
+    learning_source: { ...linked.learning_source!, line_end: undefined },
+    checkpoints: linked.checkpoints!.map((point, index) => index === 0 && point.source
+      ? { ...point, source: { ...point.source, line_end: undefined } }
+      : point),
+  }
+  assert.equal(historyChainDetailLinked(oneLine), true, "an explicit producer line is a complete source location without a range end")
+  assert.equal(historyChainDetailLinked({ ...oneLine, decision_source: { path: linked.decision_source!.path } }), false)
+  assert.equal(historyChainDetailLinked({ ...oneLine, learning_source: { ...linked.learning_source!, line_end: linked.learning_source!.line! - 1 } }), false)
 })
