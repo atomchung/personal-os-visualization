@@ -692,6 +692,10 @@ test("historical chain requires explicit identity, recorded outcome and source p
   assert.equal(historyChainDetailLinked(linked), true)
   assert.equal(historyChainDetailLinked(linked, [linked], [{ ...linked }]), false)
   assert.equal(historyChainDetailLinked({ ...linked, state: "partial" }), false)
+  const detailOutcomeOnly = { ...linked, outcome_state: undefined }
+  assert.equal(historyChainLinked(detailOutcomeOnly), true, "detail may expose recorded status on outcome.state")
+  assert.equal(historyChainDetailLinked(detailOutcomeOnly), true)
+  assert.equal(historyChainLinked({ ...linked, outcome_state: "unknown" }), false, "an explicit unknown status is never upgraded from detail prose")
   const { reason, decision_source, learning, learning_source, checkpoints, ...summary } = linked
   assert.equal(historyChainLinked(summary), true)
   assert.equal(historyChainDetailLinked(summary), false)

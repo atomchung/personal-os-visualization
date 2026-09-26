@@ -417,7 +417,7 @@ export type InvestmentHistoryItem = {
   chain_state?: "linked" | "unknown"
   decision_source?: InvestmentHistorySourceRef | null
   learning_source?: InvestmentHistorySourceRef | null
-  outcome_state: "unknown" | "recorded"
+  outcome_state?: "unknown" | "recorded"
   learning_state: "unknown" | "recorded"
   /** Producer-owned classification; absent/unknown items stay unclassified. */
   learning_role?: "reusable_framework" | "historical_case" | "unknown"
