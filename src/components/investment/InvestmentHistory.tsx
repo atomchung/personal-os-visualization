@@ -57,7 +57,7 @@ function HistoryDetail({ data, peers }: { data: InvestmentHistoryDetail | undefi
   return (
     <div className="flex min-w-0 flex-col gap-2 border-t border-line-soft pt-2">
       {item ? <>
-        <p className="text-caption text-ink-3">歷史判斷 → 後續結果 → 已記錄心得：{historyChainDetailLinked(item, peers) ? "來源明確連結" : "關係未知或不完整"}；這不代表 owner 核可或今日建議。</p>
+        <p className="text-caption text-ink-3">歷史判斷 → 後續結果 → 已記錄心得：{historyChainDetailLinked(item, peers, data.history.conflicts) ? "來源明確連結" : "關係未知或不完整"}；這不代表 owner 核可或今日建議。</p>
         <p className="break-words text-caption text-ink-3">歷史 decision ID：{item.decision_id ?? "未提供"}</p>
         {item.decision_source ? <p className="break-words text-caption text-ink-3">判斷出處：{sourceRefLocation(item.decision_source)}</p> : null}
         {item.learning_source ? <p className="break-words text-caption text-ink-3">心得出處：{sourceRefLocation(item.learning_source)}</p> : null}

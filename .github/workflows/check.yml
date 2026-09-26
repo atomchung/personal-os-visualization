@@ -122,8 +122,24 @@ jobs:
               await historyLink.click()
               assert.equal(await page.getByRole('tab', { name: '復盤與學習', exact: true }).getAttribute('aria-selected'), 'true')
               await page.getByRole('heading', { name: '可重用框架', exact: true }).waitFor()
-              assert(await page.getByText(/來源尚未提供可確認的學習分類/).isVisible(),
-                `${name}: learning remains unknown until the producer classifies it`)
+              const linkedHistory = page.locator('[aria-label="已連結的歷史判斷"]')
+              assert(await linkedHistory.getByRole('heading', { name: '範例研究 B：判斷、後續結果與心得', exact: true }).isVisible(),
+                `${name}: explicit producer chain is readable from the compact index`)
+              await linkedHistory.getByText('讀取這筆 producer 明細', { exact: true }).click()
+              assert(await linkedHistory.getByText(/歷史 decision ID：.*decision:synthetic-episode-20260901/).isVisible())
+              assert(await linkedHistory.getByText(/合成案例：後續觀察未支持原先需求假設/).isVisible())
+              assert(await linkedHistory.getByText(/合成心得：把可檢查的需求證據與假設分開記錄/).isVisible())
+              assert(await linkedHistory.getByText(/判斷出處：.*synthetic\/history-chain.md.*2/).isVisible())
+              assert(await linkedHistory.getByText(/心得出處：.*synthetic\/history-chain.md.*6/).isVisible())
+              const history = page.locator('section[aria-label="復盤與學習"]')
+              assert(await history.getByText('部分資料可讀', { exact: true }).isVisible())
+              assert(await history.getByText(/source_cutoff：.*unknown/).isVisible())
+              await history.getByText('歷史紀錄與後續結果 · 4 筆', { exact: true }).click()
+              const unknownHistory = history.getByRole('heading', { name: '目前判斷與下一步', exact: true }).locator('xpath=ancestor::div[contains(@class, "p-3")][1]')
+              assert(await unknownHistory.getByText('後續結果未知', { exact: true }).isVisible(),
+                `${name}: unclassified episode outcome remains unknown beside a linked case`)
+              assert(await unknownHistory.getByText('learning 分類：未知或未提供', { exact: true }).isVisible(),
+                `${name}: classification is never inferred for the other episode`)
               await page.getByRole('tab', { name: '今日', exact: true }).click()
               const marketCard = page.locator('[aria-label="現在盤面與市場資金"]')
               assert.equal(await marketCard.count(), 1, `${name}: context and discovery must share one market card`)

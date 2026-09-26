@@ -690,6 +690,8 @@ test("historical chain requires explicit identity, recorded outcome and source p
   const linked = Object.values(investmentHistorySources).find(detail => detail.history.item?.chain_state === "linked")!.history.item!
   assert.equal(historyChainLinked(linked, investmentHistory.history.items), true)
   assert.equal(historyChainDetailLinked(linked), true)
+  assert.equal(historyChainDetailLinked(linked, [linked], [{ ...linked }]), false)
+  assert.equal(historyChainDetailLinked({ ...linked, state: "partial" }), false)
   const { reason, decision_source, learning, learning_source, checkpoints, ...summary } = linked
   assert.equal(historyChainLinked(summary), true)
   assert.equal(historyChainDetailLinked(summary), false)
@@ -698,6 +700,6 @@ test("historical chain requires explicit identity, recorded outcome and source p
     assert.equal(historyChainDetailLinked({ ...linked, ...patch } as typeof linked), false)
   }
   assert.equal(historyChainLinked(linked, [linked, { ...linked }]), false)
-  assert.equal(historyChainLinked({ ...linked, state: "partial" }), true)
+  assert.equal(historyChainLinked({ ...linked, state: "partial" }), false)
   assert.equal(historyChainDetailLinked({ ...linked, checkpoints: [{ ...linked.checkpoints![0], relation_state: "unknown" }] }), false)
 })
