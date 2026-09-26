@@ -30,6 +30,18 @@ try {
     await page.getByLabel('各市場資料日期').waitFor()
     assert.match(await page.getByLabel('各市場資料日期').innerText(), /台股日結資料日/)
     assert.match(await page.getByLabel('各市場資料日期').innerText(), /美股各指標資料日期/)
+    const taiwanRs = page.getByLabel('台股持倉相對大盤強弱', { exact: true })
+    await taiwanRs.waitFor()
+    assert.match(await taiwanRs.innerText(), /完整交易日 2026-09-19 · 要求日期 2026-09-20/)
+    const listed = taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-A"]')
+    assert.match(await listed.innerText(), /相對大盤：\+3.25 個百分點/)
+    assert.match(await listed.innerText(), /同業比較：未提供/)
+    assert.match(await listed.innerText(), /觀察點 61\/61/)
+    const otc = taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-B"]')
+    assert.match(await otc.innerText(), /TPEx · 不可用/)
+    assert.match(await otc.innerText(), /相對大盤：未取得/)
+    assert.match(await taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-C"]').innerText(), /交易所未確認/)
+    assert.match(await projection.innerText(), /與今日行動／論點的關係：未連結/)
     for (const label of ['今日', '我的判斷', '研究與策略', '復盤與學習']) {
       await page.getByRole('tab', { name: label, exact: true }).click()
       const panel = page.getByRole('tabpanel').filter({ visible: true }).first()
@@ -39,6 +51,12 @@ try {
         const recorded = await page.getByRole('heading', { name: '最近一次明確記錄的判斷與驗證' }).boundingBox()
         const detail = await page.getByText('詳細論點文字', { exact: true }).boundingBox()
         assert.ok(recorded.y < detail.y, 'recorded judgment precedes detail')
+        const current = await page.getByRole('heading', { name: '當下判斷', exact: true }).boundingBox()
+        const support = await page.getByText('來源列出的支持訊號', { exact: true }).boundingBox()
+        const challenge = await page.getByText('來源列出的挑戰訊號', { exact: true }).boundingBox()
+        const checkpoint = await page.getByRole('heading', { name: '下一個驗證點', exact: true }).boundingBox()
+        const layers = await page.getByRole('heading', { name: '五層證據', exact: true }).boundingBox()
+        assert.ok(current.y < support.y && support.y < challenge.y && challenge.y < recorded.y && recorded.y < checkpoint.y && checkpoint.y < layers.y && layers.y < detail.y, 'judgment signals and recorded checkpoints precede detailed layer evidence')
         assert.match(await panel.innerText(), /下一個驗證點/)
       }
       if (label === '研究與策略') {
@@ -92,6 +110,30 @@ try {
     assert.deepEqual(failureErrors, [])
     results.push({ width, scenario: 'brief-failed-narrative-ready', collapsed: failureCollapsed, expanded: failureExpanded })
     await briefFailurePage.close()
+  }
+  for (const state of ['unavailable', 'read-error']) {
+    const page = await browser.newPage({ viewport: { width: 320, height: 1000 } })
+    await page.addInitScript(state => {
+      const original = Response.prototype.json
+      Response.prototype.json = async function () {
+        const data = await original.call(this)
+        if (data?.artifact === 'tw-holdings-relative-strength') {
+          if (state === 'read-error') throw new Error('Synthetic RS read error')
+          data.state = 'unavailable'
+          data.holdings = []
+          data.as_of = 'unknown'
+        }
+        return data
+      }
+    }, state)
+    await page.goto(`${process.env.UI_URL || 'http://127.0.0.1:5197'}/?tab=investment`)
+    const rs = page.getByLabel('台股持倉相對大盤強弱', { exact: true })
+    if (state === 'read-error') await rs.getByRole('alert').waitFor()
+    else await rs.getByText('來源標示相對強弱不可用；不是零，也不代表沒有台股持倉。', { exact: true }).waitFor()
+    const layout = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }))
+    assert.ok(layout.scroll <= layout.client)
+    results.push({ width: 320, scenario: `tw-rs-${state}`, layout })
+    await page.close()
   }
   console.log(JSON.stringify(results, null, 2))
 } finally { await browser.close() }

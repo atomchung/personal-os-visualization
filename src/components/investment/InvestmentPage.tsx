@@ -19,7 +19,7 @@ import { InvestmentNarrativeSection } from "./InvestmentNarrative"
 import { anchorRelativeDay, buildTodayStories, taipeiCalendarDate, todayStoryHeadline, type TodayStory } from "@/lib/investmentToday"
 import {
   getInvestment, getInvestmentWatch, getInvestmentMarket, getInvestmentPulse,
-  getInvestmentPending, getInvestmentHistory, getInvestmentContext, getInvestmentResearch,
+  getTwRelativeStrength, getInvestmentPending, getInvestmentHistory, getInvestmentContext, getInvestmentResearch,
   getInvestmentSource, getInvestmentWork,
   getInvestmentActions, getMarketExplore, getInvestmentNarrative,
   type InvestmentActionItem, type InvestmentBrief, type InvestmentSource, type InvestmentTodayView,
@@ -311,6 +311,7 @@ export function InvestmentPage() {
           run("市場探索", ["investment-explore"], () => getMarketExplore(undefined, true)),
           run("台股整體盤感", ["investment-pulse"], () => getInvestmentPulse()),
           run("催化劑投影", ["investment-narrative"], () => getInvestmentNarrative()),
+          run("台股持倉相對強弱", ["investment-tw-relative-strength"], () => getTwRelativeStrength()),
         ])
         if (brief?.brief.state === "invalid" || brief?.brief.state === "missing") failures.push("簡報內容")
         if (brief?.brief.source?.limitations.length) failures.push("簡報部分段落")

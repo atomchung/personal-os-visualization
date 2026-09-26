@@ -109,6 +109,13 @@ jobs:
               assert(await thesis.getByText('證據覆蓋：資料部分可用', { exact: true }).isVisible(),
                 `${name}: evidence coverage must remain distinct from aggregate narrative state`)
               assert(await thesis.getByText(/合成測試：證據尚未映射到五層/).isVisible())
+              const judgmentY = await thesis.getByRole('heading', { name: '當下判斷', exact: true }).boundingBox()
+              const supportY = await thesis.getByText('來源列出的支持訊號', { exact: true }).boundingBox()
+              const challengeY = await thesis.getByText('來源列出的挑戰訊號', { exact: true }).boundingBox()
+              const recordedY = await thesis.getByRole('heading', { name: '最近一次明確記錄的判斷與驗證', exact: true }).boundingBox()
+              const checkpointY = await thesis.getByRole('heading', { name: '下一個驗證點', exact: true }).boundingBox()
+              const layersY = await thesis.getByRole('heading', { name: '五層證據', exact: true }).boundingBox()
+              assert(judgmentY.y < supportY.y && supportY.y < challengeY.y && challengeY.y < recordedY.y && recordedY.y < checkpointY.y && checkpointY.y < layersY.y, `${name}: judgment signals and explicit records precede detailed evidence`)
               const challengeSourceDisclosure = thesis.getByText('來源列出的挑戰訊號', { exact: true }).locator('..').getByText('訊號日期與來源', { exact: true }).first()
               const challengeSignal = challengeSourceDisclosure.locator('xpath=ancestor::li[1]')
               await challengeSourceDisclosure.click()
@@ -151,6 +158,14 @@ jobs:
               const usMarket = page.getByRole('tab', { name: '美股', exact: true })
               assert.equal(await twMarket.getAttribute('aria-selected'), 'true')
               const taiwanPulse = page.locator('[aria-label="台股整體盤感"]')
+              const taiwanRs = page.getByRole('region', { name: '台股持倉相對大盤強弱', exact: true })
+              assert(await taiwanRs.getByText(/完整交易日 2026-09-19 · 要求日期 2026-09-20/).isVisible(), `${name}: Taiwan RS keeps its own verified session`)
+              const listedRs = taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-A"]')
+              assert.match(await listedRs.innerText(), /相對大盤：\+3.25 個百分點/)
+              assert.match(await listedRs.innerText(), /同業比較：未提供/)
+              assert.match(await taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-B"]').innerText(), /相對大盤：未取得/)
+              assert.match(await taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-C"]').innerText(), /交易所未確認/)
+
               assert(await taiwanPulse.getByText(/最近可用交易日 2026-09-19 · 收盤／休市狀態未提供/).isVisible(),
                 `${name}: unknown exchange status must stay unknown`)
               assert(await taiwanPulse.getByText('漲跌方向待核對', { exact: true }).isVisible(),

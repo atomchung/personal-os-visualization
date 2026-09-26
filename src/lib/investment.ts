@@ -492,6 +492,43 @@ export type InvestmentContext = {
 export type QuoteSession = "pre" | "regular" | "post" | "closed" | "futures"
 export const SESSION_LABELS: Record<QuoteSession, string> = { pre: "盤前", regular: "盤中", post: "盤後", closed: "收盤", futures: "期貨" }
 
+export type TwRelativeStrengthHolding = {
+  symbol: string
+  market: "tw"
+  exchange: "TWSE" | "TPEx" | null
+  provider_symbol: string | null
+  as_of: string | null
+  window_start: string | null
+  window_trading_days: number
+  state: "partial" | "unavailable"
+  reason_codes: string[]
+  limitations: string[]
+  market_rs_pp: number | null
+  market_benchmark: { id: string; label: string }
+  peer_rs_pp: null
+  peer_group: null
+  coverage: { expected_sessions: number; holding_sessions: number }
+  price_source: string
+  benchmark_source: string
+}
+export type TwRelativeStrength = {
+  schema_version: string
+  artifact: "tw-holdings-relative-strength"
+  id: string
+  market: "tw"
+  state: "partial" | "unavailable"
+  as_of: string
+  requested_date: string | null
+  read_at: string | null
+  generated_at: string
+  source_cutoff: string
+  producer: string
+  window_trading_days: number
+  limitations: string[]
+  sources: string[]
+  holdings: TwRelativeStrengthHolding[]
+}
+
 export type InvestmentMarket = {
   fetched_at: string
   state: "ready" | "partial" | "unavailable"
@@ -818,6 +855,10 @@ export const getInvestmentActions = (signal?: AbortSignal) =>
 
 export const getInvestmentMarket = (signal?: AbortSignal, refresh = false) =>
   readInvestment<InvestmentMarket>(`/api/investment/market?refresh=${refresh}`, signal)
+
+/** Canonical Taiwan session-aligned holdings RS; never calculated by the consumer. */
+export const getTwRelativeStrength = (signal?: AbortSignal) =>
+  readInvestment<TwRelativeStrength>("/api/investment/tw-relative-strength", signal, 75_000)
 
 export const getInvestmentPulse = (signal?: AbortSignal) =>
   readInvestment<InvestmentMarketPulse>("/api/investment/pulse", signal, 75_000)

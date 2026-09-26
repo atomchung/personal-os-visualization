@@ -31,6 +31,7 @@ function ResearchCard({item}: {item: InvestmentResearchItem}) {
     <p className="break-words text-caption text-ink-3">{readStateLabel(item.state)} · {item.kind} · 登記狀態：{item.status} · 更新：{item.updated||item.as_of||"unknown"} · 來源：{location}</p>
     {item.question?<p className="text-body text-ink-2">待回答：{item.question}</p>:null}
     {item.narrative_id?<p className="break-words text-caption text-ink-3">來源明示 narrative_id：{item.narrative_id}</p>:null}
+    {!item.narrative_id && !item.decision_id ? <p className="text-caption text-ink-3">此研究與論點／決策：未連結；來源未提供關係 ID。</p> : null}
     {item.decision_id?<p className="break-words text-caption text-ink-3">來源明示 decision_id：{item.decision_id}</p>:null}
     {item.missing?.map((reason,index)=><p key={index} className="text-caption text-warn">未知／缺少：{reason}</p>)}
     {open?<div className="flex flex-col gap-3 border-t border-line-soft pt-2">
@@ -107,6 +108,7 @@ function ProjectedCatalyst({ item }: { item: InvestmentCatalystItem }) {
   return <li className="flex min-w-0 flex-col gap-1 border-t border-line-soft py-2 first:border-0">
     <p className="text-body font-medium text-ink">{item.date_precision === "day" && item.window_membership === "within" ? item.date : item.date_label || "日期未確定"} · {item.ticker} · {item.type}</p>
     <p className="text-body text-ink-2"><InlineText text={item.raw} /></p>
+    <p className="text-caption text-ink-3">與今日行動／論點的關係：未連結；來源未提供關係 ID。</p>
     {item.date_precision !== "day" || item.window_membership !== "within" ? <p className="text-caption text-warn">日期精度：{item.date_precision} · 範圍關係：{item.window_membership === "possible" ? "可能在範圍內" : item.window_membership === "unknown" ? "未知（未確認是否在範圍內）" : "來源確認在範圍內"}；不轉成確定的日期。</p> : null}
     {qualifiers ? <p className="text-caption text-ink-3">來源限定：{qualifiers}</p> : null}
     <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">催化劑來源</summary><p className="break-all">{item.source.path} · {item.source.line ?? "行數未提供"}</p></details>

@@ -312,6 +312,20 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
       <StateNote state={narrative.current_tension.state} reason={narrative.current_tension.reason} />
     </article>
 
+
+    <article className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
+      <SubsectionHeading>哪些訊號會支持或挑戰論點</SubsectionHeading>
+      <SignalGroup title="來源列出的支持訊號" signals={supportSignals} emptyLabel="來源尚未列出明確的支持訊號。" />
+      <SignalGroup title="來源列出的挑戰訊號" signals={challengeSignals} emptyLabel="目前未連結明確的挑戰訊號；反方涵蓋未知／來源未提供。" />
+      <div className="flex min-w-0 flex-col gap-1">
+        <p className="text-caption font-medium text-ink-2">明確推翻條件</p>
+        {explicitFalsifiers.length ? <ul className="list-disc pl-5 text-body leading-relaxed text-ink-2">{explicitFalsifiers.map((condition, index) => <li key={index}><InlineText text={condition} /></li>)}</ul> : <p className="text-caption leading-relaxed text-ink-3">{NARRATIVE_FALSIFIER_UNAVAILABLE_COPY}</p>}
+      </div>
+      {!evidence.directional_signals.length ? <p className="text-caption leading-relaxed text-ink-3">可用訊號缺失不等於反方不存在；不從文字或近期事件推測。</p> : null}
+    </article>
+
+    <RecordedLearning record={evidence.latest_recorded_change} />
+    <article className="flex min-w-0 flex-col gap-2 p-4 sm:p-5"><SubsectionHeading>下一個驗證點</SubsectionHeading><p className="text-body text-ink-3">此論點來源未提供獨立的下一次日期或檢查點。請到研究與策略閱讀來源明示的事件；未提供明確 ID 關係的事件保持獨立。</p></article>
     <article className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
       <SubsectionHeading>五層證據</SubsectionHeading>
       <p className="text-caption leading-relaxed text-ink-3">支持與反證只在來源明確連到該層時列出；沒有連結就保留未知，不代表該層沒有證據。</p>
@@ -330,19 +344,6 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
       </details> : null}
     </article>
 
-    <article className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
-      <SubsectionHeading>哪些訊號會支持或挑戰論點</SubsectionHeading>
-      <SignalGroup title="來源列出的支持訊號" signals={supportSignals} emptyLabel="來源尚未列出明確的支持訊號。" />
-      <SignalGroup title="來源列出的挑戰訊號" signals={challengeSignals} emptyLabel="目前未連結明確的挑戰訊號；反方涵蓋未知／來源未提供。" />
-      <div className="flex min-w-0 flex-col gap-1">
-        <p className="text-caption font-medium text-ink-2">明確推翻條件</p>
-        {explicitFalsifiers.length ? <ul className="list-disc pl-5 text-body leading-relaxed text-ink-2">{explicitFalsifiers.map((condition, index) => <li key={index}><InlineText text={condition} /></li>)}</ul> : <p className="text-caption leading-relaxed text-ink-3">{NARRATIVE_FALSIFIER_UNAVAILABLE_COPY}</p>}
-      </div>
-      {!evidence.directional_signals.length ? <p className="text-caption leading-relaxed text-ink-3">可用訊號缺失不等於反方不存在；不從文字或近期事件推測。</p> : null}
-    </article>
-
-    <RecordedLearning record={evidence.latest_recorded_change} />
-    <article className="flex min-w-0 flex-col gap-2 p-4 sm:p-5"><SubsectionHeading>下一個驗證點</SubsectionHeading><p className="text-body text-ink-3">此論點來源未提供獨立的下一次日期或檢查點。請到研究與策略閱讀來源明示的事件；未提供明確 ID 關係的事件保持獨立。</p></article>
     <details className="flex min-w-0 flex-col gap-2 p-4 text-ink-3 sm:p-5"><summary className="cursor-pointer text-body font-medium">詳細論點文字</summary>
 
       {narrative.title ? <p className="text-caption text-ink-3">{narrative.title}</p> : null}
