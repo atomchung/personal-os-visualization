@@ -7,7 +7,7 @@ import { researchForToday, splitCatalyst, watchDateWindow } from "../src/lib/inv
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { researchDirectionView, actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -64,7 +64,7 @@ test("formal Research and legacy Watch retain separate typed producer envelopes"
   assert.equal(research.producer, "tools/research_view.py")
   assert.equal(research.state, "partial")
   assert.equal(research.source_cutoff, "unknown")
-  assert.equal(research.research.count, 1)
+  assert.equal(research.research.count, 7)
   assert.equal(research.research.items[0].narrative_id, null)
   assert.equal(research.research.items[0].decision_id, null)
 
@@ -658,4 +658,30 @@ test("only an explicit producer learning role becomes a reusable framework", () 
     { id: "unknown", learning_role: "unknown", kind: "mistake", heading: "## Q2 — Classification unknown" },
   ]
   assert.deepEqual(reusableLearningItems(items).map(item => item.id), ["framework"])
+})
+
+test("Research directions consume explicit membership only and preserve every source", () => {
+  const view=researchDirectionView(investmentResearch)
+  assert.equal(view.groups.length,5)
+  assert.deepEqual(view.groups.map(group=>group.id), investmentResearch.research.direction_groups!.groups.map(group=>group.id))
+  assert.equal(view.groups.every(group=>group.items.length===1),true)
+  assert.deepEqual(view.other.map(item=>item.direction?.state),["unlinked","unknown"])
+  assert.equal(view.other.every(item=>item.ticker==="TSM"),true,"title, ticker and prose never assign direction")
+  assert.deepEqual(new Set([...view.groups.flatMap(group=>group.items),...view.other].map(item=>item.id)),new Set(investmentResearch.research.items.map(item=>item.id)))
+  const explicit=structuredClone(investmentResearch)
+  explicit.research.items[5].direction!.group_ids=[view.groups[0].id]
+  assert.equal(researchDirectionView(explicit).other.length,2,"item-only hints cannot replace group item_ids")
+  explicit.research.direction_groups!.groups[1].item_ids.push(explicit.research.items[0].id)
+  assert.equal(researchDirectionView(explicit).groups[1].items.length,2,"explicit memberships can repeat across navigation lenses")
+  assert.deepEqual(researchDirectionView(explicit).groups[1].items[0],explicit.research.items[0],"status, identity, source and clocks remain intact")
+  const legacy=structuredClone(investmentResearch)
+  delete legacy.research.direction_groups
+  assert.equal(researchDirectionView(legacy).groups.length,0)
+  assert.deepEqual(researchDirectionView(legacy).other,legacy.research.items)
+  const degraded=structuredClone(investmentResearch)
+  degraded.research.direction_groups!.groups[0].item_ids.push("source:research/unavailable.md")
+  assert.deepEqual(researchDirectionView(degraded).groups[0].missingItemIds,["source:research/unavailable.md"])
+  degraded.research.direction_groups!.schema_version=2
+  assert.equal(researchDirectionView(degraded).state,"unavailable")
+  assert.equal(researchDirectionView(degraded).other.length,7)
 })

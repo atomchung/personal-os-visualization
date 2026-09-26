@@ -747,19 +747,49 @@ export const investmentResearchItem = {
   missing: ["Synthetic item has no canonical narrative or decision link."],
   source: { path: investmentScenario.source_path, line: 4 },
 } satisfies InvestmentResearch["research"]["items"][number]
+const researchDirectionDefinitions = [
+  ["ai-economics-capex", "AI 經濟、CapEx 回報與 L3 買方 ROI（目前最重要的共享主線）"],
+  ["compute-tsm-capacity", "運算／TSM 共同依賴與容量"],
+  ["memory-supply-cycle", "記憶體供需與週期"],
+  ["interconnect-optical-power", "互連、光學與電力供應"],
+  ["cross-cycle-capex-credit", "跨線週期缺口：CapEx → WFE／容量 → 供給 → ASP／毛利 → FCF／信用"],
+] as const
+const syntheticDirectionItems = researchDirectionDefinitions.map(([id], index) => ({
+  ...investmentResearchItem,
+  id: index===0 ? investmentResearchItem.id : `source:research/synthetic-direction-${index}.md`,
+  title: `合成研究問題 ${index+1}`,
+  source: { path: `synthetic/research-direction-${index}`, line: 4 },
+  direction: { state: "linked" as const, group_ids: [id], sources: [{ group_id: id, path: "synthetic/research-index", line: index+1, expect: "synthetic explicit membership" }] },
+}))
+const syntheticOtherItems = (["unlinked", "unknown"] as const).map((state,index)=>({
+  ...investmentResearchItem, id: `source:research/synthetic-other-${index}.md`,
+  title: "Memory CapEx 光學 TSM：同名也不推定方向", ticker: "TSM",
+  direction: { state, group_ids: [], sources: [] },
+}))
 export const investmentResearch: InvestmentResearch = {
   schema_version: "1.0", artifact: "investment-research-index", id: "research-index",
   as_of: DATE, generated_at: STAMP, source_cutoff: "unknown", producer: "tools/research_view.py",
   state: "partial", limitations: ["Synthetic Research fixture has no producer cutoff."],
   sources: [investmentScenario.source_path],
-  research: { items: [investmentResearchItem], count: 1 },
+  research: { items: [...syntheticDirectionItems,...syntheticOtherItems], count: 7,
+    direction_groups: { schema_version: 1, state: "partial", source: { path: "synthetic/research-index" }, limitations: ["Synthetic unknown classification is preserved."],
+      groups: researchDirectionDefinitions.map(([id,title],index)=>({ id,title,state: "ready", source: { path: "synthetic/research-index", line: index+1, expect: "synthetic direction marker" },
+        item_ids: [syntheticDirectionItems[index].id], relations: [{ item_id: syntheticDirectionItems[index].id, source: { path: "synthetic/research-index", line: index+1, expect: "synthetic explicit membership" } }], limitations: [] })),
+      unlinked_item_ids: [syntheticOtherItems[0].id], unknown_item_ids: [syntheticOtherItems[1].id], unlinked_count: 1, unknown_count: 1,
+    },
+  },
 }
 export const investmentResearchDetails: Record<string, InvestmentResearchDetail> = {
+  ...Object.fromEntries([...syntheticDirectionItems,...syntheticOtherItems].map(item=>[item.id,{
+    schema_version: "1.0", artifact: "investment-research-detail" as const, id: `research-detail:${item.id}`,
+    as_of: DATE, generated_at: STAMP, source_cutoff: "unknown", producer: "tools/research_view.py", state: "partial" as const,
+    limitations: item.missing, sources: [item.source.path], research: { item, detail: { text: "完全虛構的研究明細。", what: item.question } },
+  }])),
   [investmentResearchItem.id]: {
     schema_version: "1.0", artifact: "investment-research-detail", id: `research-detail:${investmentResearchItem.id}`,
     as_of: DATE, generated_at: STAMP, source_cutoff: "unknown", producer: "tools/research_view.py",
     state: "partial", limitations: investmentResearchItem.missing, sources: [investmentScenario.source_path],
-    research: { item: investmentResearchItem, detail: { text: investmentScenario.research_excerpt, what: investmentScenario.next_check } },
+    research: { item: syntheticDirectionItems[0], detail: { text: investmentScenario.research_excerpt, what: investmentScenario.next_check } },
   },
 }
 export const watch: InvestmentWatch = {

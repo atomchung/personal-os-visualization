@@ -325,8 +325,35 @@ export type InvestmentReadModelEnvelope = {
   sources: string[]
 }
 
+export type InvestmentResearchDirectionSource = { path: string; line?: number; expect?: string }
+export type InvestmentResearchDirectionGroup = {
+  id: string
+  title: string
+  state: "ready" | "partial"
+  source: InvestmentResearchDirectionSource
+  item_ids: string[]
+  relations: { item_id: string; source: InvestmentResearchDirectionSource }[]
+  limitations: string[]
+}
+export type InvestmentResearchDirectionGroups = {
+  schema_version: number
+  state: "ready" | "partial" | "unavailable"
+  groups: InvestmentResearchDirectionGroup[]
+  source: InvestmentResearchDirectionSource
+  limitations: string[]
+  unlinked_item_ids: string[]
+  unknown_item_ids: string[]
+  unlinked_count: number
+  unknown_count: number
+}
+
 export type InvestmentResearchItem = {
   id: string
+  direction?: {
+    state: "linked" | "unlinked" | "unknown"
+    group_ids: string[]
+    sources: (InvestmentResearchDirectionSource & { group_id: string })[]
+  }
   kind: string
   title: string | null
   question: string | null
@@ -346,7 +373,7 @@ export type InvestmentResearchItem = {
 export type InvestmentResearch = InvestmentReadModelEnvelope & {
   artifact: "investment-research-index"
   id: "research-index"
-  research: { items: InvestmentResearchItem[]; count: number }
+  research: { items: InvestmentResearchItem[]; count: number; direction_groups?: InvestmentResearchDirectionGroups }
 }
 
 export type InvestmentResearchDetail = InvestmentReadModelEnvelope & {
