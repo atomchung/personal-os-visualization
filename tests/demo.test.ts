@@ -3,7 +3,7 @@ import { test } from "node:test"
 import { createDemoRequest } from "../src/demo/transport.ts"
 import { setInvestmentProvider as configureDemoProvider } from "../src/lib/investment.ts"
 import { demoInvestmentProvider } from "../src/demo/investmentProvider.ts"
-import { addInvestmentWork, getInvestment, getInvestmentNarrative, getInvestmentResearch, getInvestmentHistory, getInvestmentActions, getSelectedInvestmentProvider, saveInvestmentWork, setInvestmentProvider } from "../src/lib/investment.ts"
+import { addInvestmentWork, getInvestment, getInvestmentNarrative, getInvestmentResearch, getInvestmentHistory, getInvestmentActions, getInvestmentResearchDetail, getInvestmentHistorySource, getSelectedInvestmentProvider, saveInvestmentWork, setInvestmentProvider } from "../src/lib/investment.ts"
 import { investment as syntheticInvestment, investmentHistory, investmentHistorySources, investmentResearch, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
 import { investmentScenario } from "../src/demo/generated/investment-scenario.ts"
 configureDemoProvider(demoInvestmentProvider)
@@ -143,6 +143,32 @@ test("replacing the selected provider leaves the Investment UI helper contract u
     }
     setInvestmentProvider(noActions)
     await assert.rejects(getInvestmentActions(), /No standalone action reader/)
+  } finally {
+    setInvestmentProvider(original)
+  }
+})
+
+test("core provider capability declarations fail closed for list and detail reads", async () => {
+  const original = getSelectedInvestmentProvider()
+  const unavailable = (message: string) => ({status: "unavailable" as const, limitations: [message]})
+  const provider = {
+    ...demoInvestmentProvider,
+    capabilities: {
+      ...demoInvestmentProvider.capabilities,
+      today: unavailable("Today intentionally unavailable."),
+      judgment: unavailable("Judgment intentionally unavailable."),
+      research: unavailable("Research intentionally unavailable."),
+      history: unavailable("History intentionally unavailable."),
+    },
+  }
+  try {
+    setInvestmentProvider(provider)
+    await assert.rejects(getInvestment(), /Today intentionally unavailable/)
+    await assert.rejects(getInvestmentNarrative(), /Judgment intentionally unavailable/)
+    await assert.rejects(getInvestmentResearch(), /Research intentionally unavailable/)
+    await assert.rejects(getInvestmentResearchDetail("synthetic-item"), /Research intentionally unavailable/)
+    await assert.rejects(getInvestmentHistory(), /History intentionally unavailable/)
+    await assert.rejects(getInvestmentHistorySource("synthetic-item"), /History intentionally unavailable/)
   } finally {
     setInvestmentProvider(original)
   }

@@ -487,6 +487,20 @@ function marketData<K extends InvestmentMarketResource>(
   return provider.getMarketData(resource, params).then(applyInvestmentReadHook)
 }
 
+function coreRead<T>(
+  capability: "today" | "judgment" | "research" | "history",
+  read: () => Promise<T> | undefined,
+  unavailableMessage: string,
+): Promise<T> {
+  const provider = getSelectedInvestmentProvider()
+  try {
+    requireInvestmentCapability(provider, capability)
+  } catch (error) {
+    return Promise.reject(error)
+  }
+  return (read() ?? Promise.reject(new Error(unavailableMessage))).then(applyInvestmentReadHook)
+}
+
 export type InvestmentResearchDirectionSource = { path: string; line?: number; expect?: string }
 export type InvestmentResearchDirectionGroup = {
   id: string
@@ -950,12 +964,10 @@ function acquireMomentumSlot(signal?: AbortSignal): Promise<() => void> {
 }
 
 export const getInvestment = (signal?: AbortSignal) =>
-  (getSelectedInvestmentProvider().getToday?.(signal) ?? Promise.reject(new Error("Investment Today capability has no provider implementation.")))
-    .then(applyInvestmentReadHook)
+  coreRead("today", () => getSelectedInvestmentProvider().getToday?.(signal), "Investment Today capability has no provider implementation.")
 
 export const getInvestmentNarrative = (signal?: AbortSignal) =>
-  (getSelectedInvestmentProvider().getJudgment?.(signal) ?? Promise.reject(new Error("Investment judgment capability has no provider implementation.")))
-    .then(applyInvestmentReadHook)
+  coreRead("judgment", () => getSelectedInvestmentProvider().getJudgment?.(signal), "Investment judgment capability has no provider implementation.")
 
 export const getInvestmentActions = (signal?: AbortSignal) =>
   optionalCapability("actions", signal)
@@ -1011,24 +1023,20 @@ export const getInvestmentWatch = (signal?: AbortSignal) =>
   optionalCapability("watch", signal)
 
 export const getInvestmentResearch = (signal?: AbortSignal) =>
-  (getSelectedInvestmentProvider().getResearch?.(signal) ?? Promise.reject(new Error("Investment research capability has no provider implementation.")))
-    .then(applyInvestmentReadHook)
+  coreRead("research", () => getSelectedInvestmentProvider().getResearch?.(signal), "Investment research capability has no provider implementation.")
 
 export const getInvestmentResearchDetail = (itemId: string, signal?: AbortSignal) =>
-  (getSelectedInvestmentProvider().getResearchDetail?.(itemId, signal) ?? Promise.reject(new Error("Investment research detail capability is unavailable.")))
-    .then(applyInvestmentReadHook)
+  coreRead("research", () => getSelectedInvestmentProvider().getResearchDetail?.(itemId, signal), "Investment research detail capability is unavailable.")
 
 export const getInvestmentSource = (id: string, signal?: AbortSignal) =>
   getSelectedInvestmentProvider().getSource?.(id, signal)
     ?? Promise.reject(new Error("Investment source detail capability is unavailable."))
 
 export const getInvestmentHistory = (signal?: AbortSignal) =>
-  (getSelectedInvestmentProvider().getHistory?.(signal) ?? Promise.reject(new Error("Investment history capability has no provider implementation.")))
-    .then(applyInvestmentReadHook)
+  coreRead("history", () => getSelectedInvestmentProvider().getHistory?.(signal), "Investment history capability has no provider implementation.")
 
 export const getInvestmentHistorySource = (id: string, signal?: AbortSignal) =>
-  (getSelectedInvestmentProvider().getHistoryDetail?.(id, signal) ?? Promise.reject(new Error("Investment history detail capability is unavailable.")))
-    .then(applyInvestmentReadHook)
+  coreRead("history", () => getSelectedInvestmentProvider().getHistoryDetail?.(id, signal), "Investment history detail capability is unavailable.")
 
 export const getInvestmentContext = (signal?: AbortSignal) =>
   getSelectedInvestmentProvider().getContext?.(signal)

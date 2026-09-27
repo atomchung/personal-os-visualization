@@ -296,7 +296,7 @@ jobs:
             await reminderPage.close()
             // Modify only in-memory synthetic Responses. Do not rewrite generated fixtures,
             // introduce test routes into production, or use any private source material.
-            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility']) {
+            for (const scenario of ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility', 'tw-rs-unavailable', 'tw-rs-read-error']) {
               const page = await browser.newPage({ viewport: { width: 320, height: 740 } })
               const errors = []
               page.on('pageerror', error => errors.push(error.message))
@@ -324,6 +324,12 @@ jobs:
                     data.narratives[0].thesis_evidence.reason = '合成測試：五層證據覆蓋仍不完整。'
                   }
                   if (scenario === 'narrative-delayed' && Array.isArray(data?.narratives)) await new Promise(resolve => setTimeout(resolve, 600))
+                  if (data?.artifact === 'tw-holdings-relative-strength' && scenario.startsWith('tw-rs-')) {
+                    if (scenario === 'tw-rs-read-error') throw new Error('Synthetic RS read error')
+                    data.state = 'unavailable'
+                    data.holdings = []
+                    data.as_of = 'unknown'
+                  }
                   if (data?.brief) {
                     if (scenario === 'initial-error' || window.__failBrief) throw new Error('Synthetic read failure')
                     if (scenario === 'blank-summary') {
@@ -483,6 +489,13 @@ jobs:
                 for (const id of ['completed', 'research-event']) assert.equal(await personalReminders.getByText(`Synthetic ${id}`, { exact: true }).count(), 0, `${id} is not an open personal reminder`)
                 await page.getByRole('tab', { name: '今日', exact: true }).click()
                 for (const id of ['due-today', 'promoted', 'future', 'expired', 'completed', 'research-event']) assert.equal(await page.locator('#investment-panel-today').getByText(`Synthetic ${id}`, { exact: true }).count(), 0, `${id} must stay off Today`)
+              }
+              if (scenario === 'tw-rs-unavailable') {
+                const rs = page.getByLabel('台股持倉相對大盤強弱', { exact: true })
+                await rs.getByText('來源標示相對強弱不可用；不是零，也不代表沒有台股持倉。', { exact: true }).waitFor()
+              }
+              if (scenario === 'tw-rs-read-error') {
+                await page.getByLabel('台股持倉相對大盤強弱', { exact: true }).getByRole('alert').waitFor()
               }
               if (scenario.startsWith('session-')) {
                 const sessions = page.getByRole('region', { name: '簡報版本' })

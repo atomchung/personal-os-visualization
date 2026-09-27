@@ -111,9 +111,7 @@ try {
   for (const state of ['unavailable', 'read-error']) {
     const page = await browser.newPage({ viewport: { width: 320, height: 1000 } })
     await page.addInitScript(state => {
-      const original = Response.prototype.json
-      Response.prototype.json = async function () {
-        const data = await original.call(this)
+      window.__investmentReadHook = data => {
         if (data?.artifact === 'tw-holdings-relative-strength') {
           if (state === 'read-error') throw new Error('Synthetic RS read error')
           data.state = 'unavailable'
