@@ -4,11 +4,10 @@
   "source": "reviewed frontend allowlist",
   "synthetic_only": true,
   "files": {
-    ".github/workflows/check.yml": "c65913170bcabb9260f6212269f5fc95778e0444c0ad15a09c6157635c2bce61",
     ".gitignore": "1d0519324b2dc1f0cdf7b321f6b3182e28682e85b9c7824a3728430fd3002e34",
-    "AGENTS.md": "8a7a6f3eb5e2b750e0c5f00edf91100301f0ac5cb8f6df898ce3ecfd599d01c6",
-    "PROJECT_CONTEXT.md": "60421de52ad38ab6e98e2b3fcdc0b090e12410b220a457ad08125a604185f6fb",
-    "README.md": "92c27b5f56d21b27f0306a27ec25a1a48616f31a8c140890c4128307a2f84334",
+    "AGENTS.md": "f4df134afcab986effb0d4ebeb9622771f81b2b031fd5421c1f55a119e9eb352",
+    "PROJECT_CONTEXT.md": "6b4f38e1ab8c0ee1297c1ef84ece9567d57eac23756ffcf41031de861f61d214",
+    "README.md": "c78d3f772183d0a14907e2cfdd91a9ecacfb97cd8c05dc8828647d907df5cccf",
     "index.html": "2631d6e1c023ea351772f59e703eb2592087da23f762eb6c96177be7450bec1c",
     "package-lock.json": "b62a62719539452bef37728897a310728e177254ea2aefd39e4659ae7e9a3cb3",
     "package.json": "46dcf41a19a9a2c998eff710c80c68484b881d821ce4f0e35820e11d21679f4e",
@@ -34,6 +33,7 @@
     "src/components/health/HealthPage.tsx": "fe627bbcccd24e39ce1054e33cc10739e35f20b2e9eeaa8f4968813c553c228e",
     "src/components/ideal/IdealPage.tsx": "d684a777696e242f8c02c8e89478caa502a472424bfba000dcf1e7ac742c8846",
     "src/components/investment/InvestmentHistory.tsx": "9d196374b13942185a7bef0e593ed5733cf2045823ddab40b41cbde0974ee967",
+    "src/components/investment/InvestmentNarrative.tsx": "dff1c23069f435627e0fb2a3cb8b2aa8cc23b8219f9c47a756f395720c5ba2e9",
     "src/components/investment/InvestmentPage.tsx": "cad4ecd92d7c99e214cd3ec5f9ce44274ec7352871d23d77be7a975a1ed60d84",
     "src/components/investment/InvestmentPending.tsx": "6a29a0cf1476bae4596e53162554c32b38a113022bc33558a0115bee60fba4a2",
     "src/components/investment/InvestmentWork.tsx": "21ea39c21cf6a2557bf5ee8010c68b8161976bec258c0d275c0ad3b2eacd6b24",
@@ -70,7 +70,6 @@
     "tsconfig.app.json": "05845c6fd00054edbdd02212d39d99865601b5e4883b2b7a765a8d32127bbfbf",
     "tsconfig.json": "770b4140bbb581e2dfd9ea9946ffc9c75a1d86ba7d2db5f77c83e37cbdf9d808",
     "tsconfig.node.json": "d366cc0827139db39c61815f22491bbfda56c654354a42ad7795143d314e45e8",
-    "vite.config.ts": "351176a61f818d958c1de0661fb2b2aa3e2a9b96cac53d66dff525a3f2e58847",
-    "src/components/investment/InvestmentNarrative.tsx": "dff1c23069f435627e0fb2a3cb8b2aa8cc23b8219f9c47a756f395720c5ba2e9"
+    "vite.config.ts": "351176a61f818d958c1de0661fb2b2aa3e2a9b96cac53d66dff525a3f2e58847"
   }
 }
