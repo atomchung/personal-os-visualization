@@ -188,7 +188,7 @@ export function createDemoRequest() {
       if ((item.kind === "watch") !== (body.kind === "watch")) return rejected("注意事項和其他事項不能互換類型。")
       const hasPromotion = Object.prototype.hasOwnProperty.call(body, "promoted_to_today")
       if (hasPromotion && (item.kind !== "watch" || typeof body.promoted_to_today !== "boolean")) return rejected("只有個人提醒可以明確加入今日。")
-      const updated: InvestmentWork = {...item, status: body.status as InvestmentWork["status"], kind: body.kind as InvestmentWork["kind"], conclusion: body.conclusion as string, version: item.version + 1 }
+      const updated: InvestmentWork = {...item, status: body.status as InvestmentWork["status"], kind: body.kind as InvestmentWork["kind"], conclusion: body.conclusion as string}
       if (hasPromotion) updated.promoted_to_today = body.promoted_to_today as boolean
       return read(() => saveInvestmentWork(updated))
     }

@@ -123,19 +123,21 @@ export const demoInvestmentProvider: InvestmentProvider = {
     if (sourceId !== investmentScenario.source_id) throw new Error("NOT_FOUND: 找不到這份合成來源。")
     return { title: investmentScenario.source_title, date: investmentData.brief.date, text: `${investmentScenario.source_text}\n\n此文字由私人端的情境規格重新生成，未取自任何私人筆記、帳戶或市場來源。` }
   },
-  async getPersonalWork() { return {items: demoWorkState.investmentWork} },
+  async getPersonalWork() { return {items: demoWorkState.investmentWork.map(item => ({...item}))} },
   async addPersonalWork(data) {
     const existing = demoWorkState.investmentWork.find(item => item.kind === data.kind && item.text === data.text && item.source_id === (data.source_id ?? "")
       && (data.kind !== "watch" || (item.expires_on === data.expires_on && item.status !== "done")))
     if (existing) return existing
     const item: InvestmentWork = {id: `demo-work-${++demoWorkState.sequence}`, kind: data.kind, text: data.text.trim(), source_id: data.source_id ?? "", source_label: data.source_label ?? "", status: "open", conclusion: "", ...(data.kind === "watch" ? {expires_on: data.expires_on, promoted_to_today: false} : {}), version: 1, updated_at: investmentData.brief.generated_at ?? "unknown"}
     demoWorkState.investmentWork.push(item)
-    return item
+    return {...item}
   },
   async updatePersonalWork(data) {
     const index = demoWorkState.investmentWork.findIndex(item => item.id === data.id)
-    if (index < 0 || demoWorkState.investmentWork[index]!.version !== data.version - 1) throw new Error("範例工作版本已變更，請重新讀取。")
-    demoWorkState.investmentWork[index] = data
-    return data
+    const current = demoWorkState.investmentWork[index]
+    if (!current || current.version !== data.version) throw new Error("範例工作版本已變更，請重新讀取。")
+    const updated = {...data, version: current.version + 1}
+    demoWorkState.investmentWork[index] = updated
+    return {...updated}
   },
 }

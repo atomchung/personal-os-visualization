@@ -3,7 +3,7 @@ import { test } from "node:test"
 import { createDemoRequest } from "../src/demo/transport.ts"
 import { setInvestmentProvider as configureDemoProvider } from "../src/lib/investment.ts"
 import { demoInvestmentProvider } from "../src/demo/investmentProvider.ts"
-import { getInvestment, getInvestmentNarrative, getInvestmentResearch, getInvestmentHistory, getInvestmentActions, getSelectedInvestmentProvider, setInvestmentProvider } from "../src/lib/investment.ts"
+import { addInvestmentWork, getInvestment, getInvestmentNarrative, getInvestmentResearch, getInvestmentHistory, getInvestmentActions, getSelectedInvestmentProvider, saveInvestmentWork, setInvestmentProvider } from "../src/lib/investment.ts"
 import { investment as syntheticInvestment, investmentHistory, investmentHistorySources, investmentResearch, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
 import { investmentScenario } from "../src/demo/generated/investment-scenario.ts"
 configureDemoProvider(demoInvestmentProvider)
@@ -871,4 +871,12 @@ test("Taiwan RS uses the exact producer symbols, benchmark windows and nullable 
     assert.equal(row.peer_group, null)
     assert.ok(row.limitations.length > 0)
   }
+})
+
+test("provider-owned writes increment the stored version after validating the submitted version", async () => {
+  const created = await addInvestmentWork({kind: "watch", text: "provider version regression", expires_on: "2099-01-01"})
+  const promoted = await saveInvestmentWork({...created, promoted_to_today: true})
+  assert.equal(promoted.version, created.version + 1)
+  assert.equal(promoted.promoted_to_today, true)
+  await assert.rejects(saveInvestmentWork(created), /版本已變更/)
 })
