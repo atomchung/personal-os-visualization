@@ -301,9 +301,7 @@ jobs:
               const errors = []
               page.on('pageerror', error => errors.push(error.message))
               await page.addInitScript(scenario => {
-                const original = Response.prototype.json
-                Response.prototype.json = async function () {
-                  const data = await original.call(this)
+                window.__investmentReadHook = async data => {
                   if (scenario === 'watch-read-error' && Object.keys(data ?? {}).length === 1 && Array.isArray(data?.items)) throw new Error('Synthetic reminder read failure')
                   if (scenario === 'watch-eligibility' && Object.keys(data ?? {}).length === 1 && Array.isArray(data?.items)) {
                     const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).map(part => [part.type, part.value]))

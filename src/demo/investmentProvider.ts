@@ -30,6 +30,10 @@ import type {
   InvestmentResearch,
   InvestmentResearchDetail,
   InvestmentData,
+  InvestmentOptionalCapability,
+  InvestmentOptionalPayloads,
+  InvestmentMarketResource,
+  InvestmentMarketPayloads,
 } from "../lib/investment.ts"
 
 const available = { status: "available" as const, limitations: [] as string[] }
@@ -92,30 +96,30 @@ export const demoInvestmentProvider: InvestmentProvider = {
   capabilities: demoInvestmentCapabilities,
   async getToday(): Promise<InvestmentData> { return investmentData },
   async getJudgment(): Promise<InvestmentNarrative> { return investmentNarrative },
-  async getOptional(capability) {
+  async getOptional<K extends InvestmentOptionalCapability>(capability: K): Promise<InvestmentOptionalPayloads[K]> {
     switch (capability) {
-      case "market": return market
-      case "watch": return watch
-      case "pending": return pending
-      case "actions": return investmentActions
+      case "market": return market as InvestmentOptionalPayloads[K]
+      case "watch": return watch as InvestmentOptionalPayloads[K]
+      case "pending": return pending as InvestmentOptionalPayloads[K]
+      case "actions": return investmentActions as InvestmentOptionalPayloads[K]
     }
   },
   async getResearch(): Promise<InvestmentResearch> { return investmentResearch },
   async getResearchDetail(itemId: string): Promise<InvestmentResearchDetail> { return researchDetail(itemId) },
   async getHistory(): Promise<InvestmentHistory> { return investmentHistory },
   async getHistoryDetail(itemId: string): Promise<InvestmentHistoryDetail> { return historyDetail(itemId) },
-  async getMarketData(resource, params) {
+  async getMarketData<K extends InvestmentMarketResource>(resource: K, params?: { symbol?: string; refresh?: boolean; signal?: AbortSignal }): Promise<InvestmentMarketPayloads[K]> {
     switch (resource) {
-      case "indicators": return market
-      case "pulse": return pulse
-      case "explore": return marketExplore
-      case "tw-relative-strength": return twRelativeStrength
-      case "momentum-universe": return universe
-      case "momentum-leaders": return leaders
+      case "indicators": return market as InvestmentMarketPayloads[K]
+      case "pulse": return pulse as InvestmentMarketPayloads[K]
+      case "explore": return marketExplore as InvestmentMarketPayloads[K]
+      case "tw-relative-strength": return twRelativeStrength as InvestmentMarketPayloads[K]
+      case "momentum-universe": return universe as InvestmentMarketPayloads[K]
+      case "momentum-leaders": return leaders as InvestmentMarketPayloads[K]
       case "quote":
       case "momentum":
         if (params?.symbol !== investmentScenario.symbol) throw new Error("只有合成標的可用。")
-        return resource === "quote" ? quote : momentum
+        return (resource === "quote" ? quote : momentum) as InvestmentMarketPayloads[K]
     }
   },
   async getContext() { return investmentContext },

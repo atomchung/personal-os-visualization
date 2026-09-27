@@ -372,6 +372,25 @@ export type InvestmentCapability = {
 
 export type InvestmentCapabilityManifest = Record<InvestmentCapabilityName, InvestmentCapability>
 
+export type InvestmentOptionalPayloads = {
+  market: InvestmentMarket
+  watch: InvestmentWatch
+  pending: InvestmentPending
+  actions: InvestmentActions
+}
+export type InvestmentOptionalCapability = keyof InvestmentOptionalPayloads
+export type InvestmentMarketPayloads = {
+  indicators: InvestmentMarket
+  pulse: InvestmentMarketPulse
+  explore: MarketExplore
+  "tw-relative-strength": TwRelativeStrength
+  "momentum-universe": MomentumUniverse
+  "momentum-leaders": MomentumLeaders
+  quote: StockQuote
+  momentum: StockMomentumData
+}
+export type InvestmentMarketResource = keyof InvestmentMarketPayloads
+
 /** The shared Investment module boundary. Implementations provide typed read models and lookups. */
 export interface InvestmentProvider {
   readonly id: string
@@ -382,13 +401,20 @@ export interface InvestmentProvider {
   getResearchDetail(itemId: string, signal?: AbortSignal): Promise<InvestmentResearchDetail>
   getHistory(signal?: AbortSignal): Promise<InvestmentHistory>
   getHistoryDetail(itemId: string, signal?: AbortSignal): Promise<InvestmentHistoryDetail>
-  getOptional?(capability: "market" | "watch" | "pending" | "actions", signal?: AbortSignal, refresh?: boolean): Promise<unknown>
+  getOptional?<K extends InvestmentOptionalCapability>(capability: K, signal?: AbortSignal, refresh?: boolean): Promise<InvestmentOptionalPayloads[K]>
   getPersonalWork?(): Promise<{ items: InvestmentWork[] }>
   addPersonalWork?(data: { kind: InvestmentWork["kind"]; text: string; source_id?: string; source_label?: string; expires_on?: string }): Promise<InvestmentWork>
   updatePersonalWork?(data: InvestmentWork): Promise<InvestmentWork>
   getSource?(sourceId: string, signal?: AbortSignal): Promise<InvestmentSourceText>
   getContext?(signal?: AbortSignal): Promise<InvestmentContext>
-  getMarketData?(resource: "indicators" | "pulse" | "explore" | "tw-relative-strength" | "momentum-universe" | "momentum-leaders" | "quote" | "momentum", params?: { symbol?: string; refresh?: boolean; signal?: AbortSignal }): Promise<unknown>
+  getMarketData?<K extends InvestmentMarketResource>(resource: K, params?: { symbol?: string; refresh?: boolean; signal?: AbortSignal }): Promise<InvestmentMarketPayloads[K]>
+}
+
+declare global {
+  interface Window {
+    /** Test-only hook installed by browser regression harnesses; absent in normal use. */
+    __investmentReadHook?: (value: unknown) => unknown | Promise<unknown>
+  }
 }
 
 export interface InvestmentProviderBase {
@@ -419,6 +445,13 @@ export function requireAvailableCapability(capability: InvestmentCapabilityName)
 
 let selectedInvestmentProvider: InvestmentProviderRuntime | null = null
 
+/** Explicit browser-test seam for exercising degraded read models after provider selection. */
+async function applyInvestmentReadHook<T>(payload: T): Promise<T> {
+  if (typeof window === "undefined") return payload
+  const hook = (window as Window & { __investmentReadHook?: (value: unknown) => unknown | Promise<unknown> }).__investmentReadHook
+  return hook ? await hook(payload) as T : payload
+}
+
 export function setInvestmentProvider(provider: InvestmentProviderRuntime): void {
   selectedInvestmentProvider = provider
 }
@@ -428,30 +461,30 @@ export function getSelectedInvestmentProvider(): InvestmentProviderRuntime {
   return selectedInvestmentProvider
 }
 
-function optionalCapability(
-  capability: "market" | "watch" | "pending" | "actions",
+function optionalCapability<K extends InvestmentOptionalCapability>(
+  capability: K,
   signal?: AbortSignal,
-): Promise<unknown> {
+): Promise<InvestmentOptionalPayloads[K]> {
   const provider = getSelectedInvestmentProvider()
   const declared = provider.capabilities[capability]
   if (declared.status === "unavailable") {
     return Promise.reject(new Error(declared.limitations.join(" ") || `Investment capability '${capability}' is unavailable.`))
   }
   if (!provider.getOptional) return Promise.reject(new Error(`Investment capability '${capability}' has no provider implementation.`))
-  return provider.getOptional(capability, signal)
+  return provider.getOptional(capability, signal).then(applyInvestmentReadHook)
 }
 
-function marketData(
-  resource: "indicators" | "pulse" | "explore" | "tw-relative-strength" | "momentum-universe" | "momentum-leaders",
-  params?: { refresh?: boolean; signal?: AbortSignal },
-): Promise<unknown> {
+function marketData<K extends InvestmentMarketResource>(
+  resource: K,
+  params?: { symbol?: string; refresh?: boolean; signal?: AbortSignal },
+): Promise<InvestmentMarketPayloads[K]> {
   const provider = getSelectedInvestmentProvider()
   const declared = provider.capabilities.market
   if (declared.status === "unavailable") {
     return Promise.reject(new Error(declared.limitations.join(" ") || "Investment market capability is unavailable."))
   }
   if (!provider.getMarketData) return Promise.reject(new Error("Investment market capability has no provider implementation."))
-  return provider.getMarketData(resource, params)
+  return provider.getMarketData(resource, params).then(applyInvestmentReadHook)
 }
 
 export type InvestmentResearchDirectionSource = { path: string; line?: number; expect?: string }
@@ -917,40 +950,35 @@ function acquireMomentumSlot(signal?: AbortSignal): Promise<() => void> {
 }
 
 export const getInvestment = (signal?: AbortSignal) =>
-  getSelectedInvestmentProvider().getToday?.(signal) ?? Promise.reject(new Error("Investment Today capability has no provider implementation."))
+  (getSelectedInvestmentProvider().getToday?.(signal) ?? Promise.reject(new Error("Investment Today capability has no provider implementation.")))
+    .then(applyInvestmentReadHook)
 
 export const getInvestmentNarrative = (signal?: AbortSignal) =>
-  getSelectedInvestmentProvider().getJudgment?.(signal) ?? Promise.reject(new Error("Investment judgment capability has no provider implementation."))
+  (getSelectedInvestmentProvider().getJudgment?.(signal) ?? Promise.reject(new Error("Investment judgment capability has no provider implementation.")))
+    .then(applyInvestmentReadHook)
 
 export const getInvestmentActions = (signal?: AbortSignal) =>
   optionalCapability("actions", signal)
-    .then(data => data as InvestmentActions)
 
 export const getInvestmentMarket = (signal?: AbortSignal, refresh = false) =>
   marketData("indicators", {signal, refresh})
-    .then(data => data as InvestmentMarket)
 
 /** Canonical Taiwan session-aligned holdings RS; never calculated by the consumer. */
 export const getTwRelativeStrength = (signal?: AbortSignal) =>
   (requireAvailableCapability("tw-relative-strength"), marketData("tw-relative-strength", {signal}))
-    .then(data => data as TwRelativeStrength)
 
 export const getInvestmentPulse = (signal?: AbortSignal) =>
   marketData("pulse", {signal})
-    .then(data => data as InvestmentMarketPulse)
 
 /** Explore scans can be slow; only this getter uses the longer bound. */
 export const getMarketExplore = (signal?: AbortSignal, refresh = false) =>
   marketData("explore", {signal, refresh})
-    .then(data => data as MarketExplore)
 
 export const getMomentumUniverse = (signal?: AbortSignal) =>
   marketData("momentum-universe", {signal})
-    .then(data => data as MomentumUniverse)
 
 export const getMomentumLeaders = (signal?: AbortSignal, refresh = false) =>
   marketData("momentum-leaders", {signal, refresh})
-    .then(data => data as MomentumLeaders)
 
 export async function getStockMomentum(symbol: string, signal?: AbortSignal, refresh = false): Promise<StockMomentumData> {
   const release = await acquireMomentumSlot(signal)
@@ -958,7 +986,7 @@ export async function getStockMomentum(symbol: string, signal?: AbortSignal, ref
     const provider = getSelectedInvestmentProvider()
     requireInvestmentCapability(provider, "market")
     if (!provider.getMarketData) throw new Error("Investment market capability has no implementation.")
-    return await provider.getMarketData("momentum", {symbol, signal, refresh}) as StockMomentumData
+    return await provider.getMarketData("momentum", {symbol, signal, refresh}).then(applyInvestmentReadHook)
   } finally {
     release()
   }
@@ -970,7 +998,7 @@ export async function getStockQuote(symbol: string, signal?: AbortSignal, refres
     const provider = getSelectedInvestmentProvider()
     requireInvestmentCapability(provider, "quote")
     if (!provider.getMarketData) throw new Error("Investment market capability has no implementation.")
-    return await provider.getMarketData("quote", {symbol, signal, refresh}) as StockQuote
+    return await provider.getMarketData("quote", {symbol, signal, refresh}).then(applyInvestmentReadHook)
   } finally {
     release()
   }
@@ -981,23 +1009,26 @@ export const getInvestmentCapability = (capability: InvestmentCapabilityName): I
 
 export const getInvestmentWatch = (signal?: AbortSignal) =>
   optionalCapability("watch", signal)
-    .then(data => data as InvestmentWatch)
 
 export const getInvestmentResearch = (signal?: AbortSignal) =>
-  getSelectedInvestmentProvider().getResearch?.(signal) ?? Promise.reject(new Error("Investment research capability has no provider implementation."))
+  (getSelectedInvestmentProvider().getResearch?.(signal) ?? Promise.reject(new Error("Investment research capability has no provider implementation.")))
+    .then(applyInvestmentReadHook)
 
 export const getInvestmentResearchDetail = (itemId: string, signal?: AbortSignal) =>
-  getSelectedInvestmentProvider().getResearchDetail?.(itemId, signal) ?? Promise.reject(new Error("Investment research detail capability is unavailable."))
+  (getSelectedInvestmentProvider().getResearchDetail?.(itemId, signal) ?? Promise.reject(new Error("Investment research detail capability is unavailable.")))
+    .then(applyInvestmentReadHook)
 
 export const getInvestmentSource = (id: string, signal?: AbortSignal) =>
   getSelectedInvestmentProvider().getSource?.(id, signal)
     ?? Promise.reject(new Error("Investment source detail capability is unavailable."))
 
 export const getInvestmentHistory = (signal?: AbortSignal) =>
-  getSelectedInvestmentProvider().getHistory?.(signal) ?? Promise.reject(new Error("Investment history capability has no provider implementation."))
+  (getSelectedInvestmentProvider().getHistory?.(signal) ?? Promise.reject(new Error("Investment history capability has no provider implementation.")))
+    .then(applyInvestmentReadHook)
 
 export const getInvestmentHistorySource = (id: string, signal?: AbortSignal) =>
-  getSelectedInvestmentProvider().getHistoryDetail?.(id, signal) ?? Promise.reject(new Error("Investment history detail capability is unavailable."))
+  (getSelectedInvestmentProvider().getHistoryDetail?.(id, signal) ?? Promise.reject(new Error("Investment history detail capability is unavailable.")))
+    .then(applyInvestmentReadHook)
 
 export const getInvestmentContext = (signal?: AbortSignal) =>
   getSelectedInvestmentProvider().getContext?.(signal)
@@ -1056,7 +1087,6 @@ export type InvestmentPending = InvestmentReadModelEnvelope & {
 
 export const getInvestmentPending = (signal?: AbortSignal) =>
   optionalCapability("pending", signal)
-    .then(data => data as InvestmentPending)
 
 export type InvestmentWork = {
   id: string; kind: "decision" | "research" | "watch"; text: string;
@@ -1067,7 +1097,9 @@ export type InvestmentWork = {
   /** Explicitly promoted personal reminders remain visible on Today. */
   promoted_to_today?: boolean;
 }
-export const getInvestmentWork = () => getSelectedInvestmentProvider().getPersonalWork?.() ?? Promise.reject(new Error("Investment work capability is unavailable."))
+export const getInvestmentWork = () =>
+  (getSelectedInvestmentProvider().getPersonalWork?.() ?? Promise.reject(new Error("Investment work capability is unavailable.")))
+    .then(applyInvestmentReadHook)
 export const addInvestmentWork = (data: {kind: InvestmentWork["kind"]; text: string; source_id?: string; source_label?: string; expires_on?: string}) =>
   getSelectedInvestmentProvider().addPersonalWork?.(data) ?? Promise.reject(new Error("Investment work writes are unavailable."))
 export const saveInvestmentWork = (data: InvestmentWork) =>
