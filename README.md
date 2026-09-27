@@ -27,6 +27,11 @@ implementation, runtime, credentials, context and real records remain outside
 this repository. A compatible Investment provider can be replaced without
 forking the Investment UI.
 
+`src/tokens.css` and `src/demo/generated/*` remain generated/export-only
+outputs, not shared authoring inputs. Follow their existing reviewed
+authoring/export direction and receipt gates; a direction change is tracked
+separately under #39.
+
 ## Local and cloud collaboration
 
 The shared UI consumes the module/provider contract and does not know a

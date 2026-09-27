@@ -53,6 +53,11 @@ canonical product source。這裡不只是匯出的元件快照：Investment UI�
 interface、capability manifest、provider selection/wiring，以及可直接執行的
 synthetic/reference provider 都在這個 repo 維護。
 
+這項 owner decision 收斂共用 UI、module contract 與 provider wiring 的正本，不改變
+其他生成檔的來源方向。`src/tokens.css` 與 `src/demo/generated/*` 仍是 generated/export-only
+outputs，不作為 shared authoring inputs；沿用現有 reviewed authoring/export direction
+與 receipt gate。若要改變其來源方向，留在 #39 另行處理。
+
 Investment 是第一個 reference module。必要入口為 Today、Judgment/Narrative、Research
 與 Review/History；Market、Watch、Pending、Actions 等現有能力可選。UI 只依賴 module
 contract 和 manifest。缺少能力時 provider 必須回報 `unavailable` 或 `partial`，UI

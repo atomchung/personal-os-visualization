@@ -28,6 +28,10 @@ Investment history quotes existing records; never invent a person's conclusions.
 public history screen uses only synthetic/reference data and keeps provenance and
 detail lookup within the module contract.
 Preserve shared design tokens unless reviewed UI work calls for a design change.
+Treat `src/tokens.css` and `src/demo/generated/*` as generated/export-only
+outputs, not shared authoring inputs. Follow their existing reviewed
+authoring/export direction and receipt gates; do not change it as part of
+provider work.
 
 `src/lib/transport.ts`, `vite.config.ts`, `index.html`, and `package.json` are
 generated showcase-isolation files. Keep them network-free and do not replace

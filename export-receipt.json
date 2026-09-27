@@ -5,9 +5,9 @@
   "synthetic_only": true,
   "files": {
     ".gitignore": "1d0519324b2dc1f0cdf7b321f6b3182e28682e85b9c7824a3728430fd3002e34",
-    "AGENTS.md": "4b887cce17cfe7250aa76294544c8d73765954175cc074d66f6b5a726c74ff86",
-    "PROJECT_CONTEXT.md": "400b73bab79ca3ce515d24ea8275602708b21acd5acc0b4582d385d3714d99d7",
-    "README.md": "d57e74d0eccf701d737a2bcc9ad256b8358f3ff92038bbd94ed48da2003b7827",
+    "AGENTS.md": "f4df134afcab986effb0d4ebeb9622771f81b2b031fd5421c1f55a119e9eb352",
+    "PROJECT_CONTEXT.md": "6b4f38e1ab8c0ee1297c1ef84ece9567d57eac23756ffcf41031de861f61d214",
+    "README.md": "c78d3f772183d0a14907e2cfdd91a9ecacfb97cd8c05dc8828647d907df5cccf",
     "index.html": "2631d6e1c023ea351772f59e703eb2592087da23f762eb6c96177be7450bec1c",
     "package-lock.json": "b62a62719539452bef37728897a310728e177254ea2aefd39e4659ae7e9a3cb3",
     "package.json": "46dcf41a19a9a2c998eff710c80c68484b881d821ce4f0e35820e11d21679f4e",
