@@ -449,7 +449,7 @@ let selectedInvestmentProvider: InvestmentProviderRuntime | null = null
 async function applyInvestmentReadHook<T>(payload: T): Promise<T> {
   if (typeof window === "undefined") return payload
   const hook = (window as Window & { __investmentReadHook?: (value: unknown) => unknown | Promise<unknown> }).__investmentReadHook
-  return hook ? await hook(payload) as T : payload
+  return hook ? await hook(structuredClone(payload)) as T : payload
 }
 
 export function setInvestmentProvider(provider: InvestmentProviderRuntime): void {
