@@ -85,17 +85,14 @@ try {
     const briefFailurePage = await browser.newPage({ viewport: { width, height: 1000 } })
     const failureErrors = []
     briefFailurePage.on('pageerror', error => failureErrors.push(error.message))
-    let injected = false
-    await briefFailurePage.route('**/src/demo/transport.ts', async route => {
-      const response = await route.fetch()
-      const source = await response.text()
-      const body = source.replace(/case "\/api\/investment":\s*return reply\(investment\);/, 'case "/api/investment": return Response.json({ detail: "Synthetic brief failure" }, { status: 503 });')
-      injected = body !== source
-      await route.fulfill({ response, body })
+    await briefFailurePage.addInitScript(() => {
+      window.__investmentReadHook = data => {
+        if (data?.brief) throw new Error('Synthetic brief failure')
+        return data
+      }
     })
     await briefFailurePage.goto(`${process.env.UI_URL || 'http://127.0.0.1:5197'}/?tab=investment`)
     await briefFailurePage.getByRole('alert').filter({ hasText: '簡報讀取失敗' }).waitFor()
-    assert.equal(injected, true, 'test injected the synthetic brief failure')
     assert.equal(await briefFailurePage.getByTestId('primary-next-step').count(), 0, 'no cached brief exists')
     const independentProjection = briefFailurePage.getByLabel('來源投影的未來 30 天催化劑').filter({ visible: true })
     await independentProjection.waitFor()
@@ -114,9 +111,7 @@ try {
   for (const state of ['unavailable', 'read-error']) {
     const page = await browser.newPage({ viewport: { width: 320, height: 1000 } })
     await page.addInitScript(state => {
-      const original = Response.prototype.json
-      Response.prototype.json = async function () {
-        const data = await original.call(this)
+      window.__investmentReadHook = data => {
         if (data?.artifact === 'tw-holdings-relative-strength') {
           if (state === 'read-error') throw new Error('Synthetic RS read error')
           data.state = 'unavailable'

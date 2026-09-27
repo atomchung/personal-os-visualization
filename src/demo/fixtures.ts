@@ -27,6 +27,8 @@ export function createState() {
     investmentWork: [] as InvestmentWork[],
   }
 }
+/** Shared in-memory state for the selected synthetic Investment provider. */
+export const demoWorkState = createState()
 export type DemoState = ReturnType<typeof createState>
 
 export function cockpit(state: DemoState): Cockpit {

@@ -1,8 +1,37 @@
 /** Closed, browser-memory-only adapter. No network, storage, or live fallback. */
-import { cockpit, createState, DATE, focus, goals, health, home, ideal, investment, investmentActions, investmentContext, investmentHistory, investmentHistorySources, investmentNarrative, investmentResearch, investmentResearchDetails, leaders, market, marketExplore, momentum, pending, pulse, quote, STAMP, timeData, todos, universe, watch, twRelativeStrength } from "./fixtures.ts"
-import { investmentScenario } from "./generated/investment-scenario.ts"
+import { cockpit, createState, focus, goals, health, home, ideal, timeData, todos } from "./fixtures.ts"
 import { taipeiCalendarToday } from "../lib/investmentFormat.ts"
-import type { InvestmentWork } from "../lib/investment.ts"
+import {
+  addInvestmentWork,
+  getInvestment,
+  getInvestmentCapability,
+  getInvestmentActions,
+  getInvestmentContext,
+  getInvestmentHistory,
+  getInvestmentHistorySource,
+  getInvestmentMarket,
+  getInvestmentNarrative,
+  getInvestmentPending,
+  getInvestmentResearch,
+  getInvestmentResearchDetail,
+  getInvestmentSource,
+  getInvestmentWatch,
+  getInvestmentWork,
+  getMarketExplore,
+  getMomentumLeaders,
+  getMomentumUniverse,
+  getStockMomentum,
+  getStockQuote,
+  getTwRelativeStrength,
+  saveInvestmentWork,
+  getInvestmentPulse,
+  setInvestmentProvider,
+  type InvestmentWork,
+} from "../lib/investment.ts"
+import { demoInvestmentProvider } from "./investmentProvider.ts"
+
+// Each demo transport uses its own memory-only provider instance/state.
+setInvestmentProvider(demoInvestmentProvider)
 
 function addDays(date: string, days: number): string {
   const value = new Date(`${date}T00:00:00Z`)
@@ -22,6 +51,17 @@ export function createDemoRequest() {
   const state = createState()
   const reply = (data: unknown, status = 200) => Response.json(data, { status })
   const rejected = (detail: string, status = 422) => reply({ detail }, status)
+  const read = async (handler: () => Promise<unknown>) => {
+    try { return reply(await handler()) }
+    catch (error) {
+      const message = error instanceof Error ? error.message : "Investment 資料尚未提供。"
+      return rejected(message.replace(/^NOT_FOUND: /, ""), message.startsWith("NOT_FOUND: ") ? 404 : 503)
+    }
+  }
+  const assertCapability = (capability: Parameters<typeof getInvestmentCapability>[0]) => {
+    const declared = getInvestmentCapability(capability)
+    if (declared.status === "unavailable") throw new Error(declared.limitations.join(" ") || `${capability} unavailable`)
+  }
   return async (input: string, init: RequestInit = {}): Promise<Response> => {
     if (init.signal?.aborted) throw new DOMException("Request aborted", "AbortError")
     // Only relative API paths are accepted; absolute URLs never reach a server.
@@ -43,38 +83,45 @@ export function createDemoRequest() {
         }
         case "/api/ideal": return reply(ideal)
         case "/api/health": return reply(health)
-        case "/api/investment": return reply(investment)
-        case "/api/investment/narrative": return reply(investmentNarrative)
-        case "/api/investment/actions": return reply(investmentActions)
-        case "/api/investment/explore": return reply(marketExplore)
-        case "/api/investment/market": return reply(market)
-        case "/api/investment/pulse": return reply(pulse)
-        case "/api/investment/tw-relative-strength": return reply(twRelativeStrength)
-        case "/api/investment/momentum/universe": return reply(universe)
-        case "/api/investment/momentum/leaders": return reply(leaders)
+        case "/api/investment": return read(() => getInvestment())
+        case "/api/investment/narrative": return read(() => { assertCapability("judgment"); return getInvestmentNarrative() })
+        case "/api/investment/actions": return read(() => { assertCapability("actions"); return getInvestmentActions() })
+        case "/api/investment/explore": return read(() => { assertCapability("market"); return getMarketExplore() })
+        case "/api/investment/market": return read(() => { assertCapability("market"); return getInvestmentMarket() })
+        case "/api/investment/pulse": return read(() => { assertCapability("market"); return getInvestmentPulse() })
+        case "/api/investment/tw-relative-strength": return read(() => { assertCapability("market"); return getTwRelativeStrength() })
+        case "/api/investment/momentum/universe": return read(() => { assertCapability("market"); return getMomentumUniverse() })
+        case "/api/investment/momentum/leaders": return read(() => { assertCapability("market"); return getMomentumLeaders() })
         case "/api/investment/quote":
         case "/api/investment/momentum":
           if (url.searchParams.get("symbol") !== "DEMO") return rejected("只有 DEMO 合成標的可用。", 404)
-          return reply(path.endsWith("quote") ? quote : momentum)
-        case "/api/investment/research": return reply(investmentResearch)
+          return read(() => { assertCapability(path.endsWith("quote") ? "quote" : "market"); return path.endsWith("quote") ? getStockQuote("DEMO") : getStockMomentum("DEMO") })
+        case "/api/investment/research": return read(() => { assertCapability("research"); return getInvestmentResearch() })
         case "/api/investment/research/detail": {
           const id=url.searchParams.get("id") ?? ""
-          const item=Object.prototype.hasOwnProperty.call(investmentResearchDetails,id)?investmentResearchDetails[id]:undefined
-          return item ? reply(item) : rejected("找不到這段合成 Research 來源。", 404)
+          return read(async () => {
+            assertCapability("research")
+            const detail = await getInvestmentResearchDetail(id)
+            if (!detail.research.item) throw new Error("NOT_FOUND: 找不到這段合成 Research 來源。")
+            return detail
+          })
         }
-        case "/api/investment/watch/read-model": return reply(watch)
-        case "/api/investment/history": return reply(investmentHistory)
-        case "/api/investment/context": return reply(investmentContext)
+        case "/api/investment/watch/read-model": return read(() => { assertCapability("watch"); return getInvestmentWatch() })
+        case "/api/investment/history": return read(() => { assertCapability("history"); return getInvestmentHistory() })
+        case "/api/investment/context": return read(() => getInvestmentContext())
         case "/api/investment/history/source": {
           const id=url.searchParams.get("id") ?? ""
-          const item=Object.prototype.hasOwnProperty.call(investmentHistorySources,id)?investmentHistorySources[id]:undefined
-          return item ? reply(item) : rejected("找不到這段合成歷史來源。", 404)
+          return read(async () => {
+            assertCapability("history")
+            const detail = await getInvestmentHistorySource(id)
+            if (!detail.history.item) throw new Error("NOT_FOUND: 找不到這段合成歷史來源。")
+            return detail
+          })
         }
-        case "/api/investment/pending/read-model": return reply(pending)
-        case "/api/investment/work": return reply({ items: state.investmentWork })
+        case "/api/investment/pending/read-model": return read(() => { assertCapability("pending"); return getInvestmentPending() })
+        case "/api/investment/work": return read(() => getInvestmentWork())
         case "/api/investment/source":
-          if (url.searchParams.get("id") !== investmentScenario.source_id) return rejected("找不到這份合成來源。", 404)
-          return reply({ title: investmentScenario.source_title, date: DATE, text: `${investmentScenario.source_text}\n\n此文字由私人端的情境規格重新生成，未取自任何私人筆記、帳戶或市場來源。` })
+          return read(() => getInvestmentSource(url.searchParams.get("id") ?? ""))
         default: return rejected("此資料尚未加入展示版。", 404)
       }
     }
@@ -130,24 +177,20 @@ export function createDemoRequest() {
       if (expires_on === null) return rejected("到期日格式應為 YYYY-MM-DD。")
       const text = body.text.trim()
       const source_id = String(body.source_id ?? "")
-      const existing = state.investmentWork.find(item => item.kind === kind && item.text === text && item.source_id === source_id
-        && (kind !== "watch" || (item.expires_on === expires_on && item.status !== "done")))
-      if (existing) return reply(existing)
-      const item: InvestmentWork = { id: `demo-work-${++state.sequence}`, kind, text, source_id, source_label: String(body.source_label ?? ""), status: "open", conclusion: "", ...(kind === "watch" ? {expires_on, promoted_to_today: false} : {}), version: 1, updated_at: STAMP }
-      state.investmentWork.push(item)
-      return reply(item)
+      return read(() => addInvestmentWork({kind, text, source_id, source_label: String(body.source_label ?? ""), ...(kind === "watch" ? {expires_on: expires_on!} : {})}))
     }
     const workMatch = path.match(/^\/api\/investment\/work\/([^/]+)$/)
     if (method === "PATCH" && workMatch) {
-      const item = state.investmentWork.find(w => w.id === decodeURIComponent(workMatch[1]))
+      const currentItems = (await getInvestmentWork()).items
+      const item = currentItems.find(w => w.id === decodeURIComponent(workMatch[1]))
       if (!item || body.version !== item.version) return rejected("範例工作版本已變更，請重新讀取。", 409)
       if (!["open", "watching", "done"].includes(String(body.status)) || !["decision", "research", "watch"].includes(String(body.kind)) || typeof body.conclusion !== "string") return rejected("請提供有效的工作狀態。")
       if ((item.kind === "watch") !== (body.kind === "watch")) return rejected("注意事項和其他事項不能互換類型。")
       const hasPromotion = Object.prototype.hasOwnProperty.call(body, "promoted_to_today")
       if (hasPromotion && (item.kind !== "watch" || typeof body.promoted_to_today !== "boolean")) return rejected("只有個人提醒可以明確加入今日。")
-      Object.assign(item, { status: body.status, kind: body.kind, conclusion: body.conclusion, version: item.version + 1 })
-      if (hasPromotion) item.promoted_to_today = body.promoted_to_today as boolean
-      return reply(item)
+      const updated: InvestmentWork = {...item, status: body.status as InvestmentWork["status"], kind: body.kind as InvestmentWork["kind"], conclusion: body.conclusion as string}
+      if (hasPromotion) updated.promoted_to_today = body.promoted_to_today as boolean
+      return read(() => saveInvestmentWork(updated))
     }
     return rejected("此操作未提供示範，不會送到任何資料來源。", 404)
   }
