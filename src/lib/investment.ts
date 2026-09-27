@@ -1,6 +1,3 @@
-import { request } from "@/lib/transport"
-
-import { WriteRejected } from "@/lib/api"
 export type InvestmentSourceState = "current" | "stale" | "missing" | "invalid"
 
 export type InvestmentSource = {
@@ -352,6 +349,109 @@ export type InvestmentReadModelEnvelope = {
   state: InvestmentReadState
   limitations: string[]
   sources: string[]
+}
+
+/** Capability coverage is reported by the selected module provider, never inferred by UI. */
+export type InvestmentCapabilityStatus = "available" | "partial" | "unavailable"
+export type InvestmentCapabilityName =
+  | "today"
+  | "judgment"
+  | "research"
+  | "history"
+  | "market"
+  | "watch"
+  | "pending"
+  | "actions"
+  | "quote"
+  | "tw-relative-strength"
+
+export type InvestmentCapability = {
+  status: InvestmentCapabilityStatus
+  limitations: string[]
+}
+
+export type InvestmentCapabilityManifest = Record<InvestmentCapabilityName, InvestmentCapability>
+
+/** The shared Investment module boundary. Implementations provide typed read models and lookups. */
+export interface InvestmentProvider {
+  readonly id: string
+  readonly capabilities: InvestmentCapabilityManifest
+  getToday(signal?: AbortSignal): Promise<InvestmentData>
+  getJudgment(signal?: AbortSignal): Promise<InvestmentNarrative>
+  getResearch(signal?: AbortSignal): Promise<InvestmentResearch>
+  getResearchDetail(itemId: string, signal?: AbortSignal): Promise<InvestmentResearchDetail>
+  getHistory(signal?: AbortSignal): Promise<InvestmentHistory>
+  getHistoryDetail(itemId: string, signal?: AbortSignal): Promise<InvestmentHistoryDetail>
+  getOptional?(capability: "market" | "watch" | "pending" | "actions", signal?: AbortSignal, refresh?: boolean): Promise<unknown>
+  getPersonalWork?(): Promise<{ items: InvestmentWork[] }>
+  addPersonalWork?(data: { kind: InvestmentWork["kind"]; text: string; source_id?: string; source_label?: string; expires_on?: string }): Promise<InvestmentWork>
+  updatePersonalWork?(data: InvestmentWork): Promise<InvestmentWork>
+  getSource?(sourceId: string, signal?: AbortSignal): Promise<InvestmentSourceText>
+  getContext?(signal?: AbortSignal): Promise<InvestmentContext>
+  getMarketData?(resource: "indicators" | "pulse" | "explore" | "tw-relative-strength" | "momentum-universe" | "momentum-leaders" | "quote" | "momentum", params?: { symbol?: string; refresh?: boolean; signal?: AbortSignal }): Promise<unknown>
+}
+
+export interface InvestmentProviderBase {
+  readonly id: string
+  readonly capabilities: InvestmentCapabilityManifest
+}
+
+export type InvestmentProviderRuntime = InvestmentProviderBase & Partial<InvestmentProvider>
+
+export function unavailableCapability(limitations: string[]): InvestmentCapability {
+  return { status: "unavailable", limitations: [...limitations] }
+}
+
+export function requireInvestmentCapability(
+  provider: InvestmentProviderRuntime,
+  capability: InvestmentCapabilityName,
+): void {
+  const declared = provider.capabilities[capability]
+  if (declared.status === "unavailable") {
+    throw new Error(declared.limitations.join(" ") || `Investment capability '${capability}' is ${declared.status}.`)
+  }
+}
+
+export function requireAvailableCapability(capability: InvestmentCapabilityName): void {
+  const status = getSelectedInvestmentProvider().capabilities[capability].status
+  if (status !== "available") requireInvestmentCapability(getSelectedInvestmentProvider(), capability)
+}
+
+let selectedInvestmentProvider: InvestmentProviderRuntime | null = null
+
+export function setInvestmentProvider(provider: InvestmentProviderRuntime): void {
+  selectedInvestmentProvider = provider
+}
+
+export function getSelectedInvestmentProvider(): InvestmentProviderRuntime {
+  if (!selectedInvestmentProvider) throw new Error("Investment provider has not been configured.")
+  return selectedInvestmentProvider
+}
+
+function optionalCapability(
+  capability: "market" | "watch" | "pending" | "actions",
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const provider = getSelectedInvestmentProvider()
+  const declared = provider.capabilities[capability]
+  if (declared.status === "unavailable") {
+    return Promise.reject(new Error(declared.limitations.join(" ") || `Investment capability '${capability}' is unavailable.`))
+  }
+  if (!provider.getOptional) return Promise.reject(new Error(`Investment capability '${capability}' has no provider implementation.`))
+  return provider.getOptional(capability, signal)
+}
+
+function marketData(
+  resource: "indicators" | "pulse" | "explore" | "tw-relative-strength" | "momentum-universe" | "momentum-leaders",
+  params?: { refresh?: boolean; signal?: AbortSignal },
+): Promise<unknown> {
+  const provider = getSelectedInvestmentProvider()
+  const declared = provider.capabilities.market
+  if (declared.status === "unavailable") {
+    return Promise.reject(new Error(declared.limitations.join(" ") || "Investment market capability is unavailable."))
+  }
+  if (!provider.getMarketData) return Promise.reject(new Error("Investment market capability has no provider implementation."))
+  return provider.getMarketData(resource, params)
 }
 
 export type InvestmentResearchDirectionSource = { path: string; line?: number; expect?: string }
@@ -786,34 +886,6 @@ export type InvestmentWatch = InvestmentReadModelEnvelope & {
   }
 }
 
-/** Read only local API data, with bounded requests and no server-body errors. */
-async function readInvestment<T>(url: string, signal?: AbortSignal, timeoutMs = 15_000): Promise<T> {
-  const controller = new AbortController()
-  const cancel = () => controller.abort()
-  const timeout = window.setTimeout(cancel, timeoutMs)
-  signal?.addEventListener("abort", cancel, { once: true })
-  if (signal?.aborted) controller.abort()
-
-  try {
-    const response = await request(url, {
-      signal: controller.signal,
-      cache: "no-store",
-    })
-    if (!response.ok) {
-      throw new Error(`本機資料暫時無法讀取（${response.status}）`)
-    }
-    return (await response.json()) as T
-  } catch (error) {
-    if (controller.signal.aborted && !signal?.aborted) {
-      throw new Error("讀取逾時，請稍後重試。")
-    }
-    throw error
-  } finally {
-    window.clearTimeout(timeout)
-    signal?.removeEventListener("abort", cancel)
-  }
-}
-
 let momentumRequests = 0
 const momentumQueue: (() => void)[] = []
 
@@ -845,46 +917,48 @@ function acquireMomentumSlot(signal?: AbortSignal): Promise<() => void> {
 }
 
 export const getInvestment = (signal?: AbortSignal) =>
-  readInvestment<InvestmentData>("/api/investment", signal)
+  getSelectedInvestmentProvider().getToday?.(signal) ?? Promise.reject(new Error("Investment Today capability has no provider implementation."))
 
 export const getInvestmentNarrative = (signal?: AbortSignal) =>
-  readInvestment<InvestmentNarrative>("/api/investment/narrative", signal)
+  getSelectedInvestmentProvider().getJudgment?.(signal) ?? Promise.reject(new Error("Investment judgment capability has no provider implementation."))
 
 export const getInvestmentActions = (signal?: AbortSignal) =>
-  readInvestment<InvestmentActions>("/api/investment/actions", signal)
+  optionalCapability("actions", signal)
+    .then(data => data as InvestmentActions)
 
 export const getInvestmentMarket = (signal?: AbortSignal, refresh = false) =>
-  readInvestment<InvestmentMarket>(`/api/investment/market?refresh=${refresh}`, signal)
+  marketData("indicators", {signal, refresh})
+    .then(data => data as InvestmentMarket)
 
 /** Canonical Taiwan session-aligned holdings RS; never calculated by the consumer. */
 export const getTwRelativeStrength = (signal?: AbortSignal) =>
-  readInvestment<TwRelativeStrength>("/api/investment/tw-relative-strength", signal, 75_000)
+  (requireAvailableCapability("tw-relative-strength"), marketData("tw-relative-strength", {signal}))
+    .then(data => data as TwRelativeStrength)
 
 export const getInvestmentPulse = (signal?: AbortSignal) =>
-  readInvestment<InvestmentMarketPulse>("/api/investment/pulse", signal, 75_000)
+  marketData("pulse", {signal})
+    .then(data => data as InvestmentMarketPulse)
 
 /** Explore scans can be slow; only this getter uses the longer bound. */
 export const getMarketExplore = (signal?: AbortSignal, refresh = false) =>
-  readInvestment<MarketExplore>(
-    refresh ? "/api/investment/explore?refresh=true" : "/api/investment/explore",
-    signal,
-    50_000,
-  )
+  marketData("explore", {signal, refresh})
+    .then(data => data as MarketExplore)
 
 export const getMomentumUniverse = (signal?: AbortSignal) =>
-  readInvestment<MomentumUniverse>("/api/investment/momentum/universe", signal)
+  marketData("momentum-universe", {signal})
+    .then(data => data as MomentumUniverse)
 
 export const getMomentumLeaders = (signal?: AbortSignal, refresh = false) =>
-  readInvestment<MomentumLeaders>(`/api/investment/momentum/leaders?refresh=${refresh}`, signal, 60_000)
+  marketData("momentum-leaders", {signal, refresh})
+    .then(data => data as MomentumLeaders)
 
 export async function getStockMomentum(symbol: string, signal?: AbortSignal, refresh = false): Promise<StockMomentumData> {
   const release = await acquireMomentumSlot(signal)
   try {
-    return await readInvestment<StockMomentumData>(
-      `/api/investment/momentum?symbol=${encodeURIComponent(symbol)}&refresh=${refresh}`,
-      signal,
-      25_000,
-    )
+    const provider = getSelectedInvestmentProvider()
+    requireInvestmentCapability(provider, "market")
+    if (!provider.getMarketData) throw new Error("Investment market capability has no implementation.")
+    return await provider.getMarketData("momentum", {symbol, signal, refresh}) as StockMomentumData
   } finally {
     release()
   }
@@ -893,44 +967,43 @@ export async function getStockMomentum(symbol: string, signal?: AbortSignal, ref
 export async function getStockQuote(symbol: string, signal?: AbortSignal, refresh = false): Promise<StockQuote> {
   const release = await acquireMomentumSlot(signal)
   try {
-    return await readInvestment<StockQuote>(`/api/investment/quote?symbol=${encodeURIComponent(symbol)}&refresh=${refresh}`, signal)
+    const provider = getSelectedInvestmentProvider()
+    requireInvestmentCapability(provider, "quote")
+    if (!provider.getMarketData) throw new Error("Investment market capability has no implementation.")
+    return await provider.getMarketData("quote", {symbol, signal, refresh}) as StockQuote
   } finally {
     release()
   }
 }
 
+export const getInvestmentCapability = (capability: InvestmentCapabilityName): InvestmentCapability =>
+  getSelectedInvestmentProvider().capabilities[capability]
+
 export const getInvestmentWatch = (signal?: AbortSignal) =>
-  readInvestment<InvestmentWatch>("/api/investment/watch/read-model", signal)
+  optionalCapability("watch", signal)
+    .then(data => data as InvestmentWatch)
 
 export const getInvestmentResearch = (signal?: AbortSignal) =>
-  readInvestment<InvestmentResearch>("/api/investment/research", signal)
+  getSelectedInvestmentProvider().getResearch?.(signal) ?? Promise.reject(new Error("Investment research capability has no provider implementation."))
 
 export const getInvestmentResearchDetail = (itemId: string, signal?: AbortSignal) =>
-  readInvestment<InvestmentResearchDetail>(
-    `/api/investment/research/detail?id=${encodeURIComponent(itemId)}`,
-    signal,
-  )
+  getSelectedInvestmentProvider().getResearchDetail?.(itemId, signal) ?? Promise.reject(new Error("Investment research detail capability is unavailable."))
 
 export const getInvestmentSource = (id: string, signal?: AbortSignal) =>
-  readInvestment<InvestmentSourceText>(
-    `/api/investment/source?id=${encodeURIComponent(id)}`,
-    signal,
-  )
+  getSelectedInvestmentProvider().getSource?.(id, signal)
+    ?? Promise.reject(new Error("Investment source detail capability is unavailable."))
 
 export const getInvestmentHistory = (signal?: AbortSignal) =>
-  readInvestment<InvestmentHistory>("/api/investment/history", signal)
+  getSelectedInvestmentProvider().getHistory?.(signal) ?? Promise.reject(new Error("Investment history capability has no provider implementation."))
 
 export const getInvestmentHistorySource = (id: string, signal?: AbortSignal) =>
-  readInvestment<InvestmentHistoryDetail>(
-    `/api/investment/history/source?id=${encodeURIComponent(id)}`,
-    signal,
-  )
+  getSelectedInvestmentProvider().getHistoryDetail?.(id, signal) ?? Promise.reject(new Error("Investment history detail capability is unavailable."))
 
 export const getInvestmentContext = (signal?: AbortSignal) =>
-  readInvestment<InvestmentContext>("/api/investment/context", signal)
+  getSelectedInvestmentProvider().getContext?.(signal)
+    ?? Promise.reject(new Error("Investment context capability is unavailable."))
 
-/** 待處理的三個來源全部來自 investment_note 既有工具，看板只顯示、不寫回。
- * 每一塊自己帶狀態：一個工具讀不到時只有那一塊說話，另外兩塊照常。 */
+/** Optional pending read model; each block retains its producer-owned status. */
 export type PendingBlock = {
   title: string
   /** 這塊是誰算出來的（工具指令或檔案路徑），原樣顯示給讀者對照。 */
@@ -982,7 +1055,8 @@ export type InvestmentPending = InvestmentReadModelEnvelope & {
 }
 
 export const getInvestmentPending = (signal?: AbortSignal) =>
-  readInvestment<InvestmentPending>("/api/investment/pending/read-model", signal)
+  optionalCapability("pending", signal)
+    .then(data => data as InvestmentPending)
 
 export type InvestmentWork = {
   id: string; kind: "decision" | "research" | "watch"; text: string;
@@ -993,16 +1067,8 @@ export type InvestmentWork = {
   /** Explicitly promoted personal reminders remain visible on Today. */
   promoted_to_today?: boolean;
 }
-export const getInvestmentWork = () => readInvestment<{items: InvestmentWork[]}>("/api/investment/work")
-async function writeWork(path: string, method: string, data: unknown): Promise<InvestmentWork> {
-  const response = await request(path, {method, headers: {"Content-Type": "application/json"}, body: JSON.stringify(data), signal: AbortSignal.timeout(15_000)})
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new WriteRejected(response.status, typeof error.detail === "string" ? error.detail : "請確認輸入內容後重試。")
-  }
-  return response.json()
-}
+export const getInvestmentWork = () => getSelectedInvestmentProvider().getPersonalWork?.() ?? Promise.reject(new Error("Investment work capability is unavailable."))
 export const addInvestmentWork = (data: {kind: InvestmentWork["kind"]; text: string; source_id?: string; source_label?: string; expires_on?: string}) =>
-  writeWork("/api/investment/work", "POST", data)
+  getSelectedInvestmentProvider().addPersonalWork?.(data) ?? Promise.reject(new Error("Investment work writes are unavailable."))
 export const saveInvestmentWork = (data: InvestmentWork) =>
-  writeWork(`/api/investment/work/${encodeURIComponent(data.id)}`, "PATCH", {version: data.version, status: data.status, kind: data.kind, conclusion: data.conclusion, promoted_to_today: data.promoted_to_today})
+  getSelectedInvestmentProvider().updatePersonalWork?.(data) ?? Promise.reject(new Error("Investment work writes are unavailable."))

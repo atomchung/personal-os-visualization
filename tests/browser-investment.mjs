@@ -89,7 +89,7 @@ try {
     await briefFailurePage.route('**/src/demo/transport.ts', async route => {
       const response = await route.fetch()
       const source = await response.text()
-      const body = source.replace(/case "\/api\/investment":\s*return reply\(investment\);/, 'case "/api/investment": return Response.json({ detail: "Synthetic brief failure" }, { status: 503 });')
+      const body = source.replace(/case "\/api\/investment":\s*return reply\(await demoInvestmentProvider\.getToday\(\)\);/, 'case "/api/investment": return Response.json({ detail: "Synthetic brief failure" }, { status: 503 });')
       injected = body !== source
       await route.fulfill({ response, body })
     })

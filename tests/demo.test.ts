@@ -1,8 +1,12 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { createDemoRequest } from "../src/demo/transport.ts"
+import { setInvestmentProvider as configureDemoProvider } from "../src/lib/investment.ts"
+import { demoInvestmentProvider } from "../src/demo/investmentProvider.ts"
+import { getInvestment, getInvestmentNarrative, getInvestmentResearch, getInvestmentHistory, getInvestmentActions, getSelectedInvestmentProvider, setInvestmentProvider } from "../src/lib/investment.ts"
 import { investment as syntheticInvestment, investmentHistory, investmentHistorySources, investmentResearch, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
 import { investmentScenario } from "../src/demo/generated/investment-scenario.ts"
+configureDemoProvider(demoInvestmentProvider)
 import { buildTimeline, researchForToday, splitCatalyst, watchDateWindow } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
@@ -89,6 +93,74 @@ test("formal Research and legacy Watch retain separate typed producer envelopes"
   assert.equal(pending.state, "partial")
   assert.equal(pending.source_cutoff, "unknown")
   assert.equal(typeof pending.pending.scope, "string")
+})
+
+test("the reference Investment provider drives four typed entries and preserves detail provenance", async () => {
+  const today = await demoInvestmentProvider.getToday()
+  const judgment = await demoInvestmentProvider.getJudgment()
+  const research = await demoInvestmentProvider.getResearch()
+  const history = await demoInvestmentProvider.getHistory()
+  assert.equal(today.brief.state, "current")
+  assert.equal(judgment.artifact, "personalos-investment-hub")
+  assert.equal(research.artifact, "investment-research-index")
+  assert.equal(history.artifact, "investment-history-index")
+  assert.equal(demoInvestmentProvider.capabilities.today.status, "available")
+  assert.equal(demoInvestmentProvider.capabilities.judgment.status, "partial")
+  assert.equal(demoInvestmentProvider.capabilities.research.status, "partial")
+  assert.equal(demoInvestmentProvider.capabilities.history.status, "partial")
+  assert.equal(demoInvestmentProvider.capabilities.actions.status, "partial")
+
+  const researchId = research.research.items[0]!.id
+  const detail = await demoInvestmentProvider.getResearchDetail(researchId)
+  assert.equal(detail.research.item?.id, researchId)
+  assert.equal(detail.research.item?.source.path, research.research.items[0]!.source.path)
+  const historyId = history.history.items.find(item => item.id)?.id
+  assert.ok(historyId)
+  const historyDetail = await demoInvestmentProvider.getHistoryDetail(historyId)
+  assert.equal(historyDetail.history.item?.id, historyId)
+  assert.ok(historyDetail.history.item?.source.path)
+})
+
+test("replacing the selected provider leaves the Investment UI helper contract unchanged", async () => {
+  const original = getSelectedInvestmentProvider()
+  const replacement = {
+    ...demoInvestmentProvider,
+    id: "synthetic-reference-replacement",
+    async getToday() { return {...syntheticInvestment, as_of: "replacement"} },
+  }
+  try {
+    setInvestmentProvider(replacement)
+    assert.equal(getSelectedInvestmentProvider().id, "synthetic-reference-replacement")
+    assert.equal((await getInvestment()).as_of, "replacement")
+    assert.equal((await getInvestmentNarrative()).artifact, "personalos-investment-hub")
+    assert.equal((await getInvestmentResearch()).artifact, "investment-research-index")
+    assert.equal((await getInvestmentHistory()).artifact, "investment-history-index")
+
+    const noActions = {
+      ...replacement,
+      capabilities: {...replacement.capabilities, actions: {status: "unavailable" as const, limitations: ["No standalone action reader."]}},
+      getOptional: undefined,
+    }
+    setInvestmentProvider(noActions)
+    await assert.rejects(getInvestmentActions(), /No standalone action reader/)
+  } finally {
+    setInvestmentProvider(original)
+  }
+})
+
+test("provider-backed demo routes stay fail-closed and have no network or private fallback", async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = () => { throw new Error("Unexpected network request") }
+  try {
+    const request = createDemoRequest()
+    const known = await request(`/api/investment/research/detail?id=${encodeURIComponent(investmentResearch.research.items[0]!.id)}`)
+    assert.equal(known.status, 200)
+    const detail = await known.json()
+    assert.equal(detail.research.item.source.path, investmentResearch.research.items[0]!.source.path)
+    assert.equal((await request("/api/investment/research/detail?id=private-path" )).status, 404)
+    assert.equal((await request("/api/investment/history/source?id=private-path")).status, 404)
+    assert.equal((await request("http://localhost:8000/api/investment")).status, 404)
+  } finally { globalThis.fetch = originalFetch }
 })
 
 test("Today projection keeps intraday delta inside the daily flow", async () => {
