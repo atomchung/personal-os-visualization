@@ -46,30 +46,40 @@ repo／網站 revision／owner 使用驗收仍是分開證據。
 
 前一個已驗證的程式基線為 `839b3a216d40203a1a5a32173b934af799151c56`；其 CI 與本機檢查證據見 #1。這是日期化交付證據，不是此文件永遠代表最新 HEAD 的保證。
 
-## 雲端與本機各負責什麼
+## 產品正本與 Provider 邊界（2026-09-26 owner decision）
 
-`personal-os-visualization` 是共用元件與可編輯資料契約的 canonical source。
-`src/tokens.css` 由私人端 `core/styles.py` 生成；`src/demo/generated/` 由私人端
-情境產生器生成。這兩類只往外匯出，不作為私人端匯入來源。
-本機 `web/ui` 是 private integration checkout，不應另行長期演化一套 UI；本機只
-注入 FastAPI/private adapter，展示端只注入 generator 產出的 synthetic scenario。
-情境 brief 與生成過程留在 PersonalOS，只有通過 allowlist 與人工 review 的產物進入
-這個 repo。
+`personal-os-visualization` 是 PersonalOS 共用 UI、module contract 與 provider wiring 的
+canonical product source。這裡不只是匯出的元件快照：Investment UI、typed provider
+interface、capability manifest、provider selection/wiring，以及可直接執行的
+synthetic/reference provider 都在這個 repo 維護。
 
-| 層 | 雲端 repo | 本機私人專案 |
+Investment 是第一個 reference module。必要入口為 Today、Judgment/Narrative、Research
+與 Review/History；Market、Watch、Pending、Actions 等現有能力可選。UI 只依賴 module
+contract 和 manifest。缺少能力時 provider 必須回報 `unavailable` 或 `partial`，UI
+依狀態呈現，不從其他欄位或資料內容推測能力。
+
+Private PersonalOS 的 Investment 範圍只保留真實 provider implementation、runtime、
+credentials 與 private context。Investment Note 繼續持有投資判斷與研究的正本；private
+provider 把既有 typed read models 接到共用 contract，不能要求使用者複製 Investment
+Note 的內部檔案結構、路徑或 schema。擴充共用 UI 或 module contract 時，先回到 shared
+repo 審查，不在 private integration 裡維護第二套 UI。
+
+| 層 | `personal-os-visualization` | Private PersonalOS |
 |---|---|---|
-| UI | `src/components/`、design tokens | 相同共用元件 |
-| 契約 | `src/lib/api.ts`、`investment.ts`、`writes.ts` | 契約對應 FastAPI／read model |
-| 資料 | `src/demo/fixtures.ts`、`src/demo/transport.ts`，完全虛構 | canonical 來源讀取、解析、計算與合法寫入 |
-| Runtime | 固定 synthetic transport，無資料網路連線 | 本機 transport 接私人 API |
-| 驗收 | mock 操作、空值／失敗、建置與瀏覽器 | 真資料接入、來源正確性、使用者實際入口讀回 |
+| UI 與 module contract | Investment UI、typed `InvestmentProvider`、capability manifest | 不另行 fork；採用 shared contract |
+| Provider wiring | 明確選擇目前 module provider，UI 不耦合 backend | 將 private implementation 接到同一 contract |
+| Reference provider | Today/Judgment/Research/History 的虛構合成實作；browser-memory-only、無網路或 private fallback | 不把真實資料匯入 synthetic fixtures |
+| Private data/runtime | 不含 private backend、credentials、context 或真實 records | 保留真實來源 adapter、runtime、credentials 與 private context |
+| 驗收 | contract、capability/degraded-state、provenance、detail 與 browser checks | 另外驗證 producer cutoff、adapter/build/served identity 與四入口 readback |
 
-本輪投資研究合成案例由私人端 deterministic scenario generator 生成，同一案例
-驅動今日問題、研究卡、待查證據、歷史回看與時間事件；這不等於把任何真實紀錄
-匿名化後公開。私人 task Context 只按 task scope 讀取需求、狀態、明確決定與來源
-證據；公開 repo 不含 Context service、private adapter、brief 或原文。
+合成案例是完全虛構的 reference data，不是匿名化的私人紀錄。Investment Note 是投資
+正本；PersonalOS 只做保留來源 cutoff、provenance 與 detail reference 的讀取投影，不
+建立第二份投資 truth，也不為 provider 邊界另擴 domain schema。shared repo 不得加入
+私人路徑、private content、credentials、真實資料或 producer schema。
 
-投資研究／交易正本留在 `investment_note`；PersonalOS 做整理與呈現。本 repo 沒有 Python backend、本機 vault、健康 DB、帳號或憑證，也不包含私人 Git 歷史。雲端 agent 不應猜測讀不到的本機資料，應在 issue 留明確的契約需求，由本機維護者回報去除私人內容的結果。
+雲端 agent 不能推測讀不到的 private data。若需要新能力，先在 shared contract 明確
+定義其語意與 unavailable/partial 行為，再由各 provider 自行實作；沒有 explicit
+relation 時不跨 module 自動 join。
 
 入口元件：`InvestmentPage.tsx`、`ResearchWatch.tsx`、`InvestmentPending.tsx`、`InvestmentWork.tsx`、`StockMomentum.tsx`、`MarketIndicators.tsx`，均位於 `src/components/investment/`。
 
@@ -87,10 +97,8 @@ repo／網站 revision／owner 使用驗收仍是分開證據。
 
 ## 程式碼同步與完成證據
 
-本文件在明確審查的 shared allowlist 內，可與 UI 一起往返；本機來源為 `web/ui/PROJECT_CONTEXT.md`。雲端修改使用分支與 PR，執行 `npm test`、`npm run lint`、`npm run build`。
+本文件是 shared repo 的產品與協作脈絡。雲端修改使用分支與 PR，並執行 `npm test`、`npm run lint`、`npm run build`。README 與 AGENTS 由私人維護者的文件 exporter 產生；需要更新時改 authoring source，再以正常 export 流程更新產物，不直接手改生成文件或 receipt 雜湊。
 
-本機維護者先更新獨立 checkout，再用私人專案內的 `scripts/sync_visualization.py` 做三向 check/import；衝突、新檔與刪除先明確審查。先匯入遠端單方修改，再 export 本機單方修改。匯入後重建本機前端、讀回實際入口，並把驗證結論更新到 issue。這些私人同步工具不在本 repo，雲端 agent 不應宣稱已執行它們。
+Private 維護者以既有三向流程檢查 shared changes；conflict、新檔與刪除先逐項審查，不以改 receipt hash 清除衝突。匯入後重建並讀回 private runtime，再把驗證結論更新到 issue。Cloud agents 不得宣稱已執行 private integration checks。
 
-`README.md`、`AGENTS.md` 與 runtime/config 等由本機 exporter 生成；不要直接改生成檔再被下次 export 覆蓋。需要改生成指引時，由本機維護者更新 exporter。不得手改 `export-receipt.json` 雜湊來消除衝突。
-
-GitHub 程式更新、本機看板更新、展示網站部署、雲端 ChatGPT 能讀私有 repo，是四個分開的證據。前一項成功不保證後一項。#7 負責展示網站差距；客戶端存取權需在使用者的 GitHub 連線授予，尚未驗證。
+Shared PR/CI、private API/provider、served bundle、browser readback 與展示網站部署是分開的證據。前一項成功不保證後一項。#7 負責展示網站差距；目標 client 的 GitHub access 也要獨立驗證。
