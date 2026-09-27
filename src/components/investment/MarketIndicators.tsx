@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Card, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
-import { ACTIVE_POLL_MS, IDLE_POLL_MS, SESSION_LABELS, getInvestmentMarket, getInvestmentPulse, getTwRelativeStrength, getMarketExplore, type InvestmentMarket, type InvestmentMarketPulse, type TwRelativeStrength } from "@/lib/investment"
+import { ACTIVE_POLL_MS, IDLE_POLL_MS, SESSION_LABELS, getInvestmentMarket, getInvestmentPulse, getTwRelativeStrength, getMarketExplore, type InvestmentMarket, type InvestmentMarketPulse } from "@/lib/investment"
 import { formatNumber, marketIndexDirectionDisplay, quoteTime, sourceTimestamp } from "@/lib/investmentFormat"
 import { DEMO_MODE } from "@/lib/transport"
 import { MarketExplore } from "./MarketExplore"
@@ -139,29 +139,6 @@ function TaiwanOverview({ data, pending, failed, readAt }: {
   </section>
 }
 
-function TaiwanRelativeStrength({ data, pending, failed }: { data?: TwRelativeStrength; pending: boolean; failed: boolean }) {
-  return <section aria-label="台股持倉相對大盤強弱" className="flex min-w-0 flex-col gap-3" aria-busy={pending}>
-    <SubsectionHeading>台股持倉相對大盤強弱</SubsectionHeading>
-    <p className="text-caption text-ink-3">台股持倉使用獨立的來源比較；與美股清單、全市場探索分開。數值由來源計算，這裡依原始 symbol 逐列呈現。</p>
-    {pending && !data ? <p role="status" className="text-body text-ink-3">讀取台股相對強弱中…</p> : null}
-    {failed ? <p role={data ? "status" : "alert"} className="text-body text-warn">台股相對強弱本次讀取失敗；{data ? "保留上次資料與原日期。" : "目前無法確認數值。"}</p> : null}
-    {data ? <>
-      <p className="text-caption text-ink-3">完整交易日 {sourceTimestamp(data.as_of)} · 要求日期 {sourceTimestamp(data.requested_date)} · {data.window_trading_days} 個交易日比較 · {data.state === "partial" ? "資料部分可用" : "目前無法取得"}</p>
-      {data.state === "unavailable" ? <p role="status" className="text-body text-warn">來源標示相對強弱不可用；不是零，也不代表沒有台股持倉。</p> : null}
-      {data.holdings.length ? <ul className="flex min-w-0 flex-col divide-y divide-line-soft">{data.holdings.map(row => <li key={row.symbol} data-tw-rs-symbol={row.symbol} className="flex min-w-0 flex-col gap-1 py-3">
-        <p className="text-body font-medium text-ink">{row.symbol} · {row.exchange || "交易所未確認"} · {row.state === "partial" ? "部分可用" : "不可用"}</p>
-        <p className="text-body text-ink-2">相對大盤：{row.market_rs_pp === null ? "未取得" : `${formatNumber(row.market_rs_pp, true)} 個百分點`} · 同業比較：未提供（來源為空值）</p>
-        <p className="text-caption text-ink-3">Benchmark：{row.market_benchmark.id} · {row.market_benchmark.label}</p>
-        <p className="text-caption text-ink-3">比較窗口 {sourceTimestamp(row.window_start)} 至 {sourceTimestamp(row.as_of)} · {row.window_trading_days} 個交易日；觀察點 {row.coverage.holding_sessions}/{row.coverage.expected_sessions}</p>
-        {row.limitations.map((limitation, index) => <p key={index} className="text-caption text-warn">{limitation}</p>)}
-        <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">資料代號與原因</summary><div className="flex min-w-0 flex-col gap-1 pt-1"><p>Provider symbol：{row.provider_symbol || "未確認"}</p><p>來源原因：{row.reason_codes.join("、") || "未提供"}</p><p>同業籃子：{row.peer_group === null ? "未提供" : row.peer_group}</p><p>個股資料：{row.price_source}</p><p className="break-all">大盤資料：{row.benchmark_source}</p></div></details>
-      </li>)}</ul> : <p className="text-body text-warn">來源未列出台股持倉比較列；保留來源狀態，不推論沒有持倉。</p>}
-      {data.limitations.map((limitation, index) => <p key={index} className="text-caption text-warn">{limitation}</p>)}
-      <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">相對強弱的來源時間</summary><p>產出 {sourceTimestamp(data.generated_at)} · 來源截至 {sourceTimestamp(data.source_cutoff)} · 讀取 {sourceTimestamp(data.read_at)}</p><p>Producer：{data.producer}</p></details>
-    </> : null}
-  </section>
-}
-
 function UnitedStatesOverview() {
   return <div className="flex min-w-0 flex-col gap-2" aria-label="美股整體盤感">
     <SubsectionHeading>整體盤感</SubsectionHeading>
@@ -221,7 +198,6 @@ export function MarketIndicators() {
       {refreshNotice ? <p role="status" aria-live="polite" className="text-caption text-ink-3">{refreshNotice}</p> : null}
       <div id={`market-panel-${market}`} role="tabpanel" aria-labelledby={`market-tab-${market}`} className="flex min-w-0 flex-col gap-4 pt-4">
         {market === "tw" ? <TaiwanOverview data={pulseQuery.data} pending={pulseQuery.isPending} failed={pulseQuery.isError} readAt={pulseQuery.dataUpdatedAt ? new Date(pulseQuery.dataUpdatedAt).toISOString() : null} /> : <UnitedStatesOverview />}
-        {market === "tw" ? <TaiwanRelativeStrength data={rsQuery.data} pending={rsQuery.isPending} failed={rsQuery.isError} /> : null}
         <QuoteContext market={market} data={quoteQuery.data} pending={quoteQuery.isPending} failed={quoteQuery.isError} />
         <div className="border-t border-line-soft pt-4"><MarketExplore market={market} embedded /></div>
       </div>
