@@ -1,3 +1,10 @@
+import {
+  getSelectedModuleProvider,
+  selectModuleProvider,
+  type ModuleCapabilityDescriptor,
+  type ModuleProviderBinding,
+} from "./moduleProvider.ts"
+
 export type InvestmentSourceState = "current" | "stale" | "missing" | "invalid"
 
 export type InvestmentSource = {
@@ -443,7 +450,27 @@ export function requireAvailableCapability(capability: InvestmentCapabilityName)
   if (status !== "available") requireInvestmentCapability(getSelectedInvestmentProvider(), capability)
 }
 
-let selectedInvestmentProvider: InvestmentProviderRuntime | null = null
+const INVESTMENT_MODULE_ID = "investment" as const
+const INVESTMENT_MODULE_SURFACES = ["today", "judgment", "research", "history"] as const
+
+/** Bind the existing Investment provider to the common metadata/selection shell. */
+export function bindInvestmentProvider(provider: InvestmentProviderRuntime): ModuleProviderBinding<InvestmentProviderRuntime> {
+  const capabilities = {} as Record<InvestmentCapabilityName, ModuleCapabilityDescriptor>
+  for (const [name, capability] of Object.entries(provider.capabilities)) {
+    capabilities[name as InvestmentCapabilityName] = {
+      status: capability.status === "available" ? "ready" : capability.status,
+    }
+  }
+
+  return {
+    moduleId: INVESTMENT_MODULE_ID,
+    providerId: provider.id,
+    surfaces: INVESTMENT_MODULE_SURFACES,
+    capabilities,
+    sourceDetail: { status: provider.getSource ? "ready" : "unavailable" },
+    provider,
+  }
+}
 
 /** Explicit browser-test seam for exercising degraded read models after provider selection. */
 async function applyInvestmentReadHook<T>(payload: T): Promise<T> {
@@ -453,12 +480,11 @@ async function applyInvestmentReadHook<T>(payload: T): Promise<T> {
 }
 
 export function setInvestmentProvider(provider: InvestmentProviderRuntime): void {
-  selectedInvestmentProvider = provider
+  selectModuleProvider(bindInvestmentProvider(provider))
 }
 
 export function getSelectedInvestmentProvider(): InvestmentProviderRuntime {
-  if (!selectedInvestmentProvider) throw new Error("Investment provider has not been configured.")
-  return selectedInvestmentProvider
+  return getSelectedModuleProvider<InvestmentProviderRuntime>(INVESTMENT_MODULE_ID).provider
 }
 
 function optionalCapability<K extends InvestmentOptionalCapability>(

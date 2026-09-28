@@ -67,7 +67,7 @@ export const PAGE_COPY: Record<"today" | PageKey | "guide", { label: string; sum
   },
   investment: {
     label: "投資",
-    summary: "看今日研究、正在釐清的問題，以及舊判斷後來如何發展。",
+    summary: "Investment Note 維護投資正本；今日、判斷、研究與復盤在此唯讀呈現。個人筆記另存在 PersonalOS，不改寫正式判斷。",
   },
   focus: {
     label: "焦點",
