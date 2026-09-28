@@ -58,6 +58,15 @@ jobs:
               const externalRequests = []
               page.on('pageerror', error => errors.push(error.message))
               page.on('request', request => { if (!request.url().startsWith(origin)) externalRequests.push(request.url()) })
+              await page.addInitScript(() => {
+                window.__investmentReadHook = data => {
+                  if (Array.isArray(data?.symbols) && data.symbols.length === 1 && data.symbols[0] === 'DEMO') {
+                    data.symbols = ['DEMO', 'DEMO-TW-A.TW', 'DEMO-TW-B.TWO', 'DEMO-TW-C.TW']
+                    data.note = '合成測試持倉：DEMO 保留一般報價列，三檔虛構台股代碼只用來驗證相對強度列。'
+                  }
+                  return data
+                }
+              })
               await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
               await page.getByText('今天發生了什麼', { exact: true }).waitFor()
               assert.equal(await page.locator('[aria-label="今日個人提醒"]').count(), 0, `${name}: Today has no personal reminder projection`)
@@ -158,13 +167,32 @@ jobs:
               const usMarket = page.getByRole('tab', { name: '美股', exact: true })
               assert.equal(await twMarket.getAttribute('aria-selected'), 'true')
               const taiwanPulse = page.locator('[aria-label="台股整體盤感"]')
-              const taiwanRs = page.getByRole('region', { name: '台股持倉相對大盤強弱', exact: true })
-              assert(await taiwanRs.getByText(/完整交易日 2026-09-19 · 要求日期 2026-09-20/).isVisible(), `${name}: Taiwan RS keeps its own verified session`)
-              const listedRs = taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-A"]')
-              assert.match(await listedRs.innerText(), /相對大盤：\+3.25 個百分點/)
-              assert.match(await listedRs.innerText(), /同業比較：未提供/)
-              assert.match(await taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-B"]').innerText(), /相對大盤：未取得/)
-              assert.match(await taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-C"]').innerText(), /交易所未確認/)
+              const holdings = page.locator('[aria-label="持倉行情與動能"]')
+              const standardSymbol = holdings.getByText('DEMO', { exact: true })
+              assert(await standardSymbol.isVisible(), `${name}: existing non-Taiwan holding remains in the table`)
+              await standardSymbol.locator('xpath=ancestor::li[1]').getByText(/42 範例幣/).waitFor()
+              assert.match(await standardSymbol.locator('xpath=ancestor::li[1]').innerText(), /42 範例幣/)
+              const listedRs = holdings.locator('[data-tw-rs-symbol="DEMO-TW-A.TW"]')
+              await listedRs.getByText(/\+3\.25%/).waitFor()
+              assert.match(await listedRs.innerText(), /\+3.25%/)
+              assert.match(await listedRs.innerText(), /對 \^TWII/)
+              assert.match(await listedRs.innerText(), /60 交易日 · 2026-09-19/)
+              const listedRow = listedRs.locator('xpath=ancestor::li[1]')
+              await listedRow.getByRole('button').click()
+              assert.match(await listedRow.innerText(), /比較窗口 2026-06-24 至 2026-09-19/)
+              assert.match(await listedRow.innerText(), /要求日期 2026-09-20/)
+              assert.match(await listedRow.innerText(), /來源截止 2026-09-19/)
+              assert.match(await listedRow.innerText(), /同業相對強度：未取得 · 同業籃子：未提供/)
+              const otcRs = holdings.locator('[data-tw-rs-symbol="DEMO-TW-B.TWO"]')
+              assert.match(await otcRs.innerText(), /未取得/)
+              assert.match(await otcRs.innerText(), /此標的來源不可用/)
+              const missingRs = holdings.locator('[data-tw-rs-symbol="DEMO-TW-C.TW"]')
+              assert.match(await missingRs.innerText(), /基準未提供/)
+              assert.doesNotMatch(await missingRs.innerText(), /\+.*%/)
+              const missingRow = missingRs.locator('xpath=ancestor::li[1]')
+              await missingRow.getByRole('button').click()
+              assert.match(await missingRow.innerText(), /台股相對強度：來源未提供此標的的比較資料/)
+              assert.doesNotMatch(await missingRow.innerText(), /99/)
 
               assert(await taiwanPulse.getByText(/最近可用交易日 2026-09-19 · 收盤／休市狀態未提供/).isVisible(),
                 `${name}: unknown exchange status must stay unknown`)
@@ -330,6 +358,10 @@ jobs:
                     data.holdings = []
                     data.as_of = 'unknown'
                   }
+                  if (Array.isArray(data?.symbols) && data.symbols.length === 1 && data.symbols[0] === 'DEMO') {
+                    data.symbols = ['DEMO', 'DEMO-TW-A.TW', 'DEMO-TW-B.TWO', 'DEMO-TW-C.TW']
+                    data.note = '合成測試持倉：DEMO 保留一般報價列，三檔虛構台股代碼只用來驗證相對強度列。'
+                  }
                   if (data?.brief) {
                     if (scenario === 'initial-error' || window.__failBrief) throw new Error('Synthetic read failure')
                     if (scenario === 'blank-summary') {
@@ -491,11 +523,20 @@ jobs:
                 for (const id of ['due-today', 'promoted', 'future', 'expired', 'completed', 'research-event']) assert.equal(await page.locator('#investment-panel-today').getByText(`Synthetic ${id}`, { exact: true }).count(), 0, `${id} must stay off Today`)
               }
               if (scenario === 'tw-rs-unavailable') {
-                const rs = page.getByLabel('台股持倉相對大盤強弱', { exact: true })
-                await rs.getByText('來源標示相對強弱不可用；不是零，也不代表沒有台股持倉。', { exact: true }).waitFor()
+                const rs = page.locator('[data-tw-rs-symbol="DEMO-TW-A.TW"]')
+                await rs.getByText('來源不可用', { exact: true }).waitFor()
+                assert.match(await rs.innerText(), /未取得/)
+                const row = rs.locator('xpath=ancestor::li[1]')
+                await row.getByRole('button').click()
+                await row.getByText('台股相對強度：來源不可用', { exact: true }).waitFor()
               }
               if (scenario === 'tw-rs-read-error') {
-                await page.getByLabel('台股持倉相對大盤強弱', { exact: true }).getByRole('alert').waitFor()
+                const rs = page.locator('[data-tw-rs-symbol="DEMO-TW-A.TW"]')
+                await rs.getByText(/讀取失敗，來源狀態未知/).waitFor()
+                const row = rs.locator('xpath=ancestor::li[1]')
+                await row.getByRole('button').click()
+                await row.getByText('台股相對強度：讀取失敗，來源狀態未知', { exact: true }).waitFor()
+                assert.doesNotMatch(await row.innerText(), /來源未提供此標的的比較資料/)
               }
               if (scenario.startsWith('session-')) {
                 const sessions = page.getByRole('region', { name: '簡報版本' })

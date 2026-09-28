@@ -9,6 +9,15 @@ try {
     const page = await browser.newPage({ viewport: { width, height: 1000 } })
     const errors = []
     page.on('pageerror', error => errors.push(error.message))
+    await page.addInitScript(() => {
+      window.__investmentReadHook = data => {
+        if (Array.isArray(data?.symbols) && data.symbols.length === 1 && data.symbols[0] === 'DEMO') {
+          data.symbols = ['DEMO', 'DEMO-TW-A.TW', 'DEMO-TW-B.TWO', 'DEMO-TW-C.TW']
+          data.note = '合成瀏覽器測試持倉；DEMO 保留一般報價列，其餘是虛構台股代碼。'
+        }
+        return data
+      }
+    })
     await page.goto(`${process.env.UI_URL || 'http://127.0.0.1:5197'}/?tab=investment`)
     await page.getByTestId('primary-next-step').waitFor()
     assert.equal(await page.getByTestId('primary-next-step').filter({ visible: true }).count(), 1)
@@ -30,17 +39,32 @@ try {
     await page.getByLabel('各市場資料日期').waitFor()
     assert.match(await page.getByLabel('各市場資料日期').innerText(), /台股日結資料日/)
     assert.match(await page.getByLabel('各市場資料日期').innerText(), /美股各指標資料日期/)
-    const taiwanRs = page.getByLabel('台股持倉相對大盤強弱', { exact: true })
-    await taiwanRs.waitFor()
-    assert.match(await taiwanRs.innerText(), /完整交易日 2026-09-19 · 要求日期 2026-09-20/)
-    const listed = taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-A"]')
-    assert.match(await listed.innerText(), /相對大盤：\+3.25 個百分點/)
-    assert.match(await listed.innerText(), /同業比較：未提供/)
-    assert.match(await listed.innerText(), /觀察點 61\/61/)
-    const otc = taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-B"]')
-    assert.match(await otc.innerText(), /TPEx · 不可用/)
-    assert.match(await otc.innerText(), /相對大盤：未取得/)
-    assert.match(await taiwanRs.locator('[data-tw-rs-symbol="DEMO-TW-C"]').innerText(), /交易所未確認/)
+    const holdings = page.locator('[aria-label="持倉行情與動能"]')
+    const standardSymbol = holdings.getByText('DEMO', { exact: true })
+    assert.ok(await standardSymbol.isVisible(), `${width}px: existing non-Taiwan holding remains in the table`)
+    await standardSymbol.locator('xpath=ancestor::li[1]').getByText(/42 範例幣/).waitFor()
+    assert.match(await standardSymbol.locator('xpath=ancestor::li[1]').innerText(), /42 範例幣/)
+    const listed = holdings.locator('[data-tw-rs-symbol="DEMO-TW-A.TW"]')
+    await listed.getByText(/\+3\.25%/).waitFor()
+    assert.match(await listed.innerText(), /\+3.25%/)
+    assert.match(await listed.innerText(), /對 \^TWII/)
+    assert.match(await listed.innerText(), /60 交易日 · 2026-09-19/)
+    const listedRow = listed.locator('xpath=ancestor::li[1]')
+    await listedRow.getByRole('button').click()
+    assert.match(await listedRow.innerText(), /比較窗口 2026-06-24 至 2026-09-19/)
+    assert.match(await listedRow.innerText(), /要求日期 2026-09-20/)
+    assert.match(await listedRow.innerText(), /來源截止 2026-09-19/)
+    assert.match(await listedRow.innerText(), /同業相對強度：未取得 · 同業籃子：未提供/)
+    const otc = holdings.locator('[data-tw-rs-symbol="DEMO-TW-B.TWO"]')
+    assert.match(await otc.innerText(), /未取得/)
+    assert.match(await otc.innerText(), /此標的來源不可用/)
+    const missing = holdings.locator('[data-tw-rs-symbol="DEMO-TW-C.TW"]')
+    assert.match(await missing.innerText(), /基準未提供/)
+    assert.doesNotMatch(await missing.innerText(), /\+.*%/)
+    const missingRow = missing.locator('xpath=ancestor::li[1]')
+    await missingRow.getByRole('button').click()
+    assert.match(await missingRow.innerText(), /台股相對強度：來源未提供此標的的比較資料/)
+    assert.doesNotMatch(await missingRow.innerText(), /99/)
     assert.match(await projection.innerText(), /與今日行動／論點的關係：未連結/)
     for (const label of ['今日', '我的判斷', '研究與策略', '復盤與學習']) {
       await page.getByRole('tab', { name: label, exact: true }).click()
@@ -135,6 +159,10 @@ try {
     const page = await browser.newPage({ viewport: { width: 320, height: 1000 } })
     await page.addInitScript(state => {
       window.__investmentReadHook = data => {
+        if (Array.isArray(data?.symbols) && data.symbols.length === 1 && data.symbols[0] === 'DEMO') {
+          data.symbols = ['DEMO', 'DEMO-TW-A.TW', 'DEMO-TW-B.TWO', 'DEMO-TW-C.TW']
+          data.note = '合成瀏覽器測試持倉；DEMO 保留一般報價列，其餘是虛構台股代碼。'
+        }
         if (data?.artifact === 'tw-holdings-relative-strength') {
           if (state === 'read-error') throw new Error('Synthetic RS read error')
           data.state = 'unavailable'
@@ -145,9 +173,20 @@ try {
       }
     }, state)
     await page.goto(`${process.env.UI_URL || 'http://127.0.0.1:5197'}/?tab=investment`)
-    const rs = page.getByLabel('台股持倉相對大盤強弱', { exact: true })
-    if (state === 'read-error') await rs.getByRole('alert').waitFor()
-    else await rs.getByText('來源標示相對強弱不可用；不是零，也不代表沒有台股持倉。', { exact: true }).waitFor()
+    const rs = page.locator('[data-tw-rs-symbol="DEMO-TW-A.TW"]')
+    if (state === 'read-error') {
+      await rs.getByText(/讀取失敗，來源狀態未知/).waitFor()
+      const row = rs.locator('xpath=ancestor::li[1]')
+      await row.getByRole('button').click()
+      await row.getByText('台股相對強度：讀取失敗，來源狀態未知', { exact: true }).waitFor()
+      assert.doesNotMatch(await row.innerText(), /來源未提供此標的的比較資料/)
+    } else {
+      await rs.getByText('來源不可用', { exact: true }).waitFor()
+      assert.match(await rs.innerText(), /未取得/)
+      const row = rs.locator('xpath=ancestor::li[1]')
+      await row.getByRole('button').click()
+      await row.getByText('台股相對強度：來源不可用', { exact: true }).waitFor()
+    }
     const layout = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }))
     assert.ok(layout.scroll <= layout.client)
     results.push({ width: 320, scenario: `tw-rs-${state}`, layout })

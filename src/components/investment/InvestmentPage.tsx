@@ -6,6 +6,7 @@ import { Card, CardSection, ReadingColumn, SectionHeading, SubsectionHeading } f
 import { Chip } from "@/components/ui/chip"
 import { PageHeader } from "@/components/ui/page-header"
 import { MarketIndicators } from "./MarketIndicators"
+import { StockMomentum } from "./StockMomentum"
 import {
   actionStatusLabel, actionStatusNote, briefSessionRows, BRIEF_SESSION_LABELS, groupBriefRows, numberedTargets, openActionItems, todayActionPlan, todayActionSection, todayNextSteps,
   sourceTimestamp,
@@ -366,6 +367,7 @@ export function InvestmentPage() {
         {b ? <TodayBrief b={b} today={query.data?.today} /> : null}
       </ReadingColumn>
       <MarketIndicators />
+      <StockMomentum />
     </div>
     <div id="investment-panel-judgment" role="tabpanel" aria-labelledby="investment-tab-judgment" hidden={view !== "judgment"} className={view === "judgment" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
       <ReadingColumn><InvestmentNarrativeSection enabled={view === "judgment"} onOpenHistory={() => openView("review")} /></ReadingColumn>
