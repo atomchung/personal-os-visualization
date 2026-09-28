@@ -291,6 +291,8 @@ export function InvestmentPage() {
   const hub = useQuery({ queryKey: ["investment-narrative"], queryFn: ({ signal }) => getInvestmentNarrative(signal), enabled: view === "today" || view === "research", retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
   const b = query.data?.brief
   const workContinuation = openActionItems(actions.data?.items ?? [])
+  const openSourceActions = workContinuation.filter(item => item.status === "open")
+  const sourceActionsWithHome = workContinuation.filter(item => item.status === "has-canonical-home")
   function openView(next: View) {
     setView(next)
     document.getElementById(`investment-tab-${next}`)?.focus()
@@ -373,11 +375,11 @@ export function InvestmentPage() {
       {researchIndex.isError ? <p role="alert" className="text-body text-warn">正式 Research index 讀取失敗；不以 Watch 項目代替。</p> : null}
       {actions.isError ? <p role="status" className="text-caption text-warn">待續行動這次讀不到。{actions.data ? "以下保留上次內容。" : ""}本機筆記仍可使用。</p> : null}
       {actions.data?.state === "unavailable" ? <p role="status" className="text-caption text-warn">{actions.data.message || "待續行動目前無法取得。"}</p> : null}
-      <ReadingColumn><CatalystProjection data={hub.data?.catalysts_30d} pending={hub.isPending} failed={hub.isError} /></ReadingColumn>
+      <ReadingColumn><CatalystProjection heading="未來 30 天催化劑" data={hub.data?.catalysts_30d} pending={hub.isPending} failed={hub.isError} /></ReadingColumn>
       {watch.data ? <details><summary className="cursor-pointer py-2 text-caption text-ink-3">既有 Watch 與簡報日期清單（涵蓋獨立）</summary><ReadingColumn><ResearchWatch data={watch.data} brief={b} /></ReadingColumn></details> : null}
       <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
         <section className="flex min-w-0 flex-col gap-3" aria-label="研究">
-          <div className="flex flex-col gap-1"><SectionHeading>加深公司、事件與未解問題</SectionHeading><p className="text-body text-ink-3">先看 owner 的研究問題，再看明確等待的事件；資料讀取狀態與系統提醒另列。</p></div>
+          <div className="flex flex-col gap-1"><SectionHeading>目前研究方向</SectionHeading><p className="text-body text-ink-3">先看來源明示的方向；個別研究、證據與來源按需展開。未連結／未知項目留在 Other coverage。</p></div>
           {researchIndex.isPending ? <p role="status" className="text-body text-ink-3">讀取正式 Research index…</p> : null}
           {researchIndex.data ? <ResearchLibrary data={researchIndex.data} /> : null}
           {watch.isPending ? <p className="text-body text-ink-3">讀取 Watch 日期…</p> : null}
@@ -387,17 +389,27 @@ export function InvestmentPage() {
           <Card density="compact" className="flex flex-col gap-2"><p className="text-body text-ink-2">目前的唯讀資料契約沒有提供獨立的策略內容，因此這裡標示為尚未提供。</p><p className="text-caption text-ink-3">不從研究文字、持倉或市場行情推導策略。</p></Card>
         </section>
       </div>
-      <details className="border-t border-line-soft pt-2">
-        <summary className="cursor-pointer py-1 text-body font-medium text-ink">Owner 的問題與待續工作</summary>
+      {actions.data && actions.data.state !== "unavailable" ? <section className="flex min-w-0 flex-col gap-2" aria-label="來源記錄的待續事項" data-testid="investment-source-actions">
+        <SectionHeading>來源記錄的待續事項</SectionHeading>
+        <p className="text-caption text-ink-3">按來源提供的 status 分開顯示。資料契約沒有判定哪些項目需要 owner 決策或代表系統狀態，因此不推定緊急程度；個人筆記與系統提醒另列。</p>
+        {openSourceActions.length ? <details><summary className="cursor-pointer py-2 text-body font-medium">來源 status：尚未結案 · {openSourceActions.length} 項</summary><ReadingColumn className="pt-2"><ContinuationList items={openSourceActions} /></ReadingColumn></details> : null}
+        {sourceActionsWithHome.length ? <details><summary className="cursor-pointer py-2 text-body font-medium">來源 status：已有判斷頁可承接 · {sourceActionsWithHome.length} 項</summary><ReadingColumn className="pt-2"><ContinuationList items={sourceActionsWithHome} /></ReadingColumn></details> : null}
+        {!workContinuation.length ? <p className="text-body text-ink-3">目前讀取的來源沒有 status 為尚未結案或已有判斷頁可承接的記錄；這不代表已確認沒有需要 owner 決定的事項。</p> : null}
+        {actions.data.limitations.map((note, index) => <p key={index} className="text-caption text-warn">{note}</p>)}
+      </section> : null}
+      <details className="border-t border-line-soft pt-2" data-testid="investment-personal-notes">
+        <summary className="cursor-pointer py-2 text-body font-medium text-ink">PersonalOS 本機：我的問題與提醒</summary>
         <ReadingColumn className="flex min-w-0 flex-col gap-5 pt-3">
-          {workContinuation.length ? <section className="flex min-w-0 flex-col gap-2" aria-label="來源記錄的待續行動"><ContinuationList items={workContinuation} /></section> : null}
           <section className="flex min-w-0 flex-col gap-3" aria-label="我留下的問題與研究">
-            <div className="flex flex-col gap-1"><SectionHeading>我留下的問題與研究</SectionHeading><p className="text-caption text-ink-3">個人筆記、待續行動和系統提醒維持各自來源，不會自動改寫正式判斷。</p></div>
+            <div className="flex flex-col gap-1"><SectionHeading>我留下的問題與研究</SectionHeading><p className="text-caption text-ink-3">只保存 PersonalOS 本機的結論與待續筆記，不會改寫正式判斷；它們與來源狀態和系統整理分開。</p></div>
             <InvestmentWorkPanel research={watch.data?.watch.research ?? []} />
           </section>
           <InvestmentWatchNotes />
-          <details><summary className="cursor-pointer py-2 text-caption text-ink-3">機器／來源狀態提醒（不自動列為 owner 待辦）</summary><PendingBoard /></details>
         </ReadingColumn>
+      </details>
+      <details className="border-t border-line-soft pt-2" data-testid="investment-system-status">
+        <summary className="cursor-pointer py-2 text-body font-medium text-ink">系統整理的狀態提醒（唯讀，不自動列為 owner 待辦）</summary>
+        <ReadingColumn className="pt-3"><PendingBoard /></ReadingColumn>
       </details>
     </div>
     <div id="investment-panel-review" role="tabpanel" aria-labelledby="investment-tab-review" hidden={view !== "review"} className={view === "review" ? "flex min-w-0 flex-col gap-4" : "hidden"}>

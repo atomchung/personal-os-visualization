@@ -64,12 +64,15 @@ function ResearchDirection({group}: {group: ReturnType<typeof researchDirectionV
 
 export function ResearchLibrary({data}: {data: InvestmentResearch}) {
   const view=researchDirectionView(data)
+  const listedItems = data.research.items.length
+  const unlinkedCount = view.other.filter(item => item.direction?.state === "unlinked").length
+  const unresolvedDirectionCount = view.other.length - unlinkedCount
   return <section className="flex min-w-0 flex-col gap-2" aria-label="正式 Research">
     <SectionHeading>主要研究方向</SectionHeading>
-    <p className="text-caption text-ink-3">從研究方向展開到個別問題與來源。</p>
+    <p className="text-caption text-ink-3">以下只列出來源明示的方向；未連結或分類未知的項目留在 Other，不作為第六個方向。</p>
     {view.state!=="ready"?<p role="status" className="text-caption text-warn">方向分類{readStateLabel(view.state)}；未能確認方向的研究保留在其他研究。</p>:null}
     {view.groups.map(group=><ResearchDirection key={group.id} group={group}/>)}
-    {view.other.length?<details className="min-w-0 rounded-sm border border-line-soft p-3" data-testid="research-other"><summary className="cursor-pointer text-body font-medium">其他研究（Other） · {view.other.length} 項</summary><div className="flex min-w-0 flex-col gap-3 pt-3"><p className="text-caption text-ink-3">未連結或方向未知的研究，不依標題、ticker 或內文推定分類。</p>{view.other.map(item=><div key={item.id}><p className="text-caption text-ink-3">方向：{item.direction?.state==="unlinked"?"未連結":item.direction?.state==="linked"?"明示分類無可用方向，待核對":"未知"}</p><ResearchCard item={item}/></div>)}</div></details>:null}
+    {view.other.length?<details className="min-w-0 rounded-sm border border-line-soft p-3" data-testid="research-other"><summary className="cursor-pointer text-body font-medium">未列入明示方向（Other coverage） · {view.other.length} / {listedItems} 項</summary><div className="flex min-w-0 flex-col gap-3 pt-3"><p className="text-caption text-ink-3">這些來源項目沒有落在明示方向群組，不代表第六個研究方向。來源標記未連結 {unlinkedCount} 項；其餘 {unresolvedDirectionCount} 項的方向未知、未提供，或明示分類沒有可用群組。項目仍全部保留，不依標題、ticker 或內文推定分類。</p>{view.other.map(item=><div key={item.id}><p className="text-caption text-ink-3">方向：{item.direction?.state==="unlinked"?"未連結":item.direction?.state==="linked"?"明示分類無可用方向，待核對":"未知"}</p><ResearchCard item={item}/></div>)}</div></details>:null}
     <details><summary className="cursor-pointer text-caption text-ink-3">研究來源與讀取狀況 · {data.research.count} 項</summary><div className="flex flex-col gap-1 pt-2"><p className="break-words metadata">{readStateLabel(data.state)} · producer：{data.producer} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at}</p>{[...data.limitations,...view.limitations].map((note,index)=><p key={index} className="break-words text-caption text-warn">{note}</p>)}</div></details>
     {!data.research.items.length&&(data.state==="ready"||data.state==="empty")?<p className="text-body text-ink-3">正式 Research index 已讀取，來源確認目前沒有項目。</p>:null}
     {!data.research.items.length&&data.state!=="ready"&&data.state!=="empty"?<p className="text-body text-warn">目前沒有可確認的 Research 項目；來源狀態不完整，不能判定為空。</p>:null}
@@ -115,10 +118,10 @@ function ProjectedCatalyst({ item }: { item: InvestmentCatalystItem }) {
   </li>
 }
 
-export function CatalystProjection({ data, pending = false, failed = false }: { data?: InvestmentCatalysts30d | null; pending?: boolean; failed?: boolean }) {
+export function CatalystProjection({ data, pending = false, failed = false, heading = "接下來會改變判斷的事情" }: { data?: InvestmentCatalysts30d | null; pending?: boolean; failed?: boolean; heading?: string }) {
   const view = catalystDateGroups(data)
   return <section aria-label="來源投影的未來 30 天催化劑" className="flex min-w-0 flex-col gap-2">
-    <SectionHeading>接下來會改變判斷的事情</SectionHeading>
+    <SectionHeading>{heading}</SectionHeading>
     <p className="text-caption text-ink-3">Investment Note 的 30 天來源投影；事件不自動成為 owner 待辦，也不依 ticker 連到今日行動。</p>
     {failed ? <p role="status" className="text-caption text-warn">催化劑來源本次讀取失敗；{data ? "保留上次投影與原日期。" : "涵蓋未知。"}</p> : null}
     {pending && !data ? <p role="status" className="text-caption text-ink-3">讀取催化劑投影…</p> : null}

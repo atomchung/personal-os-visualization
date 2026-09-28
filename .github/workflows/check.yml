@@ -89,7 +89,7 @@ jobs:
               await researchPanel.getByRole('region', { name: '正式 Research' }).waitFor({ state: 'visible' })
               await researchPanel.getByText('既有 Watch 與簡報日期清單（涵蓋獨立）', { exact: true }).click()
               await researchPanel.getByRole('region', { name: '接下來會改變判斷的事情', exact: true }).waitFor({ state: 'visible' })
-              await researchPanel.getByText('Owner 的問題與待續工作', { exact: true }).click()
+              await researchPanel.getByText('PersonalOS 本機：我的問題與提醒', { exact: true }).click()
               await researchPanel.getByRole('region', { name: '我的提醒' }).waitFor({ state: 'visible' })
               await page.getByRole('tab', { name: '今日', exact: true }).click()
               await page.getByText('正式簡報基線與論據', { exact: true }).click()
@@ -210,7 +210,7 @@ jobs:
               }
               const researchTab = page.getByRole('tab', { name: '研究與策略', exact: true })
               await researchTab.click()
-              const remindersDisclosure = researchPanel.getByText('Owner 的問題與待續工作', { exact: true }).locator('..')
+              const remindersDisclosure = researchPanel.getByText('PersonalOS 本機：我的問題與提醒', { exact: true }).locator('..')
               assert.equal(await remindersDisclosure.evaluate(element => element.open), true,
                 `${name}: reminder section stays open after switching tabs`)
               assert(await page.getByRole('heading', { name: '我的提醒', exact: true }).isVisible())
@@ -261,7 +261,7 @@ jobs:
             await reminderPage.waitForFunction(() => document.querySelector('#investment-tab-research')?.getAttribute('aria-selected') === 'true')
             const attentionPanel = reminderPage.locator('#investment-panel-research')
             await attentionPanel.waitFor({ state: 'visible' })
-            await attentionPanel.getByText('Owner 的問題與待續工作', { exact: true }).click()
+            await attentionPanel.getByText('PersonalOS 本機：我的問題與提醒', { exact: true }).click()
             const addReminderButton = attentionPanel.getByRole('button', { name: '新增提醒', exact: true })
             await addReminderButton.waitFor({ state: 'visible' })
             await addReminderButton.click()
@@ -475,7 +475,7 @@ jobs:
               if (scenario === 'watch-read-error') {
                 assert.equal(await page.locator('[aria-label="今日個人提醒"]').count(), 0)
                 await page.getByRole('tab', { name: '研究與策略', exact: true }).click()
-                await page.getByText('Owner 的問題與待續工作', { exact: true }).click()
+                await page.getByText('PersonalOS 本機：我的問題與提醒', { exact: true }).click()
                 const personalReminders = page.locator('[aria-label="我的提醒"]')
                 await personalReminders.getByRole('alert').waitFor({ state: 'visible', timeout: 5000 })
                 assert.equal(await personalReminders.getByText('目前沒有未到期或加入今日的個人提醒。', { exact: true }).count(), 0, 'a failed read must not look like a confirmed empty attention list')
@@ -483,7 +483,7 @@ jobs:
               if (scenario === 'watch-eligibility') {
                 assert.equal(await page.locator('[aria-label="今日個人提醒"]').count(), 0)
                 await page.getByRole('tab', { name: '研究與策略', exact: true }).click()
-                await page.getByText('Owner 的問題與待續工作', { exact: true }).click()
+                await page.getByText('PersonalOS 本機：我的問題與提醒', { exact: true }).click()
                 const personalReminders = page.locator('[aria-label="我的提醒"]')
                 for (const id of ['due-today', 'promoted', 'future']) await personalReminders.getByText(`Synthetic ${id}`, { exact: true }).waitFor({ state: 'visible', timeout: 5000 })
                 for (const id of ['completed', 'research-event']) assert.equal(await personalReminders.getByText(`Synthetic ${id}`, { exact: true }).count(), 0, `${id} is not an open personal reminder`)
