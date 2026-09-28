@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
-import { Card, SectionHeading, SubsectionHeading } from "@/components/ui/card"
+import { Card, CardSection, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { DEMO_MODE } from "@/lib/transport"
 import { NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeDisplayState, narrativeSignalSections, sourceTimestamp, unlinkedRowsWithoutLayerCard } from "@/lib/investmentFormat"
@@ -242,16 +242,16 @@ function SignalGroup({ title, signals, emptyLabel }: {
 
 function RecordedLearning({ record }: { record: InvestmentNarrativeRecordedChange }) {
   const hasContent = Boolean(record.date || record.judgment || record.key_evidence || record.later_verification)
-  return <article className="flex min-w-0 flex-col gap-2 p-4 sm:p-5">
+  return <CardSection as="article" density="normal">
     <SubsectionHeading>最近一次明確記錄的判斷與驗證</SubsectionHeading>
     {!hasContent ? <p className="text-body text-ink-3">尚未記錄。這裡只讀 scorecard 時間線，不以最新新聞或事件代替 learning。</p> : <>
-      <p className="text-caption text-ink-3">{sourceTimestamp(record.date)}</p>
+      <p className="metadata">{sourceTimestamp(record.date)}</p>
       <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">當時判斷：</span>{record.judgment ? <InlineText text={record.judgment} /> : "尚未記錄"}</p>
       <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">關鍵事實：</span>{record.key_evidence ? <InlineText text={record.key_evidence} /> : "尚未記錄"}</p>
       <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">後續驗證：</span>{record.later_verification ? <InlineText text={record.later_verification} /> : "尚未記錄"}</p>
     </>}
     <StateNote state={record.state} reason={record.missing.length ? record.missing.join("；") : null} />
-  </article>
+  </CardSection>
 }
 
 const SCORECARD_REVIEW_STATUS_COPY: Record<InvestmentNarrativeScorecardUpdate["status"], string> = {
@@ -302,18 +302,18 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
     ...unlinkedPlayers.map(row => row.source),
     evidence.latest_recorded_change.source,
   ])
-  return <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
-    <article className="flex min-w-0 flex-col gap-2 p-4 sm:p-5">
+  return <Card density="reading" className="divide-y divide-line-soft overflow-hidden p-0">
+    <CardSection as="article" density="normal">
       <SubsectionHeading>當下判斷</SubsectionHeading>
       {narrative.title ? <p className="text-body font-medium text-ink">{narrative.title}</p> : null}
       <p className="text-body leading-relaxed text-ink-2">{narrative.what_i_bet.owner_thesis.text ? <InlineText text={narrative.what_i_bet.owner_thesis.text} /> : "來源未提供 owner 的當前論點；不從新聞或證據自行總結。"}</p>
       <StateNote state={narrative.what_i_bet.owner_thesis.state} reason={narrative.what_i_bet.owner_thesis.reason} />
       {narrative.current_tension.text ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium">目前張力：</span><InlineText text={narrative.current_tension.text} /></p> : null}
       <StateNote state={narrative.current_tension.state} reason={narrative.current_tension.reason} />
-    </article>
+    </CardSection>
 
 
-    <article className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
+    <CardSection as="article" density="normal">
       <SubsectionHeading>哪些訊號會支持或挑戰論點</SubsectionHeading>
       <SignalGroup title="來源列出的支持訊號" signals={supportSignals} emptyLabel="來源尚未列出明確的支持訊號。" />
       <SignalGroup title="來源列出的挑戰訊號" signals={challengeSignals} emptyLabel="目前未連結明確的挑戰訊號；反方涵蓋未知／來源未提供。" />
@@ -322,11 +322,11 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
         {explicitFalsifiers.length ? <ul className="list-disc pl-5 text-body leading-relaxed text-ink-2">{explicitFalsifiers.map((condition, index) => <li key={index}><InlineText text={condition} /></li>)}</ul> : <p className="text-caption leading-relaxed text-ink-3">{NARRATIVE_FALSIFIER_UNAVAILABLE_COPY}</p>}
       </div>
       {!evidence.directional_signals.length ? <p className="text-caption leading-relaxed text-ink-3">可用訊號缺失不等於反方不存在；不從文字或近期事件推測。</p> : null}
-    </article>
+    </CardSection>
 
     <RecordedLearning record={evidence.latest_recorded_change} />
-    <article className="flex min-w-0 flex-col gap-2 p-4 sm:p-5"><SubsectionHeading>下一個驗證點</SubsectionHeading><p className="text-body text-ink-3">此論點來源未提供獨立的下一次日期或檢查點。請到研究與策略閱讀來源明示的事件；未提供明確 ID 關係的事件保持獨立。</p></article>
-    <article className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
+    <CardSection as="article" density="normal"><SubsectionHeading>下一個驗證點</SubsectionHeading><p className="text-body text-ink-3">此論點來源未提供獨立的下一次日期或檢查點。請到研究與策略閱讀來源明示的事件；未提供明確 ID 關係的事件保持獨立。</p></CardSection>
+    <CardSection as="article" density="normal">
       <SubsectionHeading>五層證據</SubsectionHeading>
       <p className="text-caption leading-relaxed text-ink-3">支持與反證只在來源明確連到該層時列出；沒有連結就保留未知，不代表該層沒有證據。</p>
       <div className="flex min-w-0 flex-col gap-1" aria-label="五層證據覆蓋狀態">
@@ -342,7 +342,7 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
           <IntegrityRows title="未連結的玩家關係" rows={unlinkedPlayers} />
         </div>
       </details> : null}
-    </article>
+    </CardSection>
 
     <details className="flex min-w-0 flex-col gap-2 p-4 text-ink-3 sm:p-5"><summary className="cursor-pointer text-body font-medium">詳細論點文字</summary>
 
@@ -355,9 +355,9 @@ function NarrativeContent({ data, narrative }: { data: InvestmentNarrative; narr
       <summary className="cursor-pointer">日期與來源</summary>
       <div className="flex flex-col gap-2 pt-2">
         <ScorecardReview update={evidence.scorecard_update} />
-        <p>看板論點資料更新日：{sourceTimestamp(narrative.updated)}</p>
-        <p>看板資料產生時間：{sourceTimestamp(data.generated_at)} · 來源資料截點：{sourceTimestamp(data.source_cutoff)}</p>
-        <p>文件更新日不代表每項訊號的發生日；來源沒有標日期時維持未知。</p>
+        <p className="metadata">看板論點資料更新日：{sourceTimestamp(narrative.updated)}</p>
+        <p className="metadata">看板資料產生時間：{sourceTimestamp(data.generated_at)} · 來源資料截點：{sourceTimestamp(data.source_cutoff)}</p>
+        <p className="text-caption text-ink-3">文件更新日不代表每項訊號的發生日；來源沒有標日期時維持未知。</p>
         <ul className="flex flex-col gap-1">{sources.map((source, index) => <SourceReference key={`${source.path}:${source.line ?? index}`} source={source} />)}</ul>
         {data.limitations.map((limitation, index) => <p key={index} className="text-warn">{limitation}</p>)}
       </div>

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Card, SectionHeading } from "@/components/ui/card"
+import { Card, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { Button } from "@/components/ui/button"
 import { ReadingText } from "./ReadingText"
@@ -105,11 +105,11 @@ function HistoryItem({ item, peers }: { item: InvestmentHistoryItem; peers: Inve
   const [open, setOpen] = useState(false)
   const { detailId, query: detail } = useHistoryDetail(item, open)
   return (
-    <Card className="flex min-w-0 flex-col gap-2 p-3">
+    <Card density="compact" className="flex min-w-0 flex-col gap-2">
       <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div className="min-w-0">
-          <h3 className="break-words text-body font-medium text-ink">{item.title}</h3>
-          <p className="break-words text-caption text-ink-3">{item.date ?? "日期未知"} · {sourceLocation(item)}</p>
+          <SubsectionHeading className="break-words">{item.title}</SubsectionHeading>
+          <p className="break-words metadata">{item.date ?? "日期未知"} · {sourceLocation(item)}</p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-1.5">
           <Chip tone="mute">{kindLabel(item.kind)}</Chip>
@@ -141,8 +141,8 @@ function LearningFramework({ item, peers }: { item: InvestmentHistoryItem; peers
   const [open, setOpen] = useState(false)
   const { detailId, query: detail } = useHistoryDetail(item, open)
   return (
-    <Card className="flex min-w-0 flex-col gap-2 p-3">
-      <h3 className="break-words text-body font-medium text-ink">{item.title}</h3>
+    <Card density="compact" className="flex min-w-0 flex-col gap-2">
+      <SubsectionHeading className="break-words">{item.title}</SubsectionHeading>
       <p className="break-words text-caption text-ink-3">{sourceLocation(item)} · {item.date ?? "日期未知"}</p>
       <p className="text-caption text-ink-3">只依 producer 明確標記的 reusable_framework 分類。</p>
       <details onToggle={(event) => setOpen(event.currentTarget.open)}>
@@ -168,7 +168,7 @@ function ContextBlock({ context }: { context: InvestmentContext }) {
   const nextAction = typeof context.current_state?.next_action === "string" ? context.current_state.next_action : "尚未記錄"
   const lastSession = typeof context.current_state?.last_session === "string" ? context.current_state.last_session : "未知"
   return (
-    <Card className="flex min-w-0 flex-col gap-3 p-3">
+    <Card density="compact" className="flex min-w-0 flex-col gap-3">
       <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div className="min-w-0">
           <SectionHeading>本次事項的工作脈絡</SectionHeading>
@@ -218,7 +218,7 @@ export function InvestmentHistory({ data, context }: { data: InvestmentHistory; 
     <section className="flex min-w-0 flex-col gap-3" aria-label="復盤與學習">
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2"><SectionHeading>復盤與學習</SectionHeading><Chip tone={data.state === "ready" || data.state === "empty" ? "ok" : "warn"}>{stateLabel(data.state)}</Chip></div>
-        <p className="break-words text-caption text-ink-3">producer：{data.producer} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at}</p>
+        <p className="break-words metadata">producer：{data.producer} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at}</p>
         <p className="text-body text-ink-3">用已記錄的決策 → 後續結果 → 心得理解交易與決策過程。公司研究檢查點另列；來源未提供今年反覆模式，不由紀錄數量推算。</p>
       </div>
       {data.limitations.map((limitation, index) => <p key={`${index}:${limitation}`} className="break-words text-caption text-warn">資料限制：{limitation}</p>)}
@@ -245,7 +245,7 @@ export function InvestmentHistory({ data, context }: { data: InvestmentHistory; 
       </details>
       <details className="border-t border-line-soft pt-2"><summary className="cursor-pointer py-1 text-body font-medium text-ink">公司研究檢查點 · {researchRecords.length} 筆</summary><p className="py-2 text-caption text-ink-3">這些是來源明示的 research_checkpoint，不等同交易學習；未明示分類的紀錄保留原狀。</p><div className="flex min-w-0 flex-col gap-2">{historyReadingOrder(researchRecords).map((item, index) => <HistoryItem key={item.id ?? `research:${index}`} item={item} peers={items} />)}</div></details>
       {context ? <details className="border-t border-line-soft pt-2"><summary className="cursor-pointer py-1 text-body font-medium text-ink">目前工作的唯讀脈絡</summary><div className="pt-2"><ContextBlock context={context} /></div></details> : null}
-      {data.sources.length ? <p className="break-words text-caption text-ink-3">來源索引：{data.sources.join("、")}</p> : null}
+      {data.sources.length ? <p className="break-words metadata">來源索引：{data.sources.join("、")}</p> : null}
     </section>
   )
 }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import { test } from "node:test"
 import { createDemoRequest } from "../src/demo/transport.ts"
 import { setInvestmentProvider as configureDemoProvider } from "../src/lib/investment.ts"
@@ -22,6 +23,25 @@ test("the shared information architecture keeps frequent entry points and domain
   assert.deepEqual(NAV_GROUPS.map((group) => group.label), ["常用", "推進", "回看"])
   assert.deepEqual(NAV_GROUPS[0].items.map((item) => item.key), ["today", "investment"])
   assert.equal(NAV_GROUPS[0].items.every((item) => item.frequent === true), true)
+})
+
+test("metadata text meets normal-text contrast against the white reading surface", () => {
+  const styles = readFileSync(new URL("../src/index.css", import.meta.url), "utf8")
+  const tokens = readFileSync(new URL("../src/tokens.css", import.meta.url), "utf8")
+  const rule = styles.match(/\.metadata\s*\{([^}]*)\}/)?.[1] ?? ""
+  const tokenName = rule.match(/color:\s*var\((--color-[\w-]+)\)/)?.[1]
+  assert.ok(tokenName, "metadata must use a semantic color token")
+  const rgba = tokens.match(new RegExp(`${tokenName}:\\s*rgba\\(([^)]+)\\)`))?.[1]
+  assert.ok(rgba, `${tokenName} must resolve to an alpha RGBA token`)
+  const [red, green, blue, alpha] = rgba.split(",").map(Number)
+  assert.ok([red, green, blue, alpha].every(Number.isFinite))
+  const onWhite = [red, green, blue].map((channel) => channel * alpha + 255 * (1 - alpha))
+  const luminance = onWhite.map((channel) => {
+    const value = channel / 255
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+  }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index]!, 0)
+  const contrast = 1.05 / (luminance + 0.05)
+  assert.ok(contrast >= 4.5, `metadata contrast ${contrast.toFixed(2)}:1 is below 4.5:1`)
 })
 
 test("Taiwan index direction stays neutral unless the producer confirms it", () => {

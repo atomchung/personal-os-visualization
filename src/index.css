@@ -1,8 +1,8 @@
 @import "tailwindcss";
 @import "./tokens.css";
 
-/* Tokens come from core/styles.py via scripts/build_web_tokens.py — this file
- * adds only what a page needs to exist, never a colour or a size of its own. */
+/* Tokens come from core/styles.py via scripts/build_web_tokens.py — semantic
+ * defaults live here, while every colour and size stays in the token source. */
 html {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang TC",
     "Helvetica Neue", sans-serif;
@@ -15,4 +15,18 @@ body {
   color: var(--color-ink);
   font-size: var(--text-body);
   line-height: var(--leading-body);
+}
+
+/* Status copy keeps its meaning, with a small warm cue instead of an orange text block. */
+:where(p, li).text-warn,
+.text-warn > :where(p, li) {
+  color: var(--color-ink-2);
+  border-inline-start: 2px solid color-mix(in oklab, var(--color-warn) 45%, var(--color-line));
+  padding-inline-start: calc(var(--spacing) * 3);
+}
+
+.metadata {
+  color: var(--color-ink-3);
+  font-size: var(--text-micro);
+  line-height: var(--leading-meta);
 }

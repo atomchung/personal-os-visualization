@@ -2,7 +2,7 @@ import { useState } from "react"
 import type { KeyboardEvent } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
-import { Card, SectionHeading } from "@/components/ui/card"
+import { Card, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { ACTIVE_POLL_MS, IDLE_POLL_MS, SESSION_LABELS, getInvestmentMarket, getInvestmentPulse, getTwRelativeStrength, getMarketExplore, type InvestmentMarket, type InvestmentMarketPulse, type TwRelativeStrength } from "@/lib/investment"
 import { formatNumber, marketIndexDirectionDisplay, quoteTime, sourceTimestamp } from "@/lib/investmentFormat"
@@ -49,7 +49,7 @@ function QuoteRow({ item }: { item: InvestmentMarket["items"][number] }) {
   const up = item.change !== null && item.change > 0
   const down = item.change !== null && item.change < 0
   const link = quoteLink(item.source_url)
-  return <Card className="flex min-w-0 flex-col gap-1 p-2">
+  return <Card density="compact" className="flex min-w-0 flex-col gap-1">
     <div className="flex flex-wrap items-center justify-between gap-1 text-label font-semibold leading-body text-ink-2">
       <span className="min-w-0">{link ? <a href={link} target="_blank" rel="noreferrer" className="hover:underline">{item.label}</a> : item.label}{item.code ? <span className="font-normal text-ink-3"> {item.code}</span> : null}</span>
       {item.session ? <Chip tone={item.session === "regular" ? "ok" : "mute"}>{SESSION_LABELS[item.session]}</Chip> : null}
@@ -62,7 +62,7 @@ function QuoteRow({ item }: { item: InvestmentMarket["items"][number] }) {
       <span>{formatNumber(item.change, true)}</span>
       <span>({item.change_percent === null ? "—" : `${formatNumber(item.change_percent, true)}%`})</span>
     </p>
-    <p className="text-micro leading-body text-ink-3">資料日期／報價 {sourceTimestamp(item.quoted_at)}</p>
+    <p className="metadata">資料日期／報價 {sourceTimestamp(item.quoted_at)}</p>
     {item.state !== "available" ? <div><Chip tone="warn">{item.state === "stale" ? "較早報價" : "未取得"}</Chip></div> : null}
   </Card>
 }
@@ -77,7 +77,7 @@ function QuoteContext({ market, data, pending, failed }: {
   const unclassified = data?.items.some(item => !item.market) ?? false
   return <section className="flex min-w-0 flex-col gap-2" aria-label={`${market === "tw" ? "台股" : "美股"}指數報價`} aria-busy={pending}>
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
-      <h3 className="text-body font-medium text-ink">主要指標報價</h3>
+      <SubsectionHeading>主要指標報價</SubsectionHeading>
       <span className="text-caption text-ink-3">{data ? `行情讀取於 ${quoteTime(data.fetched_at)}` : ""}</span>
     </div>
     {pending && !data ? <p role="status" className="text-body text-ink-3">正在讀取市場報價…</p> : null}
@@ -112,8 +112,8 @@ function TaiwanOverview({ data, pending, failed, readAt }: {
   const directionCheck = data?.index.direction_check
   return <section className="flex min-w-0 flex-col gap-3" aria-label="台股整體盤感" aria-busy={pending}>
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
-      <div className="flex min-w-0 flex-wrap items-baseline gap-2"><h3 className="text-body font-medium text-ink">整體盤感</h3>{data ? <Chip tone={data.state === "ready" ? "ok" : "warn"}>{data.state === "ready" ? "完整" : data.state === "partial" ? "部分" : "無法取得"}</Chip> : null}</div>
-      {data ? <span className="text-caption text-ink-3">最近可用交易日 {sourceTimestamp(data.as_of)} · 收盤／休市狀態未提供</span> : null}
+      <div className="flex min-w-0 flex-wrap items-baseline gap-2"><SubsectionHeading>整體盤感</SubsectionHeading>{data ? <Chip tone={data.state === "ready" ? "ok" : "warn"}>{data.state === "ready" ? "完整" : data.state === "partial" ? "部分" : "無法取得"}</Chip> : null}</div>
+      {data ? <span className="metadata">最近可用交易日 {sourceTimestamp(data.as_of)} · 收盤／休市狀態未提供</span> : null}
     </div>
     <p className="text-caption text-ink-3">TWSE／TPEx 日結統計；盤中刷新不會讓資料日變成今天，也不代表盤中報價。</p>
     {pending && !data ? <p role="status" className="text-body text-ink-3">正在讀取台股整體盤感…</p> : null}
@@ -135,13 +135,13 @@ function TaiwanOverview({ data, pending, failed, readAt }: {
       </div>
       <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2"><ThemeList title={`${data.themes.label} · 強`} rows={data.themes.strongest} /><ThemeList title={`${data.themes.label} · 弱`} rows={data.themes.weakest} /></div>
     </> : null}
-    {data ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">資料覆蓋、時間與方向核對</summary><div className="flex flex-col gap-1 pt-1"><p>要求日期：{sourceTimestamp(data.requested_date)} · 本頁讀取：{sourceTimestamp(readAt)} · 資料產出：{sourceTimestamp(data.generated_at)}</p><p>產出：{data.producer || "未提供"}</p><p>來源截止：{sourceTimestamp(data.source_cutoff)}</p><p>TWSE 行情日：{sourceTimestamp(data.source_dates?.twse)} · TPEx 行情日：{sourceTimestamp(data.source_dates?.tpex)}</p><p>方向核對：{direction?.state === "confirmed" ? "來源已確認" : direction?.state === "needs_review" ? "待核對" : "未提供可確認狀態"}{directionCheck?.session_flow_status ? ` · 盤後來源狀態 ${directionCheck.session_flow_status}` : ""}</p>{directionCheck?.reason ? <p>{directionCheck.reason}</p> : null}{directionCheck ? <div className="grid grid-cols-1 gap-1 rounded border border-line-soft p-2 sm:grid-cols-2"><p>TWSE 日結原值：{number(directionCheck.twse_close)} 點；漲跌 {number(directionCheck.twse_change)} 點（{pct(directionCheck.twse_change_pct)}）</p><p>盤後量價原值：{number(directionCheck.session_flow_close ?? data.flow?.index_close)} 點；漲跌 {number(directionCheck.session_flow_change ?? data.flow?.index_change)} 點</p></div> : null}{data.limitations.map((item, index) => <p key={index}>{item}</p>)}</div></details> : null}
+    {data ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">資料覆蓋、時間與方向核對</summary><div className="flex flex-col gap-1 pt-1"><p className="metadata">要求日期：{sourceTimestamp(data.requested_date)} · 本頁讀取：{sourceTimestamp(readAt)} · 資料產出：{sourceTimestamp(data.generated_at)}</p><p className="metadata">產出：{data.producer || "未提供"}</p><p className="metadata">來源截止：{sourceTimestamp(data.source_cutoff)}</p><p className="metadata">TWSE 行情日：{sourceTimestamp(data.source_dates?.twse)} · TPEx 行情日：{sourceTimestamp(data.source_dates?.tpex)}</p><p>方向核對：{direction?.state === "confirmed" ? "來源已確認" : direction?.state === "needs_review" ? "待核對" : "未提供可確認狀態"}{directionCheck?.session_flow_status ? ` · 盤後來源狀態 ${directionCheck.session_flow_status}` : ""}</p>{directionCheck?.reason ? <p>{directionCheck.reason}</p> : null}{directionCheck ? <div className="grid grid-cols-1 gap-1 rounded border border-line-soft p-2 sm:grid-cols-2"><p>TWSE 日結原值：{number(directionCheck.twse_close)} 點；漲跌 {number(directionCheck.twse_change)} 點（{pct(directionCheck.twse_change_pct)}）</p><p>盤後量價原值：{number(directionCheck.session_flow_close ?? data.flow?.index_close)} 點；漲跌 {number(directionCheck.session_flow_change ?? data.flow?.index_change)} 點</p></div> : null}{data.limitations.map((item, index) => <p key={index}>{item}</p>)}</div></details> : null}
   </section>
 }
 
 function TaiwanRelativeStrength({ data, pending, failed }: { data?: TwRelativeStrength; pending: boolean; failed: boolean }) {
   return <section aria-label="台股持倉相對大盤強弱" className="flex min-w-0 flex-col gap-3" aria-busy={pending}>
-    <h3 className="text-body font-medium text-ink">台股持倉相對大盤強弱</h3>
+    <SubsectionHeading>台股持倉相對大盤強弱</SubsectionHeading>
     <p className="text-caption text-ink-3">台股持倉使用獨立的來源比較；與美股清單、全市場探索分開。數值由來源計算，這裡依原始 symbol 逐列呈現。</p>
     {pending && !data ? <p role="status" className="text-body text-ink-3">讀取台股相對強弱中…</p> : null}
     {failed ? <p role={data ? "status" : "alert"} className="text-body text-warn">台股相對強弱本次讀取失敗；{data ? "保留上次資料與原日期。" : "目前無法確認數值。"}</p> : null}
@@ -164,7 +164,7 @@ function TaiwanRelativeStrength({ data, pending, failed }: { data?: TwRelativeSt
 
 function UnitedStatesOverview() {
   return <div className="flex min-w-0 flex-col gap-2" aria-label="美股整體盤感">
-    <h3 className="text-body font-medium text-ink">整體盤感</h3>
+    <SubsectionHeading>整體盤感</SubsectionHeading>
     <p className="text-caption text-ink-3">目前顯示可取得的主要指數；美股 breadth、成交額與 sector／theme 摘要未提供，不用台股資料補位。</p>
   </div>
 }
@@ -206,7 +206,7 @@ export function MarketIndicators() {
     if (next !== null) { event.preventDefault(); const selected = MARKETS[next].key; setMarket(selected); document.getElementById(`market-tab-${selected}`)?.focus() }
   }
   return <section className="flex min-w-0 flex-col gap-2" aria-label="現在盤面與市場資金">
-    <Card className="min-w-0 overflow-hidden p-4 shadow-sm sm:p-5">
+    <Card density="normal" className="min-w-0 overflow-hidden">
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-3">
         <div><SectionHeading>市場現在怎麼走</SectionHeading><p className="mt-1 text-caption text-ink-3">先看整體狀態，再看資金流向；各資料保留自己的日期和刷新狀態。</p></div>
         <div role="tablist" aria-label="市場" className="flex min-w-0 gap-3 border-b border-line-soft">

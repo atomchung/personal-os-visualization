@@ -58,7 +58,7 @@ function parseList(lines: string[], start: number, baseIndent?: number): { block
 function renderList(block: ListBlock, key: string): ReactNode {
   const Tag = block.ordered ? "ol" : "ul"
   return (
-    <Tag key={key} className="flex list-disc flex-col gap-2 pl-5 [&_ol]:list-decimal [&_ol]:pt-1 [&_ul]:pt-1">
+    <Tag key={key} className="w-full max-w-[800px] flex list-disc flex-col gap-2 pl-5 [&_ol]:list-decimal [&_ol]:pt-1 [&_ul]:pt-1">
       {block.items.map((item, index) => (
         <li key={`${key}-${index}`}>
           <InlineText text={item.text} />
@@ -88,7 +88,7 @@ export function ReadingText({text}: {text: string}) {
     } else if (/^#{1,6} /.test(line)) {
       const level = Math.min(6, Math.max(3, (line.match(/^#+/)?.[0].length ?? 1) + 2))
       const Heading = `h${level}` as keyof React.JSX.IntrinsicElements
-      const className = level === 3 ? "pt-2 text-section font-semibold text-ink" : level === 4 ? "pt-1 text-label font-semibold text-ink" : "pt-1 text-caption font-semibold text-ink"
+      const className = level === 3 ? "w-full max-w-[800px] pt-2 text-section font-semibold text-ink" : level === 4 ? "w-full max-w-[800px] pt-1 text-label font-semibold text-ink" : "w-full max-w-[800px] pt-1 text-caption font-semibold text-ink"
       blocks.push(<Heading key={i} className={className}><InlineText text={line.replace(/^#+\s*/, "")}/></Heading>)
     } else if (listLine(lines[i])) {
       const parsed = parseList(lines, i)
@@ -97,7 +97,7 @@ export function ReadingText({text}: {text: string}) {
     } else {
       const para=[line.replace(/^>\s?/, "")]
       while (i+1<lines.length && lines[i+1].trim() && !isBlockStart(lines[i+1])) para.push(lines[++i])
-      blocks.push(<p key={i} className="whitespace-pre-wrap"><InlineText text={para.join("\n")}/></p>)
+      blocks.push(<p key={i} className="w-full max-w-[800px] whitespace-pre-wrap"><InlineText text={para.join("\n")}/></p>)
     }
   }
   return <div className="flex min-w-0 flex-col gap-3 break-words text-body leading-relaxed text-ink-2">{blocks}</div>

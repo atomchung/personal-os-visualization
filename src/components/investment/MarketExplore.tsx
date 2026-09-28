@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { SectionHeading, SubsectionHeading } from "@/components/ui/card"
+import { Card, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { DEMO_MODE } from "@/lib/transport"
 import {
@@ -90,11 +90,11 @@ function MarketBoard({ market, embedded = false, priorSnapshot = false }: { mark
   const buckets = orderedBuckets(market.buckets)
   const hasItems = buckets.some(bucket => bucket.items.length > 0)
   const stateLabel = market.state === "ready" ? "完整" : market.state === "partial" ? "部分" : "無法取得"
-  return (
-    <div className={`flex min-w-0 flex-col gap-3 ${embedded ? "" : "rounded-lg border-[0.5px] border-line-soft bg-paper p-4 shadow-sm sm:p-5"}`}>
+  const content = (
+    <div className="flex min-w-0 flex-col gap-3">
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
         <SubsectionHeading>{embedded ? "市場資金在哪" : label}</SubsectionHeading>
-        <span className="flex flex-wrap items-baseline gap-2 text-caption text-ink-3"><Chip tone={market.state === "ready" ? "ok" : "warn"}>{stateLabel}</Chip>{priorSnapshot ? <Chip tone="warn">先前快照</Chip> : null}<span>資料日 {sourceTimestamp(market.as_of)} · 來源截止 {sourceTimestamp(market.source_cutoff)}</span></span>
+        <span className="flex flex-wrap items-baseline gap-2 metadata"><Chip tone={market.state === "ready" ? "ok" : "warn"}>{stateLabel}</Chip>{priorSnapshot ? <Chip tone="warn">先前快照</Chip> : null}<span>資料日 {sourceTimestamp(market.as_of)} · 來源截止 {sourceTimestamp(market.source_cutoff)}</span></span>
       </div>
       {market.state === "unavailable" ? <p role="status" className="text-body text-warn">此市場資料目前無法確認；以下保留的內容不是最新。</p> : null}
       {market.state !== "unavailable" && !hasItems ? <p role="status" className="text-body text-ink-3">{market.state === "partial" ? "目前部分掃描沒有可列標的；不能據此判定整個市場都沒有符合項目。" : priorSnapshot ? "先前的完整掃描沒有符合條件的標的；這不是最新結果。" : "本次完整掃描沒有符合條件的標的。"}</p> : null}
@@ -108,8 +108,8 @@ function MarketBoard({ market, embedded = false, priorSnapshot = false }: { mark
       <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
         <summary className="cursor-pointer py-1">覆蓋與口徑</summary>
         <div className="flex flex-col gap-1 pt-1">
-          <p>掃描 {market.universe_size} 檔 · 產出 {market.producer || "未提供"}</p>
-          <p>產出時間：{sourceTimestamp(market.generated_at)}</p>
+          <p className="metadata">掃描 {market.universe_size} 檔 · 產出 {market.producer || "未提供"}</p>
+          <p className="metadata">產出時間：{sourceTimestamp(market.generated_at)}</p>
           {market.state === "partial" ? <p>本次只涵蓋部分符合條件的標的；沒有用持倉或其他名單補位。</p> : null}
           {market.limitations.map((limitation, index) => <p key={`limit-${index}`}>{limitation}</p>)}
           {buckets.map(bucket => <p key={`method-${bucket.key}`}>{bucket.label || BUCKET_LABEL[bucket.key]}：{bucket.method || "方法未提供"}{bucket.key === "active" && relativeVolumeNote(bucket.method) ? ` · ${relativeVolumeNote(bucket.method)}` : ""}</p>)}
@@ -117,6 +117,7 @@ function MarketBoard({ market, embedded = false, priorSnapshot = false }: { mark
       </details>
     </div>
   )
+  return embedded ? content : <Card density="normal" className="min-w-0">{content}</Card>
 }
 
 export function MarketExplore({ market, embedded = false }: { market: "tw" | "us"; embedded?: boolean }) {

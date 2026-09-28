@@ -71,7 +71,7 @@ export function InvestmentWatchNotes() {
     {view === "error" ? <p role="alert" className="text-body text-warn">個人提醒讀取失敗，無法判斷目前是否有未結提醒。</p> : null}
     {view === "stale" ? <p role="status" className="text-caption text-warn">更新失敗，以下是上次成功讀取的提醒。</p> : null}
     {view === "ready" || view === "empty" || view === "stale" ? active.length
-      ? <Card className="p-3"><ul className="flex flex-col">{active.map(item => <WatchReminderRow key={item.id} item={item} today={today}/>)}</ul></Card>
+      ? <Card density="compact"><ul className="flex flex-col">{active.map(item => <WatchReminderRow key={item.id} item={item} today={today}/>)}</ul></Card>
       : <p className="text-body text-ink-3">目前沒有未到期或加入今日的個人提醒。</p> : null}
     {expired.length ? <details><summary className="cursor-pointer text-caption text-ink-3">已過期提醒（{expired.length}）</summary><ul className="flex flex-col pt-2">{expired.map(item => <WatchReminderRow key={item.id} item={item} today={today}/>)}</ul></details> : null}
     {showForm && view !== "error" && view !== "loading" ? <form className="flex flex-wrap items-center gap-2" onSubmit={event => {
@@ -96,7 +96,7 @@ function WorkItem({item}: {item:InvestmentWork}) {
   const prompt=`請協助分析這個投資問題：${item.text}\n來源：${item.source_label||"我在 PersonalOS 提出的問題"}${item.source_id?`（${item.source_id}）`:""}\n目前結論：${draft.conclusion||"尚未記錄"}\n請先讀取上述來源，指出結論、反證與尚缺的資料。讀不到來源請明說，不要猜；先提出分析，不修改持倉或論點。`
   async function copy() {try {await navigator.clipboard.writeText(prompt);setCopied("已複製。貼到你選用的 AI 對話即可，尚未送出。")}catch{setCopied("未能複製，請展開下方文字手動選取。")}}
   function save(status: InvestmentWork["status"]) {mutation.mutate({...draft,status},{onSuccess: value=>setDraft(value)})}
-  return <Card className="flex flex-col gap-2 p-3">
+  return <Card density="compact" className="flex flex-col gap-2">
     <div className="flex items-start justify-between gap-2"><button className="text-left text-body font-medium text-ink" onClick={()=>setOpen(!open)} aria-expanded={open}>{item.text}</button><span className="shrink-0 text-caption text-ink-3">{item.status==="done"?"已結束":item.status==="watching"?"繼續追蹤":"待處理"}</span></div>
     {isCanonicalActionId(item.source_id)?<p className="text-caption text-ink-3">正式編號 {item.source_id}。要在正式判斷頁寫下這個編號才算結案。</p>:null}
     {item.conclusion&&!open?<p className="line-clamp-2 text-body text-ink-2">結論：{item.conclusion}</p>:null}
@@ -138,7 +138,7 @@ export function InvestmentWorkPanel({research}: {research: InvestmentWatch["watc
     {view==="stale"?<p role="alert" className="text-body text-warn">待處理清單更新失敗。以下是先前內容，不是最新；完成筆數不能當成目前進度。</p>:null}
     {create.isError?<p role="alert" className="text-body text-warn">{writeErrorText(create.error)}</p>:null}
     {(["decision","research"] as const).map(group=><section key={group} className="flex flex-col gap-2"><SectionHeading>{group==="decision"?"要我決定":"還要研究"}</SectionHeading>{items.filter(i=>i.kind===group&&i.status!=="done").map(i=><WorkItem key={i.id} item={i}/>)}{!items.some(i=>i.kind===group&&i.status!=="done")?<p className="text-body text-ink-3">尚未加入事項。</p>:null}
-      {group==="decision"&&candidates.length>0?<div className="flex flex-col gap-2"><p className="text-caption text-ink-3">研究文件中另有以下待確認事項；加入後可保存你的結論。</p>{candidates.map(r=><Card key={r.id} className="flex flex-col gap-2 p-3"><p className="text-body font-medium">{r.topic}：選擇判斷指標</p><details><summary className="cursor-pointer text-caption text-ink-3">查看原文選項</summary><ReadingText text={r.excerpt}/></details><SourceQuestion source={r}/></Card>)}</div>:null}
+      {group==="decision"&&candidates.length>0?<div className="flex flex-col gap-2"><p className="text-caption text-ink-3">研究文件中另有以下待確認事項；加入後可保存你的結論。</p>{candidates.map(r=><Card key={r.id} density="compact" className="flex flex-col gap-2"><p className="text-body font-medium">{r.topic}：選擇判斷指標</p><details><summary className="cursor-pointer text-caption text-ink-3">查看原文選項</summary><ReadingText text={r.excerpt}/></details><SourceQuestion source={r}/></Card>)}</div>:null}
     </section>)}
     <div><Button onClick={()=>setShowDone(!showDone)}>{showDone?"收起已結束":"查看已結束"}{view==="stale"?"（先前內容）":`（${doneCount}）`}</Button></div>
     {showDone?items.filter(i=>i.status==="done").map(i=><WorkItem key={i.id} item={i}/>):null}

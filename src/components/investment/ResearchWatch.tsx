@@ -26,7 +26,7 @@ function ResearchCard({item}: {item: InvestmentResearchItem}) {
   const detail=useQuery({queryKey:["investment-research-detail",item.id],queryFn:({signal})=>getInvestmentResearchDetail(item.id,signal),enabled:open,retry:false,refetchOnWindowFocus:false})
   const title=item.title||item.question||item.id
   const location=`${item.source.path}${item.source.line ? `:${item.source.line}` : ""}`
-  return <Card className="flex flex-col gap-2 p-3">
+  return <Card density="compact" className="flex flex-col gap-2">
     <button data-testid="investment-research-item" className="text-left text-body font-medium" aria-expanded={open} onClick={()=>setOpen(!open)}>{title}</button>
     <p className="break-words text-caption text-ink-3">{readStateLabel(item.state)} · {item.kind} · 登記狀態：{item.status} · 更新：{item.updated||item.as_of||"unknown"} · 來源：{location}</p>
     {item.question?<p className="text-body text-ink-2">待回答：{item.question}</p>:null}
@@ -70,7 +70,7 @@ export function ResearchLibrary({data}: {data: InvestmentResearch}) {
     {view.state!=="ready"?<p role="status" className="text-caption text-warn">方向分類{readStateLabel(view.state)}；未能確認方向的研究保留在其他研究。</p>:null}
     {view.groups.map(group=><ResearchDirection key={group.id} group={group}/>)}
     {view.other.length?<details className="min-w-0 rounded-sm border border-line-soft p-3" data-testid="research-other"><summary className="cursor-pointer text-body font-medium">其他研究（Other） · {view.other.length} 項</summary><div className="flex min-w-0 flex-col gap-3 pt-3"><p className="text-caption text-ink-3">未連結或方向未知的研究，不依標題、ticker 或內文推定分類。</p>{view.other.map(item=><div key={item.id}><p className="text-caption text-ink-3">方向：{item.direction?.state==="unlinked"?"未連結":item.direction?.state==="linked"?"明示分類無可用方向，待核對":"未知"}</p><ResearchCard item={item}/></div>)}</div></details>:null}
-    <details><summary className="cursor-pointer text-caption text-ink-3">研究來源與讀取狀況 · {data.research.count} 項</summary><div className="flex flex-col gap-1 pt-2"><p className="break-words text-caption text-ink-3">{readStateLabel(data.state)} · producer：{data.producer} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at}</p>{[...data.limitations,...view.limitations].map((note,index)=><p key={index} className="break-words text-caption text-warn">{note}</p>)}</div></details>
+    <details><summary className="cursor-pointer text-caption text-ink-3">研究來源與讀取狀況 · {data.research.count} 項</summary><div className="flex flex-col gap-1 pt-2"><p className="break-words metadata">{readStateLabel(data.state)} · producer：{data.producer} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at}</p>{[...data.limitations,...view.limitations].map((note,index)=><p key={index} className="break-words text-caption text-warn">{note}</p>)}</div></details>
     {!data.research.items.length&&(data.state==="ready"||data.state==="empty")?<p className="text-body text-ink-3">正式 Research index 已讀取，來源確認目前沒有項目。</p>:null}
     {!data.research.items.length&&data.state!=="ready"&&data.state!=="empty"?<p className="text-body text-warn">目前沒有可確認的 Research 項目；來源狀態不完整，不能判定為空。</p>:null}
   </section>
@@ -82,7 +82,7 @@ export function ResearchWatch({data,brief}: {data: InvestmentWatch; brief?:Inves
   const months=window?data.watch.catalysts.filter(e=>e.date_precision==="month"&&e.date!==null&&e.date>=window.start.slice(0,7)&&e.date<=window.end.slice(0,7)):[]
   return <section className="flex min-w-0 flex-col gap-3" aria-label="接下來會改變判斷的事情">
     <SectionHeading>接下來會改變判斷的事情</SectionHeading><p className="text-body text-ink-3">{window?`日期篩選範圍 ${window.start} 至 ${window.end}；目前可讀 Watch 登記日期與簡報的未來 7 天事項。這不是完整 30 天催化劑覆蓋；缺少事件不代表沒有催化劑。`:"無法由 Watch producer timestamp 確定日期範圍；目前不推定未來日期事件。"}</p>
-    <p className="break-words text-caption text-ink-3">producer：{data.producer} · 狀態：{readStateLabel(data.state)} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at}</p>
+    <p className="break-words metadata">producer：{data.producer} · 狀態：{readStateLabel(data.state)} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at}</p>
     {data.state!=="ready"&&data.state!=="empty"?<div role="status" className="flex flex-col gap-1 text-caption text-warn">{data.limitations.map((note,index)=><p key={index}>{note}</p>)}</div>:null}
     {!window?<p role="status" className="text-body text-warn">generated_at 未提供可驗證的日期或時區時間；Watch 日期事件範圍未知，不能當作空清單。</p>:null}
     {data.watch.coverage.errors.map((error,index)=><p key={`${index}:${error.path}`} role="status" className="break-words text-caption text-warn">{error.path}：{error.message}</p>)}
