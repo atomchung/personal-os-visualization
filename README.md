@@ -14,18 +14,23 @@ Serve `dist/` with any static host. The data adapter is always synthetic, even
 when the default build command is used. Unsupported routes fail closed.
 
 Changes made in the UI live only in this tab's memory and reset on reload.
-This repository is the canonical source for shared UI, module contracts and
-provider wiring. The Investment module includes a typed provider interface, a
-capability manifest and a synthetic/reference provider for Today,
-Judgment/Narrative, Research and Review/History. Detail lookup and source
-provenance pass through that contract.
+This repository is the canonical source for PersonalOS's shared visual and
+interaction entry, information architecture, minimal module/provider bindings,
+capability/degraded-state presentation, and synthetic/reference implementations.
+A binding selects a provider for a module and declares its surfaces, capabilities,
+state and optional freshness/provenance/source detail. Domain payloads and read
+models remain Domain-specific; the shared contract does not prescribe how a
+Domain reasons.
 
 The synthetic provider supports optional capabilities only when declared; missing
 capabilities are reported as unavailable/partial. It stays browser-memory-only,
-makes no network requests and has no private fallback. The private PersonalOS
-implementation, runtime, credentials, context and real records remain outside
-this repository. A compatible Investment provider can be replaced without
-forking the Investment UI.
+makes no network requests and has no private fallback. Investment Note remains
+the complete and sole Investment system; Investment is the first reference
+module, not PersonalOS's architecture center. Its surfaces project already
+produced Investment Note outputs without recreating Investment reasoning.
+Cross-Domain ranking and reasoning are deferred until multiple mature Domains
+create a concrete need. The private PersonalOS implementation, runtime,
+credentials, context and real records remain outside this repository.
 
 `src/tokens.css` and `src/demo/generated/*` remain generated/export-only
 outputs, not shared authoring inputs. Follow their existing reviewed

@@ -5,12 +5,13 @@ import { test } from "node:test"
 import { createDemoRequest } from "../src/demo/transport.ts"
 import { setInvestmentProvider as configureDemoProvider } from "../src/lib/investment.ts"
 import { demoInvestmentProvider } from "../src/demo/investmentProvider.ts"
-import { addInvestmentWork, getInvestment, getInvestmentNarrative, getInvestmentResearch, getInvestmentHistory, getInvestmentActions, getInvestmentResearchDetail, getInvestmentHistorySource, getSelectedInvestmentProvider, saveInvestmentWork, setInvestmentProvider } from "../src/lib/investment.ts"
+import { addInvestmentWork, bindInvestmentProvider, getInvestment, getInvestmentNarrative, getInvestmentResearch, getInvestmentHistory, getInvestmentActions, getInvestmentResearchDetail, getInvestmentHistorySource, getSelectedInvestmentProvider, saveInvestmentWork, setInvestmentProvider } from "../src/lib/investment.ts"
+import { getSelectedModuleProvider, selectModuleProvider } from "../src/lib/moduleProvider.ts"
 import { investment as syntheticInvestment, investmentHistory, investmentHistorySources, investmentResearch, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
 import { investmentScenario } from "../src/demo/generated/investment-scenario.ts"
 configureDemoProvider(demoInvestmentProvider)
 import { buildTimeline, researchForToday, splitCatalyst, watchDateWindow } from "../src/lib/investmentDates.ts"
-import { NAV_GROUPS, isTabKey } from "../src/lib/informationArchitecture.ts"
+import { NAV_GROUPS, PAGE_COPY, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, catalystDateGroups, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
 import { researchDirectionView, actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyChainDetailLinked, historyChainLinked, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayNextSteps, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
@@ -24,6 +25,66 @@ test("the shared information architecture keeps frequent entry points and domain
   assert.deepEqual(NAV_GROUPS.map((group) => group.label), ["常用", "推進", "回看"])
   assert.deepEqual(NAV_GROUPS[0].items.map((item) => item.key), ["today", "investment"])
   assert.equal(NAV_GROUPS[0].items.every((item) => item.frequent === true), true)
+  assert.match(PAGE_COPY.investment.summary, /Investment Note 維護投資正本/)
+  assert.match(PAGE_COPY.investment.summary, /唯讀呈現/)
+})
+
+test("module bindings select one Domain provider and project only capability metadata", async () => {
+  const samplePayload = { domainField: "kept in its Domain model" }
+  const provenanceBinding = {
+    moduleId: "sample-domain",
+    providerId: "sample-provider",
+    surfaces: ["overview"],
+    capabilities: {
+      overview: {
+        status: "partial" as const,
+        freshness: { state: "stale" as const, asOf: "2026-09-20", sourceCutoff: "2026-09-19" },
+        provenance: { producer: "sample-domain", sourceRefs: ["sample://overview"] },
+      },
+    },
+    provider: { getOverview: () => samplePayload },
+  }
+  selectModuleProvider(provenanceBinding)
+  assert.deepEqual(getSelectedModuleProvider("sample-domain").capabilities.overview, provenanceBinding.capabilities.overview)
+  assert.equal(getSelectedModuleProvider<typeof provenanceBinding.provider>("sample-domain").provider.getOverview(), samplePayload)
+
+  const binding = bindInvestmentProvider(demoInvestmentProvider)
+  assert.equal(binding.moduleId, "investment")
+  assert.equal(binding.providerId, "synthetic-reference")
+  assert.deepEqual(binding.surfaces, ["today", "judgment", "research", "history"])
+  assert.equal(binding.capabilities.today?.status, "ready", "Investment available maps to the common ready state")
+  assert.equal(binding.capabilities.judgment?.status, "partial")
+  assert.equal(binding.capabilities.research?.status, "partial")
+  assert.equal(binding.capabilities.history?.status, "partial")
+  assert.equal(binding.capabilities.today?.freshness, undefined, "the binding does not invent freshness metadata")
+  assert.equal(binding.sourceDetail?.status, "ready")
+  assert.equal(binding.provider, demoInvestmentProvider, "Domain provider methods and payloads pass through unchanged")
+  assert.equal(await binding.provider.getToday(), await demoInvestmentProvider.getToday())
+
+  selectModuleProvider(binding)
+  assert.equal(getSelectedModuleProvider("investment").provider, demoInvestmentProvider)
+  assert.throws(() => getSelectedModuleProvider("unregistered-domain"), /has not been selected/, "an unselected Domain cannot fall back to another provider")
+
+  const original = getSelectedInvestmentProvider()
+  const unavailableProvider = {
+    ...demoInvestmentProvider,
+    id: "synthetic-no-actions",
+    capabilities: {
+      ...demoInvestmentProvider.capabilities,
+      actions: { status: "unavailable" as const, limitations: ["The source does not provide actions."] },
+    },
+    getSource: undefined,
+  }
+  try {
+    const unavailableBinding = bindInvestmentProvider(unavailableProvider)
+    assert.equal(unavailableBinding.capabilities.actions?.status, "unavailable")
+    assert.equal(unavailableBinding.sourceDetail?.status, "unavailable")
+    selectModuleProvider(unavailableBinding)
+    assert.equal(getSelectedInvestmentProvider(), unavailableProvider)
+    assert.equal(getSelectedModuleProvider("investment").capabilities.actions?.status, "unavailable")
+  } finally {
+    setInvestmentProvider(original)
+  }
 })
 
 test("metadata text meets normal-text contrast against the white reading surface", () => {

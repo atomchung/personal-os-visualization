@@ -20,6 +20,7 @@ try {
     })
     await page.goto(`${process.env.UI_URL || 'http://127.0.0.1:5197'}/?tab=investment`)
     await page.getByTestId('primary-next-step').waitFor()
+    assert.match(await page.getByText(/Investment Note 維護投資正本/).innerText(), /今日、判斷、研究與復盤在此唯讀呈現/)
     assert.equal(await page.getByTestId('primary-next-step').filter({ visible: true }).count(), 1)
     assert.ok(await page.getByTestId('secondary-next-step').filter({ visible: true }).count() <= 2)
     const next = page.getByTestId('primary-next-step')

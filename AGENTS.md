@@ -7,18 +7,28 @@ Classify user feedback yourself as ui/data/integration after tracing the cause.
 Do not ask the user to perform technical triage. Claim work on the issue before
 editing and link the PR. Mock UI completion does not close local integration work.
 
-This repository is the canonical product source for the shared UI, module
-contracts and provider wiring. It contains no private backend, credentials,
+This repository is the canonical product source for PersonalOS's shared visual
+and interaction entry, information architecture, minimal module/provider
+bindings, provider selection, capability/degraded-state presentation, and
+synthetic/reference implementations. A module binding declares identity,
+surfaces/capabilities, its explicitly selected provider, ready/partial/unavailable
+state, and optional freshness/provenance/source detail. Domain payloads and read
+models remain Domain-specific; the contract does not prescribe Domain reasoning.
+There is no universal cross-Domain state store, knowledge graph, ranking, or
+invocation framework. This repository contains no private backend, credentials,
 private context, real records or producer schema. Do not add live data fallbacks,
 analytics or external data connections.
 
-Investment is the first reference module. Its UI depends on the typed
-`InvestmentProvider` contract and capability manifest; provider selection and
-wiring are owned here. The synthetic/reference provider runs in browser memory,
-uses only fictional fixtures, makes no network requests, and has no private
-fallback. Market, Watch, Pending and Actions may remain optional capabilities;
-providers report `unavailable` or `partial` truthfully and the UI does not infer
-support from data shape.
+Investment is the first reference module, not the center of PersonalOS. Its UI
+projects Investment Note-owned outputs through its typed provider and capability
+manifest. Judgment is an Investment Note read model. Do not reproduce Investment
+reasoning, classify trade/watch/ignore, infer relationships from ticker/title/
+prose, or regenerate producer-owned #61 current_reading/gaps. Preserve source
+states, cutoffs and provenance. The synthetic/reference provider runs in browser
+memory, uses only fictional fixtures, makes no network requests, and has no
+private fallback. Optional capabilities report unavailable/partial truthfully;
+do not infer support from data shape. Other Domains keep their own payload models
+and can use the same small binding without inheriting Investment semantics.
 
 Private PersonalOS may implement the same contract with its own runtime,
 credentials and private context. Those implementation details and records stay
