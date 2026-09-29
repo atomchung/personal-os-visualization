@@ -61,3 +61,9 @@ and pulse failure warnings, entirely omitted market results, and lost conflict/
 unlinked provenance details. These are fixed without changing producer judgments
 or inferring relationships. New contract tests and browser success-then-failure,
 omitted-market, legacy-payload and expanded-provenance assertions cover them.
+
+The targeted review retained two further edge cases: legacy unknown strings and
+global-only unlinked rows whose pillar has a card. Unknown strings now remain
+quoted and counted as unknown. Global source indexes remain fully inspectable;
+a matching pillar alone no longer suppresses a row. Duplicate source indexes
+are explicitly identified rather than silently collapsed.

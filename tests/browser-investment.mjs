@@ -81,7 +81,9 @@ await page.addInitScript(scenario => {
       layers[0].evidence = [{ evidence_id: 'synthetic-legacy-row', polarity: 'supports', player: '合成舊版公開記錄', evidence_date: '2001-02-03', source: { path: 'synthetic-legacy-row.md', line: 9 }, limitations: ['舊版數值保持未知'] }]
       layers[1].evidence = []; delete layers[1].supporting; delete layers[1].opposing
       layers[1].challenging = [{ evidence_id: 'synthetic-legacy-challenge', player: '合成舊版反方', source: { path: 'synthetic-legacy-row.md', line: 10 } }]
-      layers[1].unknown = [{ evidence_id: 'synthetic-legacy-unknown', player: '合成舊版未知' }]
+      layers[1].unknown = [{ evidence_id: 'synthetic-legacy-unknown', player: '合成舊版未知' }, '合成舊版方向未明原文']
+      layers[0].unlinked_evidence = []; layers[0].unlinked_players = []
+      data.narratives[0].thesis_evidence.unlinked_evidence.push({ evidence_id: 'synthetic-global-only', pillar_id: layers[0].pillar_id, player: '合成同層全域列', limitations: ['合成全域列仍未連結'], source: { path: 'synthetic-global-only.md', line: 13 } })
     }
     if (data?.brief) {
       if (scenario === 'initial-error' || window.__failBrief) throw new Error('Synthetic read failure')
@@ -313,7 +315,7 @@ try {
         assert.match(judgmentText, /合成案例示範 partial reading 仍可直接閱讀/)
         assert.match(judgmentText, /合成買方甲/)
         assert.match(judgmentText, /合成買方乙/)
-        assert.match(judgmentText, /未顯示在五層卡片的資料/)
+        assert.match(judgmentText, /來源的全域未連結資料/)
         assert.match(judgmentText, /synthetic-unmapped-evidence/)
 
         assert.match(await panel.innerText(), /訊號日期：\s*未提供/)
@@ -425,7 +427,7 @@ try {
       case 'pulse-cached-error': assert.match(text, /台股市場脈搏更新失敗/); break
       case 'market-empty-refetch':
       case 'market-omitted-refetch': assert.match(text, /先前快照[\s\S]*島嶼設備甲/); assert.match(text, /2001[-/]02[-/]03/); break
-      case 'legacy-evidence': assert.match(text, /合成舊版公開記錄/); assert.match(text, /合成舊版反方/); assert.match(text, /合成舊版未知/); assert.match(text, /synthetic-legacy-row.md/); break
+      case 'legacy-evidence': assert.match(text, /合成舊版方向未明原文/); assert.match(text, /合成同層全域列/); assert.match(text, /合成全域列仍未連結/); assert.match(text, /合成舊版公開記錄/); assert.match(text, /合成舊版反方/); assert.match(text, /合成舊版未知/); assert.match(text, /synthetic-legacy-row.md/); break
       case 'layer-reading': assert.match(text, /合成分層解讀：出貨增加但終端需求待確認/); assert.match(text, /AI/); break
       default: assert.fail(`Missing scenario oracle: ${scenario}`)
     }

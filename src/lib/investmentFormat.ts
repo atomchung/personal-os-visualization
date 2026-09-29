@@ -266,9 +266,18 @@ export function layerEvidenceGroups(layer: Pick<InvestmentNarrativeEvidenceLayer
     }
   }
   const records = (items: InvestmentNarrativeLayerEvidenceItem[], side: "supports" | "challenges" | "unknown") => items.flatMap(item => typeof item === "string" ? [] : [normalize(item, side)])
-  const evidence = layer.evidence?.length
-    ? layer.evidence.map(item => normalize(item))
-    : [...records(supporting, "supports"), ...records(opposing, "challenges"), ...records(layer.unknown ?? [], "unknown")]
+  const principal = (layer.evidence ?? []).map(item => normalize(item))
+  const branches = [...records(supporting, "supports"), ...records(opposing, "challenges"), ...records(layer.unknown ?? [], "unknown")]
+  // Suppress only an explicitly identified, identical repeated record. Extra
+  // branch rows and anonymous rows stay visible; no prose similarity matching.
+  const authoredKey = (item: InvestmentNarrativeLayerEvidence) => item.evidence_id ? `${item.pillar_id}:${item.evidence_id}:${JSON.stringify(item)}` : null
+  const shown = new Set(principal.map(authoredKey).filter(key => key !== null))
+  const evidence = [...principal, ...branches.filter(item => {
+    const key = authoredKey(item)
+    if (key && shown.has(key)) return false
+    if (key) shown.add(key)
+    return true
+  })]
   return {
     evidence,
     supporting: evidence.filter(item => item.polarity === "supports"),
@@ -276,6 +285,7 @@ export function layerEvidenceGroups(layer: Pick<InvestmentNarrativeEvidenceLayer
     unknown: evidence.filter(item => item.polarity === "unknown"),
     legacySupporting: supporting.filter((item): item is string => typeof item === "string"),
     legacyOpposing: opposing.filter((item): item is string => typeof item === "string"),
+    legacyUnknown: (layer.unknown ?? []).filter((item): item is string => typeof item === "string"),
   }
 }
 
@@ -309,7 +319,7 @@ export function layerStatusLineFor(layer: Pick<InvestmentNarrativeEvidenceLayer,
   return layerStatusLine({
     supports: groups.supporting.length + groups.legacySupporting.length,
     challenges: groups.challenging.length + groups.legacyOpposing.length,
-    unknown: groups.unknown.length,
+    unknown: groups.unknown.length + groups.legacyUnknown.length,
   }, layer.opposing_coverage?.state)
 }
 
