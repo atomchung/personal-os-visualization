@@ -23,14 +23,14 @@ function unverifiedHolding({ symbol, data }: TaiwanRsProps) {
   return expected ? data?.holdings.find(row => row.provider_symbol === symbol && row.exchange === null) : undefined
 }
 function status(props: TaiwanRsProps, row: TwRelativeStrength["holdings"][number] | undefined, unverified: TwRelativeStrength["holdings"][number] | undefined) {
-  if (props.failed) return props.data ? "更新失敗，保留上次資料" : "讀取失敗，來源狀態未知"
+  if (props.failed) return props.data ? "更新失敗，保留原資料" : "讀取失敗，來源狀態未知"
   if (props.data?.state === "unavailable") return "來源不可用"
   if (unverified) return "交易所身分未確認"
   if (row?.state === "unavailable") return "此標的來源不可用"
   if (row) return "部分可用"
   return "來源未提供此標的的比較資料"
 }
-function points(value: number | null | undefined) {
+export function formatRsPercent(value: number | null | undefined) {
   return value == null || !Number.isFinite(value) ? "未取得" : `${formatNumber(value, true)}%`
 }
 export function TaiwanRsCell(props: TaiwanRsProps) {
@@ -39,7 +39,7 @@ export function TaiwanRsCell(props: TaiwanRsProps) {
   const value = props.data?.state === "unavailable" || row?.state === "unavailable" ? null : row?.market_rs_pp
   return <span data-tw-rs-symbol={props.symbol} className="flex min-w-0 flex-col gap-1">
     <span className="text-caption text-ink-3 sm:hidden">相對強度</span>
-    <span className={`tabular-nums ${value != null && value > 0 ? "text-ok" : value != null && value < 0 ? "text-bad" : "text-ink-3"}`}>{props.pending && !props.data ? "讀取中…" : points(value)}</span>
+    <span className={`tabular-nums ${value != null && value > 0 ? "text-ok" : value != null && value < 0 ? "text-bad" : "text-ink-3"}`}>{props.pending && !props.data ? "讀取中…" : formatRsPercent(value)}</span>
     <span className="text-caption text-ink-3">對 {row?.market_benchmark?.id ?? unverified?.market_benchmark?.id ?? "基準未提供"}</span>
     <span className="text-micro text-ink-3">{(row ?? unverified)?.window_trading_days == null ? "窗口未提供" : `${(row ?? unverified)?.window_trading_days} 交易日`} · {(row ?? unverified)?.as_of ?? "日期未提供"}</span>
     {props.failed || props.data?.state === "unavailable" || row?.state === "unavailable" || unverified ? <span role="status" className="text-caption text-warn">{status(props, row, unverified)}</span> : null}
@@ -56,7 +56,7 @@ export function TaiwanRsDetails(props: TaiwanRsProps) {
     {row ? <>
       <p>基準：{row.market_benchmark?.id ?? "未提供"} · {row.market_benchmark?.label ?? "名稱未提供"}</p>
       <p>比較窗口 {sourceTimestamp(row.window_start)} 至 {sourceTimestamp(row.as_of)} · {row.window_trading_days ?? "未知"} 個交易日；觀察點 {row.coverage.holding_sessions ?? "未知"}/{row.coverage.expected_sessions ?? "未知"}</p>
-      <p>同業相對強度：{points(row.peer_rs_pp)} · 同業籃子：{row.peer_group ?? "未提供"}</p>
+      <p>同業相對強度：{formatRsPercent(row.peer_rs_pp)} · 同業籃子：{row.peer_group ?? "未提供"}</p>
       {row.limitations.map((item, index) => <p key={index} className="text-warn">{item}</p>)}
       <p>來源原因：{row.reason_codes.join("、") || "未提供"} · Provider symbol：{row.provider_symbol ?? "未提供"}</p>
       <p>個股價格來源：{row.price_source ?? "未提供"}</p><p className="break-all">大盤來源：{row.benchmark_source ?? "未提供"}</p>

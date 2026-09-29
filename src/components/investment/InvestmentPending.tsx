@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Card, SectionHeading, SubsectionHeading } from "@/components/ui/card"
+import { Card, SectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { getInvestmentPending, type InvestmentPending, type PendingBlock, type PendingGate, type PendingRevisit, type PendingWeekly } from "@/lib/investment"
 import { ReadingText, InlineText } from "./ReadingText"
@@ -14,10 +14,10 @@ function dueText(days: number): string {
 /** 三塊共用的外框：標題、來源、狀態、以及讀不到時那一句中文原因。 */
 function Block({block, summary, children}: {block: PendingBlock; summary: ReactNode; children: ReactNode}) {
   const down = block.state === "unavailable"
-  return <Card density="compact" className="flex min-w-0 flex-col gap-2">
+  return <Card className="flex min-w-0 flex-col gap-2 p-3">
     <div className="flex flex-wrap items-baseline justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <SubsectionHeading>{block.title}</SubsectionHeading>
+        <h3 className="text-section font-semibold text-ink">{block.title}</h3>
         {down ? <Chip tone="warn">這次無法取得</Chip> : summary}
       </div>
       <span className="break-all text-caption text-ink-3">{block.source}</span>
@@ -126,8 +126,7 @@ export function PendingBoard() {
     {query.isPending ? <p className="text-body text-ink-3">正在讀取舊判斷、待確認事項與每週觀察…</p> : null}
     {query.isError ? <p role="alert" className="text-body text-warn">系統提醒這次讀取失敗，請按更新全部重試。</p> : null}
     {data ? <>
-      <p className="break-words metadata">producer：{data.producer} · 狀態：{data.state} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at}</p>
-      {data.state!=="ready"&&data.state!=="empty"?<div role="status" className="flex flex-col gap-1 text-caption text-warn">{data.limitations.map((note,index)=><p key={index}>{note}</p>)}</div>:null}
+      {data.state !== "ready" ? <p role="status" className="text-caption text-warn">整體讀取狀態：{data.state}。{data.limitations.join("；")}</p> : null}
       <Revisit data={data.pending.revisit}/>
       <Gate data={data.pending.gate}/>
       <Weekly data={data.pending.weekly}/>

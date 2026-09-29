@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, SectionHeading } from "@/components/ui/card"
 import { useWrite, writeErrorText } from "@/lib/writes"
 import { getInvestmentWork, addInvestmentWork, saveInvestmentWork, type InvestmentWork, type InvestmentWatch } from "@/lib/investment"
-import { isCanonicalActionId, taipeiDateIso, workPanelView } from "@/lib/investmentFormat"
+import { investmentReminderIsForToday, isCanonicalActionId, taipeiCalendarToday, workPanelView } from "@/lib/investmentFormat"
 import { ReadingText } from "./ReadingText"
 
 export function SourceQuestion({source}: {source: {id:string; topic?:string; question?:string|null; title?:string|null; source:{path:string}}}) {
@@ -19,71 +19,78 @@ export function SourceQuestion({source}: {source: {id:string; topic?:string; que
   </div>
 }
 
-function pad(value: number): string {
-  return String(value).padStart(2, "0")
+function addDays(date: string, days: number): string {
+  const value = new Date(`${date}T00:00:00Z`)
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
 }
 
-function addTaipeiDays(days: number, today = taipeiDateIso()): string {
-  const [year, month, day] = today.split("-").map(Number)
-  const future = new Date(Date.UTC(year, month - 1, day + days))
-  return `${future.getUTCFullYear()}-${pad(future.getUTCMonth() + 1)}-${pad(future.getUTCDate())}`
-}
-
-function monthDay(iso: string | undefined): string {
-  const [, month, day] = (iso ?? "").split("-")
-  return month && day ? `${Number(month)}/${Number(day)}` : "未設日期"
-}
-
-function WatchReminderRow({item, today}: {item: InvestmentWork; today: string}) {
+function ReminderRow({item, today, compact = false}: {item: InvestmentWork; today: string; compact?: boolean}) {
   const mutation = useWrite(saveInvestmentWork, ["investment-work"])
   const dueToday = item.expires_on === today
-  return <li className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-line-soft py-3 first:border-0 first:pt-0 last:pb-0">
-    <div className="min-w-0">
-      <p className="text-body text-ink">{item.text}</p>
-      <p className="text-caption text-ink-3">{dueToday ? "今天到期" : item.promoted_to_today ? "已加入今日" : `到期日 ${monthDay(item.expires_on)}`}</p>
+  const promoted = item.promoted_to_today === true
+  const dueText = item.expires_on ? `到期 ${item.expires_on}` : "未設定到期日"
+  function save(patch: Partial<InvestmentWork>) {
+    mutation.mutate({...item, ...patch})
+  }
+  return <Card className={`flex min-w-0 flex-col gap-2 ${compact ? "p-3" : "p-4"}`}>
+    <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+      <p className="min-w-0 flex-1 text-body leading-relaxed text-ink-2">{item.text}</p>
+      {compact ? <Button disabled={mutation.isPending} onClick={() => save({status: "done"})}>完成</Button> : null}
     </div>
-    <div className="flex shrink-0 flex-wrap items-center gap-2">
-      {!dueToday ? <Button disabled={mutation.isPending} onClick={() => mutation.mutate({...item, promoted_to_today: !item.promoted_to_today})}>{item.promoted_to_today ? "移出今日" : "加入今日"}</Button> : null}
-      <Button disabled={mutation.isPending} onClick={() => mutation.mutate({...item, status: "done"})}>完成提醒</Button>
-    </div>
-    {mutation.isError ? <p role="alert" className="w-full text-caption text-warn">{writeErrorText(mutation.error)}</p> : null}
-  </li>
+    <p className="text-caption text-ink-3">{dueText}{dueToday ? " · 今天到期" : ""}{promoted ? " · 已加入今日" : ""}</p>
+    {!compact ? <div className="flex flex-wrap gap-2">
+      <Button disabled={mutation.isPending} onClick={() => save({promoted_to_today: !promoted})}>{promoted ? "從今日移除" : "加入今日"}</Button>
+      <Button disabled={mutation.isPending} onClick={() => save({status: "done"})}>確認完成</Button>
+    </div> : null}
+    {mutation.isSuccess ? <p role="status" className="text-caption text-ok">已保存。</p> : null}
+    {mutation.isError ? <p role="alert" className="text-caption text-warn">{writeErrorText(mutation.error)}</p> : null}
+  </Card>
 }
 
-/** Personal reminders and their promotion controls stay under Research & Strategy, apart from source events. */
-export function InvestmentWatchNotes() {
-  const query = useQuery({queryKey:["investment-work"], queryFn:getInvestmentWork, refetchOnWindowFocus:false})
+/** Personal reminders are user-owned work rows; source-derived research events stay in ResearchWatch. */
+export function InvestmentReminderPanel({mode, enabled = true}: {
+  mode: "today" | "attention"
+  enabled?: boolean
+}) {
+  const query = useQuery({queryKey: ["investment-work"], queryFn: getInvestmentWork, enabled, retry: false, refetchOnWindowFocus: false})
   const create = useWrite(addInvestmentWork, ["investment-work"])
-  const today = taipeiDateIso()
   const [text, setText] = useState("")
-  const [expiresOn, setExpiresOn] = useState(() => addTaipeiDays(7))
-  const [showForm, setShowForm] = useState(false)
-  const view = workPanelView(query)
-  const notes = (query.data?.items ?? []).filter(item => item.kind === "watch" && item.status !== "done")
-  const active = notes.filter(item => (item.expires_on ?? "") >= today || item.promoted_to_today === true)
-    .sort((a, b) => (a.expires_on ?? "").localeCompare(b.expires_on ?? ""))
-  const expired = notes.filter(item => (item.expires_on ?? "") < today && item.promoted_to_today !== true)
+  const [expiresOn, setExpiresOn] = useState(() => addDays(taipeiCalendarToday(), 7))
+  const today = taipeiCalendarToday()
+  const reminders = query.data?.items.filter(item => item.kind === "watch") ?? []
+  const open = reminders.filter(item => item.status !== "done").sort((a, b) => (a.expires_on ?? "").localeCompare(b.expires_on ?? ""))
+  const todayItems = open.filter(item => investmentReminderIsForToday(item, today))
 
-  return <section aria-label="我的提醒" className="flex min-w-0 flex-col gap-3">
-    <div className="flex flex-wrap items-center justify-between gap-2"><SectionHeading>我的提醒</SectionHeading>{view !== "loading" && view !== "error" ? <Button variant="link" onClick={() => {setExpiresOn(addTaipeiDays(7));setShowForm(!showForm)}}>{showForm ? "取消新增" : "新增提醒"}</Button> : null}</div>
-    <p className="text-caption text-ink-3">手動記下、要回來看的個人事項。到期日按台北日期判斷；研究來源事件列在下方，不會自動變成提醒。</p>
-    {view === "loading" ? <p role="status" className="text-body text-ink-3">讀取個人提醒中…</p> : null}
-    {view === "error" ? <p role="alert" className="text-body text-warn">個人提醒讀取失敗，無法判斷目前是否有未結提醒。</p> : null}
-    {view === "stale" ? <p role="status" className="text-caption text-warn">更新失敗，以下是上次成功讀取的提醒。</p> : null}
-    {view === "ready" || view === "empty" || view === "stale" ? active.length
-      ? <Card density="compact"><ul className="flex flex-col">{active.map(item => <WatchReminderRow key={item.id} item={item} today={today}/>)}</ul></Card>
-      : <p className="text-body text-ink-3">目前沒有未到期或加入今日的個人提醒。</p> : null}
-    {expired.length ? <details><summary className="cursor-pointer text-caption text-ink-3">已過期提醒（{expired.length}）</summary><ul className="flex flex-col pt-2">{expired.map(item => <WatchReminderRow key={item.id} item={item} today={today}/>)}</ul></details> : null}
-    {showForm && view !== "error" && view !== "loading" ? <form className="flex flex-wrap items-center gap-2" onSubmit={event => {
+  if (mode === "today") {
+    if (query.isPending && !query.data) return <p role="status" className="text-caption text-ink-3">正在讀取個人提醒…</p>
+    return <section className="flex min-w-0 flex-col gap-2" aria-label="今日個人提醒">
+      {query.isError ? <p role="alert" className="text-caption text-warn">個人提醒讀取失敗{query.data ? "；目前保留先前資料，未能確認是否有更新。" : "，目前無法確認是否有提醒。"}</p> : null}
+      {!query.isError && todayItems.length === 0 ? <p className="text-caption text-ink-3">尚未新增個人提醒</p> : null}
+      {todayItems.map(item => <ReminderRow key={item.id} item={item} today={today} compact />)}
+    </section>
+  }
+
+  return <section className="flex min-w-0 flex-col gap-3" aria-label="我的提醒">
+    <div className="flex flex-col gap-1"><SectionHeading>我的提醒</SectionHeading><p className="text-caption text-ink-3">只列個人記下的提醒；研究筆記與事件在下方分開呈現。</p></div>
+    <form aria-label="新增個人提醒" className="flex min-w-0 flex-col gap-2 sm:flex-row" onSubmit={event => {
       event.preventDefault()
-      create.mutate({kind:"watch",text:text.trim(),expires_on:expiresOn},{onSuccess:()=>{setText("");setShowForm(false)}})
+      create.mutate({kind: "watch", text: text.trim(), expires_on: expiresOn}, {onSuccess: () => setText("")})
     }}>
-      <input aria-label="新增個人提醒" className="min-w-0 flex-1 rounded-sm border border-line bg-paper p-2 text-body text-ink" maxLength={500} value={text} onChange={event=>setText(event.target.value)} placeholder="記下一件要回來看的事…"/>
-      <label className="flex items-center gap-2 text-caption text-ink-3">到期日<input aria-label="個人提醒到期日" type="date" className="rounded-sm border border-line bg-paper p-2 text-body text-ink" value={expiresOn} onChange={event=>setExpiresOn(event.target.value)}/></label>
-      <Button type="submit" disabled={!text.trim()||create.isPending}>加入提醒</Button>
-    </form> : null}
-    {create.isError ? <p role="alert" className="text-caption text-warn">{writeErrorText(create.error)}</p> : null}
-    {create.isSuccess ? <p role="status" className="text-caption text-ok">提醒已保存。</p> : null}
+      <label className="flex min-w-0 flex-1 flex-col gap-1 text-caption text-ink-3">提醒內容
+        <input aria-label="個人提醒內容" className="min-w-0 rounded-sm border border-line bg-paper p-2 text-body text-ink" maxLength={500} value={text} onChange={event => setText(event.target.value)} placeholder="記下一件要留意的事…" />
+      </label>
+      <label className="flex flex-col gap-1 text-caption text-ink-3">到期日期
+        <input aria-label="個人提醒到期日期" type="date" className="rounded-sm border border-line bg-paper p-2 text-body text-ink" value={expiresOn} onChange={event => setExpiresOn(event.target.value)} />
+      </label>
+      <div className="flex items-end"><Button type="submit" disabled={!text.trim() || !expiresOn || create.isPending}>新增提醒</Button></div>
+    </form>
+    {query.isPending && !query.data ? <p role="status" className="text-body text-ink-3">讀取個人提醒中…</p> : null}
+    {query.isError ? <p role="alert" className="text-body text-warn">個人提醒讀取失敗{query.data ? "；以下保留先前內容，不代表最新清單。" : "，無法確認目前清單。"}</p> : null}
+    {create.isError ? <p role="alert" className="text-body text-warn">{writeErrorText(create.error)}</p> : null}
+    {!query.isError && query.isSuccess && query.data && open.length === 0 ? <p className="text-body text-ink-3">尚未新增個人提醒。</p> : null}
+    {open.map(item => <ReminderRow key={item.id} item={item} today={today} />)}
+    {reminders.some(item => item.status === "done") ? <details><summary className="cursor-pointer text-caption text-ink-3">查看已完成提醒（{reminders.filter(item => item.status === "done").length}）</summary><ul className="flex flex-col gap-2 pt-2">{reminders.filter(item => item.status === "done").map(item => <li key={item.id} className="text-body text-ink-3">{item.text}</li>)}</ul></details> : null}
   </section>
 }
 
@@ -96,7 +103,7 @@ function WorkItem({item}: {item:InvestmentWork}) {
   const prompt=`請協助分析這個投資問題：${item.text}\n來源：${item.source_label||"我在 PersonalOS 提出的問題"}${item.source_id?`（${item.source_id}）`:""}\n目前結論：${draft.conclusion||"尚未記錄"}\n請先讀取上述來源，指出結論、反證與尚缺的資料。讀不到來源請明說，不要猜；先提出分析，不修改持倉或論點。`
   async function copy() {try {await navigator.clipboard.writeText(prompt);setCopied("已複製。貼到你選用的 AI 對話即可，尚未送出。")}catch{setCopied("未能複製，請展開下方文字手動選取。")}}
   function save(status: InvestmentWork["status"]) {mutation.mutate({...draft,status},{onSuccess: value=>setDraft(value)})}
-  return <Card density="compact" className="flex flex-col gap-2">
+  return <Card className="flex flex-col gap-2 p-3">
     <div className="flex items-start justify-between gap-2"><button className="text-left text-body font-medium text-ink" onClick={()=>setOpen(!open)} aria-expanded={open}>{item.text}</button><span className="shrink-0 text-caption text-ink-3">{item.status==="done"?"已結束":item.status==="watching"?"繼續追蹤":"待處理"}</span></div>
     {isCanonicalActionId(item.source_id)?<p className="text-caption text-ink-3">正式編號 {item.source_id}。要在正式判斷頁寫下這個編號才算結案。</p>:null}
     {item.conclusion&&!open?<p className="line-clamp-2 text-body text-ink-2">結論：{item.conclusion}</p>:null}
@@ -123,7 +130,9 @@ export function InvestmentWorkPanel({research}: {research: InvestmentWatch["watc
   const [showDone,setShowDone]=useState(false)
   const view=workPanelView(query)
   const showList=view==="stale"||view==="empty"||view==="ready"
-  const items=showList?(query.data?.items??[]).filter(item=>item.kind!=="watch"):[]
+  // kind "watch" lives only in the 注意事項 section (InvestmentWatchNotes); it
+  // must never appear in this panel's groups, done list or doneCount.
+  const items=showList?(query.data?.items??[]).filter(i=>i.kind!=="watch"):[]
   const doneCount=items.filter(i=>i.status==="done").length
   const candidates=research.filter(r=>r.status==="candidate" && /owner 拍板|對標名單/.test(r.source.section) && !items.some(i=>i.source_id===r.id))
   return <section className="flex flex-col gap-4" aria-label="投資待處理事項">
@@ -138,7 +147,7 @@ export function InvestmentWorkPanel({research}: {research: InvestmentWatch["watc
     {view==="stale"?<p role="alert" className="text-body text-warn">待處理清單更新失敗。以下是先前內容，不是最新；完成筆數不能當成目前進度。</p>:null}
     {create.isError?<p role="alert" className="text-body text-warn">{writeErrorText(create.error)}</p>:null}
     {(["decision","research"] as const).map(group=><section key={group} className="flex flex-col gap-2"><SectionHeading>{group==="decision"?"要我決定":"還要研究"}</SectionHeading>{items.filter(i=>i.kind===group&&i.status!=="done").map(i=><WorkItem key={i.id} item={i}/>)}{!items.some(i=>i.kind===group&&i.status!=="done")?<p className="text-body text-ink-3">尚未加入事項。</p>:null}
-      {group==="decision"&&candidates.length>0?<div className="flex flex-col gap-2"><p className="text-caption text-ink-3">研究文件中另有以下待確認事項；加入後可保存你的結論。</p>{candidates.map(r=><Card key={r.id} density="compact" className="flex flex-col gap-2"><p className="text-body font-medium">{r.topic}：選擇判斷指標</p><details><summary className="cursor-pointer text-caption text-ink-3">查看原文選項</summary><ReadingText text={r.excerpt}/></details><SourceQuestion source={r}/></Card>)}</div>:null}
+      {group==="decision"&&candidates.length>0?<div className="flex flex-col gap-2"><p className="text-caption text-ink-3">研究文件中另有以下待確認事項；加入後可保存你的結論。</p>{candidates.map(r=><Card key={r.id} className="flex flex-col gap-2 p-3"><p className="text-body font-medium">{r.topic}：選擇判斷指標</p><details><summary className="cursor-pointer text-caption text-ink-3">查看原文選項</summary><ReadingText text={r.excerpt}/></details><SourceQuestion source={r}/></Card>)}</div>:null}
     </section>)}
     <div><Button onClick={()=>setShowDone(!showDone)}>{showDone?"收起已結束":"查看已結束"}{view==="stale"?"（先前內容）":`（${doneCount}）`}</Button></div>
     {showDone?items.filter(i=>i.status==="done").map(i=><WorkItem key={i.id} item={i}/>):null}

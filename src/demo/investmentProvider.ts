@@ -17,6 +17,8 @@ import {
   pending,
   momentum,
   quote,
+  relativeStrength,
+  STAMP,
 } from "./fixtures.ts"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 import type { InvestmentWork } from "../lib/investment.ts"
@@ -34,6 +36,8 @@ import type {
   InvestmentOptionalPayloads,
   InvestmentMarketResource,
   InvestmentMarketPayloads,
+  InvestmentRefreshAction,
+  InvestmentRefreshStatus,
 } from "../lib/investment.ts"
 
 const available = { status: "available" as const, limitations: [] as string[] }
@@ -91,6 +95,11 @@ function historyDetail(itemId: string): InvestmentHistoryDetail {
   }
 }
 
+const refreshStates = new Map<InvestmentRefreshAction, InvestmentRefreshStatus>()
+function refreshStatus(action: InvestmentRefreshAction): InvestmentRefreshStatus {
+  return refreshStates.get(action) ?? { action, state: "idle", started_at: null, last_updated: null, message: "合成範例尚未重讀。", error: null, discovery_state: "idle", discovery_updated_at: null, trigger: null, new_update_count: null, sync_note: "Synthetic reference only", reconciled_at: null, provider: null, model: null, fallback_depth: null, provider_errors: {} }
+}
+
 export const demoInvestmentProvider: InvestmentProvider = {
   id: "synthetic-reference",
   capabilities: demoInvestmentCapabilities,
@@ -121,6 +130,13 @@ export const demoInvestmentProvider: InvestmentProvider = {
         if (params?.symbol !== investmentScenario.symbol) throw new Error("只有合成標的可用。")
         return (resource === "quote" ? quote : momentum) as InvestmentMarketPayloads[K]
     }
+  },
+  async getRelativeStrength() { return relativeStrength },
+  async getRefreshStatus(action) { return refreshStatus(action) },
+  async startRefresh(action, marketScope) {
+    const status: InvestmentRefreshStatus = { ...refreshStatus(action), state: action === "news" ? "no-change" : "success", started_at: STAMP, last_updated: STAMP, message: "只重讀合成範例；沒有連接或執行外部服務。", discovery_state: action === "market" ? "ready" : "idle", discovery_updated_at: action === "market" ? STAMP : null, scan_mode: action === "news" ? "quick" : null, market_scope: marketScope ?? null, new_update_count: 0 }
+    refreshStates.set(action, status)
+    return status
   },
   async getContext() { return investmentContext },
   async getSource(sourceId: string) {

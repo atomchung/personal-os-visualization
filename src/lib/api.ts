@@ -187,6 +187,82 @@ export type WeeklyUsageRow = {
   unknown_agents: string[]
 }
 
+export type CcstoryUsageCoverage = {
+  complete: boolean
+  incomplete_agents: string[]
+  providers: Record<string, string>
+} | null
+
+export type CcstoryMcpOverview = {
+  available: boolean
+  error?: string
+  recap: null | {
+    ok: boolean
+    error?: string
+    since: string | null
+    until: string | null
+    active_hours: number | null
+    cost_usd: number | null
+    usage_coverage: CcstoryUsageCoverage
+    unpriced_models: string[]
+    agents: {
+      agent: string
+      label: string
+      sessions: number | null
+      messages: number | null
+      time_share: number | null
+      session_share: number | null
+    }[]
+    categories: {
+      name: string
+      active_hours: number | null
+    }[]
+  }
+  comparison: null | {
+    ok: boolean
+    error?: string
+    current_label: string | null
+    previous_label: string | null
+    current_active_hours: number | null
+    previous_active_hours: number | null
+    current_cost_usd: number | null
+    previous_cost_usd: number | null
+    usage_coverage: {
+      current: CcstoryUsageCoverage
+      previous: CcstoryUsageCoverage
+    }
+    unpriced_models: { current: string[]; previous: string[] }
+    deltas: {
+      category: string
+      current_hours: number | null
+      previous_hours: number | null
+      pct_change: number | null
+    }[]
+  }
+  trend: null | {
+    ok: boolean
+    error?: string
+    period: string | null
+    count: number | null
+    usage_coverage: CcstoryUsageCoverage
+    unpriced_models: string[]
+    points: {
+      label: string | null
+      since: string | null
+      until: string | null
+      active_hours: number | null
+      cost_usd: number | null
+      buckets: {
+        name: string
+        active_hours: number | null
+        sessions: number | null
+      }[]
+      unpriced_models: string[]
+      usage_coverage: CcstoryUsageCoverage
+    }[]
+  }
+}
+
 export type TimeData = {
   period: TimePeriod
   period_label: string
@@ -214,6 +290,7 @@ export type TimeData = {
     coverage_note: string
     hint: string
   }
+  ccstory_mcp: CcstoryMcpOverview
   worth_rows: {
     agent: string
     agent_label: string
