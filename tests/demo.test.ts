@@ -14,7 +14,7 @@ import { buildTimeline, researchForToday, splitCatalyst, watchDateWindow } from 
 import { NAV_GROUPS, PAGE_COPY, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, catalystDateGroups, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { researchDirectionView, actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyChainDetailLinked, historyChainLinked, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayNextSteps, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { layerGapLine, layerReadingCaption, layerReadingText, researchDirectionView, actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyChainDetailLinked, historyChainLinked, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayNextSteps, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -927,6 +927,20 @@ test("same date and same ticker never merge independent future-event sources", a
   assert.deepEqual(events.map(item => item.sources), [["synthetic-a"], ["簡報 2026-09-20"]])
 })
 
+
+test("layer readings show producer-authored current understanding and gaps without inventing fallback content", async () => {
+  const request = createDemoRequest()
+  const narrative = await (await request("/api/investment/narrative")).json()
+  const readyLayer = narrative.narratives[0].thesis_evidence.layers[0]
+  const legacyLayer = narrative.narratives[0].thesis_evidence.layers[1]
+  assert.equal(layerReadingText(readyLayer.current_reading), "合成層的目前認知。")
+  assert.equal(layerReadingCaption(readyLayer.current_reading), "AI 整理・2026-09-27・依據：合成依據（2026-09-20）")
+  assert.equal(layerGapLine(readyLayer.gaps[0]), "還缺：合成缺口｜合成季報・預計 2026-10")
+  assert.equal(layerReadingText({ ...readyLayer.current_reading, text: "   " }), null, "blank producer text falls back instead of becoming a fake summary")
+  assert.equal(layerReadingCaption({ ...readyLayer.current_reading, as_of: null, basis: null }), "AI 整理・未提供・依據：未提供")
+  assert.match(layerGapLine({ ...readyLayer.gaps[0], overdue: true }), /已過預計時間$/)
+  assert.equal(layerReadingText(legacyLayer.current_reading), null, "old producers remain supported")
+})
 
 test("30-day catalyst projection preserves exact, approximate, missing and partial coverage", async () => {
   const request = createDemoRequest()
