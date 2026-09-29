@@ -909,7 +909,11 @@ test("structured brief judgment is used only when every decision field is presen
   assert.equal(view?.revisit, "收盤後再看量能是否延續。")
   assert.equal(view?.decisionEffect, "量能延續只提高觀察優先級；若訊號消退則維持原判斷。")
   assert.equal(briefJudgmentView(undefined), null, "old briefs stay on the legacy action path")
-  assert.equal(briefJudgmentView({ ...complete!, why_now: null }), null, "incomplete structured data cannot hide the legacy source text")
+  assert.equal(briefJudgmentView({ ...complete!, why_now: null }), null, "missing why_now cannot hide the legacy source text")
+  assert.equal(briefJudgmentView({ ...complete!, class: "watch", revisit: null }), null, "watch requires a revisit condition")
+  assert.equal(briefJudgmentView({ ...complete!, class: "watch", decision_effect: null }), null, "watch requires a decision effect")
+  assert.equal(briefJudgmentView({ ...complete!, class: "ignore", revisit: null, decision_effect: null })?.class, "ignore", "ignore may have only judgment and why_now")
+  assert.equal(briefJudgmentView({ ...complete!, class: "trade", revisit: null, decision_effect: null })?.class, "trade", "trade may have only judgment and why_now")
   assert.equal(briefJudgmentView({ ...complete!, class: "unknown" as never }), null, "unknown classifications fail closed")
 })
 
