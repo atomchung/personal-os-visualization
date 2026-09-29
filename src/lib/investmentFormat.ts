@@ -1,4 +1,4 @@
-import type { ActionItemStatus, InvestmentActionItem, InvestmentBrief, InvestmentNarrativeLayerGap, InvestmentNarrativeLayerReading, InvestmentTodayView } from "./investment.ts"
+import type { ActionItemStatus, InvestmentActionItem, InvestmentBrief, InvestmentBriefJudgment, InvestmentNarrativeLayerGap, InvestmentNarrativeLayerReading, InvestmentTodayView } from "./investment.ts"
 
 const VALUE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const CHANGE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "exceptZero" })
@@ -192,6 +192,25 @@ export function numberedTargets(text: string): { intro: string; items: string[] 
   ).trim())
   if (items.some(item => !item)) return null
   return { intro: text.slice(0, markers[0].index).trim(), items }
+}
+
+export type BriefJudgmentView = {
+  class: InvestmentBriefJudgment["class"]
+  judgment: string
+  whyNow: string
+  revisit: string
+  decisionEffect: string
+  provenance: InvestmentBriefJudgment["provenance"]
+}
+
+export function briefJudgmentView(judgment: InvestmentBriefJudgment | null | undefined): BriefJudgmentView | null {
+  if (!judgment || !["trade", "watch", "ignore"].includes(judgment.class)) return null
+  const text = judgment.judgment?.trim()
+  const whyNow = judgment.why_now?.trim()
+  const revisit = judgment.revisit?.trim()
+  const decisionEffect = judgment.decision_effect?.trim()
+  if (!text || !whyNow || !revisit || !decisionEffect) return null
+  return { class: judgment.class, judgment: text, whyNow, revisit, decisionEffect, provenance: judgment.provenance ?? null }
 }
 
 export type TodayActionEntry = {
