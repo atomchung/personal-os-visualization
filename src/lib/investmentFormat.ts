@@ -198,8 +198,8 @@ export type BriefJudgmentView = {
   class: InvestmentBriefJudgment["class"]
   judgment: string
   whyNow: string
-  revisit: string
-  decisionEffect: string
+  revisit: string | null
+  decisionEffect: string | null
   provenance: InvestmentBriefJudgment["provenance"]
 }
 
@@ -207,9 +207,10 @@ export function briefJudgmentView(judgment: InvestmentBriefJudgment | null | und
   if (!judgment || !["trade", "watch", "ignore"].includes(judgment.class)) return null
   const text = judgment.judgment?.trim()
   const whyNow = judgment.why_now?.trim()
-  const revisit = judgment.revisit?.trim()
-  const decisionEffect = judgment.decision_effect?.trim()
-  if (!text || !whyNow || !revisit || !decisionEffect) return null
+  const revisit = judgment.revisit?.trim() || null
+  const decisionEffect = judgment.decision_effect?.trim() || null
+  if (!text || !whyNow) return null
+  if (judgment.class === "watch" && (!revisit || !decisionEffect)) return null
   return { class: judgment.class, judgment: text, whyNow, revisit, decisionEffect, provenance: judgment.provenance ?? null }
 }
 
