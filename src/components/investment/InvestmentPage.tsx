@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/ui/page-header"
 import { MarketIndicators } from "./MarketIndicators"
 import { StockMomentum } from "./StockMomentum"
 import {
-  actionStatusLabel, actionStatusNote, briefSessionRows, BRIEF_SESSION_LABELS, groupBriefRows, numberedTargets, openActionItems, todayActionPlan, todayActionSection, todayNextSteps,
+  actionStatusLabel, actionStatusNote, briefJudgmentView, briefSessionRows, BRIEF_SESSION_LABELS, groupBriefRows, numberedTargets, openActionItems, todayActionPlan, todayActionSection, todayNextSteps,
   sourceTimestamp,
 } from "@/lib/investmentFormat"
 import { ResearchWatch, ResearchLibrary, CatalystProjection } from "./ResearchWatch"
@@ -124,12 +124,13 @@ function TodayActionRow({ entry, brief, primary = false }: {
   const formalVersion = brief.session ? BRIEF_SESSION_LABELS[brief.session] : "版次未標示"
   const sourceDate = entry.origin === "update" ? taipeiCalendarDate(entry.date) : brief.date
   return <li data-testid={primary ? "primary-next-step" : "secondary-next-step"} className={`flex min-w-0 flex-col gap-2 ${primary ? "border-l-2 border-accent/50 pl-3" : ""}`}>
-    <p className="text-caption font-medium text-ink-3">{primary ? "優先閱讀的下一步" : "其他下一步"} · {entry.sourceKind === "watch" ? "等／觀察" : entry.sourceKind === "research" ? "查／研究" : entry.sourceKind === "action" ? "做／行動" : "做／等／查分類未提供"}</p>
+    <p className="text-caption font-medium text-ink-3">{entry.origin === "update" ? "盤中更新" : primary ? "優先閱讀的下一步" : "其他下一步"}{entry.origin === "brief" ? ` · ${entry.sourceKind === "watch" ? "等／觀察" : entry.sourceKind === "research" ? "查／研究" : entry.sourceKind === "action" ? "做／行動" : "做／等／查分類未提供"}` : ""}</p>
     <p className="text-body leading-relaxed text-ink-2"><InlineText text={todayBriefText(entry.text.replace(/^(?:補研究|补研究)(?:[：:]|\s)+/, ""), sourceDate)} /></p>
-    <p className="text-caption text-ink-3">為什麼現在：來源未提供此項獨立理由。</p>
-    <p className="text-caption text-ink-3">何時再看：來源未提供此項明確日期或觸發條件；保留上方原文。</p>
-    <p className="text-caption text-ink-3">目前狀態：{entry.sourceStatus ? actionStatusLabel(entry.sourceStatus) : "來源未提供"}</p>
-    {entry.origin === "update" ? <p className="text-caption text-ink-3">盤中更新 · {sourceTimestamp(entry.date)}</p> : null}
+    {entry.origin === "brief" ? <>
+      <p className="text-caption text-ink-3">為什麼現在：來源未提供此項獨立理由。</p>
+      <p className="text-caption text-ink-3">何時再看：來源未提供此項明確日期或觸發條件；保留上方原文。</p>
+      <p className="text-caption text-ink-3">目前狀態：{entry.sourceStatus ? actionStatusLabel(entry.sourceStatus) : "來源未提供"}</p>
+    </> : <p className="text-caption text-ink-3">更新於 {sourceTimestamp(entry.date)}</p>}
     <details>
       <summary className="cursor-pointer py-1 text-caption text-ink-3">查看來源</summary>
       <div className="flex flex-col gap-1 pt-1 text-caption text-ink-3">
@@ -143,6 +144,30 @@ function TodayActionRow({ entry, brief, primary = false }: {
       </div>
     </details>
   </li>
+}
+
+function StructuredBriefJudgment({ brief }: { brief: InvestmentBrief }) {
+  const view = briefJudgmentView(brief.judgment)
+  if (!view) return null
+  const label = view.class === "trade" ? "交易" : view.class === "watch" ? "觀察" : "忽略"
+  const tone = view.class === "trade" ? "warn" as const : view.class === "watch" ? "info" as const : "mute" as const
+  const formalVersion = brief.session ? BRIEF_SESSION_LABELS[brief.session] : "版次未標示"
+  return <div data-testid="structured-brief-judgment" className="flex min-w-0 flex-col gap-2 border-l-2 border-accent/50 pl-3">
+    <div className="flex flex-wrap items-center gap-2"><Chip tone={tone}>{label}</Chip><p className="text-body font-medium leading-relaxed text-ink"><InlineText text={todayBriefText(view.judgment, brief.date)} /></p></div>
+    <p className="text-caption leading-relaxed text-ink-2"><span className="font-medium text-ink">為什麼現在：</span><InlineText text={todayBriefText(view.whyNow, brief.date)} /></p>
+    <p className="text-caption leading-relaxed text-ink-2"><span className="font-medium text-ink">何時回看：</span><InlineText text={todayBriefText(view.revisit, brief.date)} /></p>
+    <p className="text-caption leading-relaxed text-ink-2"><span className="font-medium text-ink">什麼會改變判斷：</span><InlineText text={todayBriefText(view.decisionEffect, brief.date)} /></p>
+    <details className="text-caption text-ink-3">
+      <summary className="cursor-pointer py-1">查看來源</summary>
+      <div className="flex min-w-0 flex-col gap-1 pt-1">
+        <p>正式簡報：{brief.date ?? "日期未提供"} · {formalVersion}</p>
+        <p>簡報截止：{sourceTimestamp(view.provenance?.source_cutoff ?? brief.source_cutoff)}</p>
+        {view.provenance?.story_id ? <p className="break-all">事件 ID：{view.provenance.story_id}</p> : null}
+        {view.provenance?.revision ? <p className="break-all">來源修訂：{view.provenance.revision}</p> : null}
+        {view.provenance?.source_ref ? <p className="break-all">來源參照：{view.provenance.source_ref}</p> : null}
+      </div>
+    </details>
+  </div>
 }
 
 type TodayBriefRows = {
@@ -217,7 +242,13 @@ function TodayBriefSessions({ brief, hasUpdates }: { brief: InvestmentBrief; has
 function TodayNextSteps({ b, today, readFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed: boolean }) {
   const actionPlan = todayActionPlan(b, today, readFailed)
   const actionSection = todayActionSection(b)
-  const nextSteps = todayNextSteps(actionPlan)
+  const structuredJudgment = briefJudgmentView(b.judgment)
+  const displayPlan = structuredJudgment ? {
+    ...actionPlan,
+    actions: actionPlan.actions.filter(entry => entry.origin === "update"),
+    research: actionPlan.research.filter(entry => entry.origin === "update"),
+  } : actionPlan
+  const nextSteps = todayNextSteps(displayPlan)
   return (
     <section className="flex min-w-0 flex-col gap-3" aria-label={actionSection.heading}>
       <div className="flex min-w-0 flex-col gap-1">
@@ -227,10 +258,10 @@ function TodayNextSteps({ b, today, readFailed }: { b: InvestmentBrief; today?: 
       <Card density="reading" className="min-w-0">
         {today?.decision_summary ? <p className="mb-3 text-body font-medium leading-relaxed text-ink"><InlineText text={todayBriefText(today.decision_summary, today.decision_summary_date ?? null)} /></p> : null}
         {actionPlan.coverageMessage ? <p role="status" className="mb-3 text-caption leading-relaxed text-warn">{actionPlan.coverageMessage}</p> : null}
-        <p className="mb-3 text-caption text-ink-3">先列來源的行動／觀察，再列補研究；同類維持來源順序，這是閱讀順序。</p>
-        {nextSteps.primary ? <ul className="flex min-w-0 flex-col gap-4"><TodayActionRow entry={nextSteps.primary} brief={b} primary />{nextSteps.secondary.map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul> : <p className="text-body text-ink-3">{actionPlan.emptyMessage} 未列出項目不代表今天不用動；行動狀態與再看條件仍未知。</p>}
-        {nextSteps.remaining.length ? <details className="mt-3 border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">來源另列 {nextSteps.remaining.length} 項</summary><ul className="mt-2 flex min-w-0 flex-col gap-3">{nextSteps.remaining.map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul></details> : null}
-        {b.upcoming.length ? <details className="mt-3 border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">來源明示的下一次檢查 · 簡報未來 7 天</summary><p className="py-2">以下檢查點未提供與行動的明確關係，獨立列出。</p><ul className="flex flex-col gap-2">{b.upcoming.map((item, index) => <li key={index}>{item.date_label} · <InlineText text={item.event} />{item.check ? <p>要看什麼：<InlineText text={item.check} /></p> : <p>驗證條件未提供。</p>}</li>)}</ul></details> : null}
+        {structuredJudgment ? <StructuredBriefJudgment brief={b} /> : <p className="mb-3 text-caption text-ink-3">先列來源的行動／觀察，再列補研究；同類維持來源順序，這是閱讀順序。</p>}
+        {nextSteps.primary ? <ul className={`flex min-w-0 flex-col gap-4 ${structuredJudgment ? "mt-4 border-t border-line-soft pt-3" : ""}`}><TodayActionRow entry={nextSteps.primary} brief={b} primary />{nextSteps.secondary.map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul> : structuredJudgment ? null : <p className="text-body text-ink-3">{actionPlan.emptyMessage} 未列出項目不代表今天不用動；行動狀態與再看條件仍未知。</p>}
+        {nextSteps.remaining.length ? <details className="mt-3 border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">其他更新 · {nextSteps.remaining.length} 項</summary><ul className="mt-2 flex min-w-0 flex-col gap-3">{nextSteps.remaining.map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul></details> : null}
+        {b.upcoming.length ? <details className="mt-3 border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">其他近期檢查</summary><p className="py-2">這些檢查點沒有明示與上方判斷的關係，因此分開列出。</p><ul className="flex flex-col gap-2">{b.upcoming.map((item, index) => <li key={index}>{item.date_label} · <InlineText text={item.event} />{item.check ? <p>要看什麼：<InlineText text={item.check} /></p> : <p>驗證條件未提供。</p>}</li>)}</ul></details> : null}
         {b.thesis_changes.length || b.risks.length ? <p className="mt-4 border-t border-line-soft pt-3 text-caption leading-relaxed text-ink-3">論點變化 {b.thesis_changes.length} 條、風險 {b.risks.length} 條；見下方事件與「未連結故事的判斷與風險」。來源未標明與哪項行動相關。</p> : null}
         {b.headline ? <details className="mt-4 border-t border-line-soft pt-3 text-caption text-ink-3"><summary className="cursor-pointer py-1">晨報判斷</summary><div className="w-full pt-2 text-body leading-relaxed text-ink-2"><ReadingText text={todayBriefText(b.headline, b.date)} /></div></details> : null}
         {b.source?.limitations.length || b.envelope?.limitations.length ? <details className="mt-3 border-t border-line-soft pt-3 text-caption text-ink-3"><summary className="cursor-pointer py-1">資料完整度</summary>
