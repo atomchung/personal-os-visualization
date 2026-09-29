@@ -14,7 +14,7 @@ import { buildTimeline, researchForToday, splitCatalyst, watchDateWindow } from 
 import { NAV_GROUPS, PAGE_COPY, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, catalystDateGroups, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { layerGapLine, layerReadingCaption, layerReadingText, researchDirectionView, actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyChainDetailLinked, historyChainLinked, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayNextSteps, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { briefJudgmentView, layerGapLine, layerReadingCaption, layerReadingText, researchDirectionView, actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyChainDetailLinked, historyChainLinked, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayNextSteps, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -899,6 +899,19 @@ test("historical chain requires explicit identity, recorded outcome and source p
   assert.equal(historyChainDetailLinked({ ...oneLine, learning_source: { ...linked.learning_source!, line_end: linked.learning_source!.line! - 1 } }), false)
 })
 
+
+test("structured brief judgment is used only when every decision field is present", () => {
+  const complete = syntheticInvestment.brief.judgment
+  const view = briefJudgmentView(complete)
+  assert.equal(view?.class, "watch")
+  assert.equal(view?.judgment, "今天先觀察，不因單一訊號交易。")
+  assert.equal(view?.whyNow, "盤中反應確認事件有被市場交易，但幅度不足以改變原判斷。")
+  assert.equal(view?.revisit, "收盤後再看量能是否延續。")
+  assert.equal(view?.decisionEffect, "量能延續只提高觀察優先級；若訊號消退則維持原判斷。")
+  assert.equal(briefJudgmentView(undefined), null, "old briefs stay on the legacy action path")
+  assert.equal(briefJudgmentView({ ...complete!, why_now: null }), null, "incomplete structured data cannot hide the legacy source text")
+  assert.equal(briefJudgmentView({ ...complete!, class: "unknown" as never }), null, "unknown classifications fail closed")
+})
 
 test("the first Today surface bounds source-ordered steps and preserves source classification", () => {
   const brief = { ...syntheticInvestment.brief, action_items: undefined, actions: ["觀察：等公告", "行動：讀文件", "補研究：核對資料", "第四項", "第五項"] }
