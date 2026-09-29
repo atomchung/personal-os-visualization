@@ -291,12 +291,15 @@ export type InvestmentLayerGap = {
   pillar_id: string
   missing: string
   closes_when: string
-  expected_by: string
-  expected_by_precision: "day" | "month"
+  expected_by: string | null
+  expected_by_precision: "day" | "month" | null
   overdue: boolean
-  state: "ready" | "stale"
+  state: InvestmentNarrativeState | "conflict"
   source: InvestmentNarrativeSource | null
 }
+export type InvestmentNarrativeLayerReadingState = InvestmentLayerReading["state"]
+export type InvestmentNarrativeLayerReading = InvestmentLayerReading
+export type InvestmentNarrativeLayerGap = InvestmentLayerGap
 export type InvestmentOpposingCoverage = {
   state: "sufficient" | "insufficient" | "unavailable" | "unknown"
   checked_at: string | null

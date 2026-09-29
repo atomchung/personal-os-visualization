@@ -296,14 +296,15 @@ export function layerStatusLineFor(layer: Pick<InvestmentNarrativeEvidenceLayer,
 /** The layer's AI-written reading when the producer supplied usable text.
  * A missing, blank or unusable reading returns null, so the card falls back
  * to the counted status line instead of an empty block. */
-export function layerReadingText(layer: Pick<InvestmentNarrativeEvidenceLayer, "current_reading">): string | null {
-  const text = layer.current_reading?.text
+export function layerReadingText(value: Pick<InvestmentNarrativeEvidenceLayer, "current_reading"> | InvestmentLayerReading | null | undefined): string | null {
+  const reading = value && "text" in value ? value : value?.current_reading
+  const text = reading?.text
   return typeof text === "string" && text.trim() ? text.trim() : null
 }
 
-/** Provenance under a reading: it is AI-written, as of when, and on what basis.
- * All three parts always appear, so a missing basis reads as missing. */
-export function layerReadingCaption(reading: Pick<InvestmentLayerReading, "as_of" | "basis">): string {
+/** Provenance under a reading: missing dates and basis remain explicit. */
+export function layerReadingCaption(reading: Pick<InvestmentLayerReading, "as_of" | "basis"> | null | undefined): string | null {
+  if (!reading) return null
   const asOf = reading.as_of?.trim() || "日期未提供"
   const basis = reading.basis?.trim() || "未提供"
   return `AI 整理・${asOf}・依據：${basis}`
@@ -311,7 +312,10 @@ export function layerReadingCaption(reading: Pick<InvestmentLayerReading, "as_of
 
 /** One closable gap: what is missing, what closes it, and by when. */
 export function layerGapLine(gap: Pick<InvestmentLayerGap, "missing" | "closes_when" | "expected_by" | "overdue">): string {
-  return `還缺：${gap.missing}｜${gap.closes_when}・預計 ${gap.expected_by}${gap.overdue ? "・已過預計時間" : ""}`
+  const missing = gap.missing?.trim() || "未提供"
+  const closesWhen = gap.closes_when?.trim() || "未提供"
+  const expectedBy = gap.expected_by?.trim() || "未提供"
+  return `還缺：${missing}｜${closesWhen}・預計 ${expectedBy}${gap.overdue ? "・已過預計時間" : ""}`
 }
 
 const SENTENCE_END_RE = /。[*_」』）)"'’”]*|\.[*_」』）)"'’”]*(?=\s|$)/

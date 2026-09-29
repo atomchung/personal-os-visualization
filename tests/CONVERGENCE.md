@@ -44,3 +44,11 @@ This evidence proves code and synthetic presentation. Private adoption must
 separately verify canonical main, exact source/receipt parity, process and bundle
 identity, and the normal private browser. It does not establish data freshness,
 external provider execution or owner acceptance.
+
+## Concurrent main integration
+
+PR #63 landed during convergence preparation. Its producer-owned layer readings,
+gaps, synthetic fixture, and regression test are retained. Both helper call forms
+remain accepted; existing private missing-date copy `日期未提供` is kept. Reading
+state, author, limitations, source and gap sources remain inspectable in layer
+details. Unknown expected dates are displayed as missing.

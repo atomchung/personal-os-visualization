@@ -281,6 +281,13 @@ try {
       await expand(panel)
       const expanded = await layout(page, `${width}/${label}/expanded`)
       if (label === '我的判斷') {
+        const judgmentText = await panel.innerText()
+        assert.match(judgmentText, /合成層的目前認知。/)
+        assert.match(judgmentText, /AI 整理・2026-09-27・依據：合成依據（2026-09-20）/)
+        assert.match(judgmentText, /還缺：合成缺口｜合成季報・預計 2026-10/)
+        assert.match(judgmentText, /支持 0 筆・挑戰 0 筆・反方：還沒查/, 'old producer keeps its status line')
+        assert.match(judgmentText, /目前認知的來源與限制/)
+        assert.match(judgmentText, /合成案例示範 partial reading 仍可直接閱讀/)
         assert.match(await panel.innerText(), /訊號日期：\s*未提供/)
         assert.match(await panel.innerText(), /文件更新日：\s*2026-09-19/)
         assert.match(await panel.innerText(), /synthetic-challenge-signal.md.*15/)
