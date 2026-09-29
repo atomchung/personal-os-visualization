@@ -40,6 +40,14 @@ never imply no action; Research begins with future events and explicit direction
 then pending work. Desktop, 390px and 320px checks include expanded source detail,
 keyboard navigation, runtime errors and network isolation.
 
+Structured Today judgment uses the producer's typed fields only when the
+judgment is complete for its class and exactly one unclassified formal item
+contains the producer's named legacy serialization fields. Explicit
+action/watch/research kinds, multiple items, malformed fields, unmarked rows and
+read failures keep the legacy rows visible. Replacement is by the single
+contract slot, never by comparing action prose. Story IDs, cutoff, artifact and
+source revision stay in the expanded source detail.
+
 This evidence proves code and synthetic presentation. Private adoption must
 separately verify canonical main, exact source/receipt parity, process and bundle
 identity, and the normal private browser. It does not establish data freshness,

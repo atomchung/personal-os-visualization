@@ -1,4 +1,4 @@
-import type { ActionItemKind, ActionItemStatus, InvestmentActionItem, InvestmentActions, InvestmentBrief, InvestmentBriefJudgmentClass, InvestmentLayerGap, InvestmentLayerReading, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeLayerEvidence, InvestmentNarrativeLayerEvidenceItem, InvestmentNarrativeLayerRow, InvestmentNewsMarket, InvestmentRefreshStatus, InvestmentTodayView, InvestmentWork } from "./investment"
+import type { ActionItemKind, ActionItemStatus, InvestmentActionItem, InvestmentActions, InvestmentBrief, InvestmentBriefJudgment, InvestmentBriefJudgmentClass, InvestmentLayerGap, InvestmentLayerReading, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeLayerEvidence, InvestmentNarrativeLayerEvidenceItem, InvestmentNarrativeLayerRow, InvestmentNewsMarket, InvestmentRefreshStatus, InvestmentTodayView, InvestmentWork } from "./investment"
 
 const VALUE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const CHANGE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "exceptZero" })
@@ -489,25 +489,98 @@ export function isCanonicalActionId(value: string | undefined): boolean {
   return typeof value === "string" && value.startsWith("ai:")
 }
 
-function normalizeWhitespace(value: string): string {
-  return value.trim().replace(/\s+/g, " ")
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-const WHY_NOW_LABEL_RE = /\bwhy_now\s*[:：]/i
+function nonEmptyText(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0
+}
 
-/** today_view's plain-text judgment fallback serializes its structured fields
- * straight into the "今天怎麼做" action paragraph (`...； why_now: ...； revisit:
- * ...`), with the judgment's own sentence as the leading segment before the
- * first field label. An action is that paragraph -- a duplicate of
- * `brief.judgment`, not a second action item -- only when both hold: it
- * carries the `why_now` label, and its leading segment (before the first
- * full- or half-width semicolon, whitespace-normalized) is exactly the
- * judgment's own sentence. Merely mentioning one of these words elsewhere
- * must stay visible; ambiguous cases are never dropped. */
-export function isLegacyJudgmentActionText(text: string, judgmentText: string): boolean {
-  if (!WHY_NOW_LABEL_RE.test(text)) return false
-  const leading = text.split(/[；;]/, 1)[0] ?? ""
-  return normalizeWhitespace(leading) === normalizeWhitespace(judgmentText)
+function validOptionalText(value: unknown): value is string | null | undefined {
+  return value === undefined || value === null || typeof value === "string"
+}
+
+const ACTION_ITEM_STATUSES: readonly ActionItemStatus[] = ["open", "has-canonical-home", "closed", "unknown"]
+const ACTION_ITEM_KINDS: readonly ActionItemKind[] = ["no_change", "watch", "research", "action", "unknown"]
+
+function isContractActionItem(value: unknown): value is InvestmentActionItem {
+  if (!isRecord(value)) return false
+  return typeof value.id === "string"
+    && typeof value.text === "string"
+    && ACTION_ITEM_STATUSES.includes(value.status as ActionItemStatus)
+    && (value.kind === undefined || ACTION_ITEM_KINDS.includes(value.kind as ActionItemKind))
+    && Array.isArray(value.tickers) && value.tickers.every(ticker => typeof ticker === "string")
+    && Array.isArray(value.evidence) && value.evidence.every(evidence => typeof evidence === "string")
+    && typeof value.artifact_id === "string"
+    && typeof value.source === "string"
+    && typeof value.date === "string"
+}
+
+export function validatedBriefJudgment(brief: InvestmentBrief): InvestmentBriefJudgment | null {
+  const value: unknown = brief.judgment
+  if (!isRecord(value)) return null
+  if (value.class !== "trade" && value.class !== "watch" && value.class !== "ignore") return null
+  if (!nonEmptyText(value.judgment) || !nonEmptyText(value.why_now)) return null
+  if (!validOptionalText(value.revisit) || !validOptionalText(value.decision_effect)) return null
+  if (value.class === "watch" && (!nonEmptyText(value.revisit) || !nonEmptyText(value.decision_effect))) return null
+  if (!Object.hasOwn(value, "provenance")) return null
+
+  const provenance = value.provenance
+  if (provenance !== null) {
+    if (!isRecord(provenance)) return null
+    for (const key of ["declared_unverified", "artifact", "source_revision", "source_cutoff"]) {
+      if (!validOptionalText(provenance[key])) return null
+    }
+    if (provenance.validated_story_ids !== undefined
+      && (!Array.isArray(provenance.validated_story_ids) || !provenance.validated_story_ids.every(id => typeof id === "string"))) return null
+  }
+
+  return value as unknown as InvestmentBriefJudgment
+}
+
+export type StructuredBriefJudgmentReplacement = {
+  judgment: InvestmentBriefJudgment
+  source: "action_items" | "actions"
+  index: number
+}
+
+function hasLegacyJudgmentSerialization(text: string, judgment: InvestmentBriefJudgment): boolean {
+  const labels = new Set(Array.from(text.matchAll(/(?:^|[;；])\s*(why_now|revisit|decision_effect|provenance)\s*[:：]/gi), match => match[1].toLowerCase()))
+  if (!labels.has("why_now")) return false
+  if (judgment.class === "watch" && (!labels.has("revisit") || !labels.has("decision_effect"))) return false
+  if (judgment.provenance !== null && !labels.has("provenance")) return false
+  return true
+}
+
+/**
+ * A structured judgment replaces the legacy primary row only when the producer
+ * contract describes exactly one unclassified formal item whose text has the
+ * named legacy-serialization fields. The row's prose is deliberately not
+ * compared with the judgment: a mismatch in shape, count, markers, or explicit
+ * kind keeps every legacy row visible.
+ */
+export function structuredBriefJudgmentReplacement(brief: InvestmentBrief): StructuredBriefJudgmentReplacement | null {
+  const judgment = validatedBriefJudgment(brief)
+  if (!judgment || !Array.isArray(brief.actions)) return null
+
+  if (brief.action_items !== undefined && !Array.isArray(brief.action_items)) return null
+  if (brief.action_items?.length) {
+    if (brief.action_items.length !== 1 || brief.actions.length > 1) return null
+    const item: unknown = brief.action_items[0]
+    if (!isContractActionItem(item) || !nonEmptyText(item.text)) return null
+    if (item.status === "closed" && item.kind !== "no_change") return null
+    if (item.kind !== undefined && item.kind !== "unknown") return null
+    if (legacyActionKind(item.text) !== "unknown") return null
+    if (!hasLegacyJudgmentSerialization(item.text, judgment)) return null
+    if (brief.actions.length === 1 && legacyActionKind(brief.actions[0]) !== "unknown") return null
+    return { judgment, source: "action_items", index: 0 }
+  }
+
+  if (brief.actions.length !== 1 || !nonEmptyText(brief.actions[0])) return null
+  if (legacyActionKind(brief.actions[0]) !== "unknown") return null
+  if (!hasLegacyJudgmentSerialization(brief.actions[0], judgment)) return null
+  return { judgment, source: "actions", index: 0 }
 }
 
 export const JUDGMENT_CLASS_LABEL: Record<InvestmentBriefJudgmentClass, string> = {
@@ -637,13 +710,10 @@ function stripActionPrefix(text: string): string {
 }
 
 /** Keep source kinds/statuses and only use a same-update impact as that update's reason. */
-export function currentTodayActionEntries(brief: InvestmentBrief, today?: InvestmentTodayView): TodayNextStep[] {
+export function currentTodayActionEntries(brief: InvestmentBrief, today?: InvestmentTodayView, allowJudgmentReplacement = true): TodayNextStep[] {
   const entries: TodayNextStep[] = []
   const seenIds = new Set<string>()
-  // Once a brief carries a structured judgment, its plain-text legacy form
-  // (the same paragraph, serialized) is a duplicate action, not a new one --
-  // but only when an action demonstrably is that exact paragraph.
-  const judgmentText = brief.judgment?.judgment ?? null
+  const replacement = allowJudgmentReplacement ? structuredBriefJudgmentReplacement(brief) : null
   const add = (entry: TodayNextStep) => {
     if (!entry.text.trim()) return
     const identity = entry.id ? `${entry.origin}:${entry.id}` : null
@@ -685,9 +755,9 @@ export function currentTodayActionEntries(brief: InvestmentBrief, today?: Invest
     })
   }
   if (brief.action_items?.length) {
-    for (const item of brief.action_items) {
+    for (const [index, item] of brief.action_items.entries()) {
+      if (replacement?.source === "action_items" && replacement.index === index) continue
       if (item.status === "closed" && item.kind !== "no_change") continue
-      if (judgmentText && isLegacyJudgmentActionText(item.text, judgmentText)) continue
       add({
         key: `brief:${item.id || entries.length}`,
         text: item.text.trim(),
@@ -702,7 +772,7 @@ export function currentTodayActionEntries(brief: InvestmentBrief, today?: Invest
     }
   } else {
     brief.actions.forEach((text, index) => {
-      if (judgmentText && isLegacyJudgmentActionText(text, judgmentText)) return
+      if (replacement?.source === "actions" && replacement.index === index) return
       add({
         key: `brief:legacy:${index}`,
         text: stripActionPrefix(text),
@@ -720,14 +790,14 @@ export function currentTodayActionEntries(brief: InvestmentBrief, today?: Invest
 }
 
 /** Only surface action rows whose owning producer state is current and readable. */
-export function currentTodayActionPlan(brief: InvestmentBrief, today?: InvestmentTodayView): TodayNextStep[] {
+export function currentTodayActionPlan(brief: InvestmentBrief, today?: InvestmentTodayView, allowJudgmentReplacement = true): TodayNextStep[] {
   const currentBrief = brief.state === "current"
     ? brief
     : { ...brief, action_items: [], actions: [] }
   const currentToday = today?.state === "ready"
     ? today
     : today ? { ...today, updates: [] } : undefined
-  return currentTodayActionEntries(currentBrief, currentToday)
+  return currentTodayActionEntries(currentBrief, currentToday, allowJudgmentReplacement)
 }
 
 /** Show the overall summary once, unless a step already carries the exact same text. */

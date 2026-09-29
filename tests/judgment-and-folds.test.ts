@@ -12,43 +12,79 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { investment } from "./fixtures/extended-ui.ts"
 import type { InvestmentActionItem, InvestmentBrief, InvestmentBriefJudgment } from "../src/lib/investment.ts"
 import {
-  isLegacyJudgmentActionText, JUDGMENT_CLASS_LABEL, newsScanNote,
-  providerCompletionNote, providerDetailTitle, taipeiClock, currentTodayActionEntries as todayActionPlan,
+  JUDGMENT_CLASS_LABEL, newsScanNote, providerCompletionNote, providerDetailTitle,
+  structuredBriefJudgmentReplacement, taipeiClock, currentTodayActionEntries as todayActionPlan, validatedBriefJudgment,
 } from "../src/lib/investmentFormat.ts"
 import { foldBReason, nonExactDateReason, splitNonExactByDateInfo, translateLegacyLimitation } from "../src/lib/investmentToday.ts"
 
-test("isLegacyJudgmentActionText only matches an action that demonstrably is the serialized judgment", () => {
-  const judgmentText = "今天不交易"
-  assert.equal(isLegacyJudgmentActionText("今天不交易； why_now: 理由未結構化。", judgmentText), true)
-  assert.equal(isLegacyJudgmentActionText("今天不交易；WHY_NOW：全形冒號、大寫也算。", judgmentText), true, "case-insensitive, full-width colon")
-  assert.equal(isLegacyJudgmentActionText("  今天不交易 ； why_now: 理由。", judgmentText), true, "whitespace around the leading segment is normalized")
-  assert.equal(isLegacyJudgmentActionText("今天不交易；revisit: 2026-09-27 重新檢查。", judgmentText), false, "without the why_now label, this must stay visible even though the leading segment matches")
-  assert.equal(isLegacyJudgmentActionText("今天先觀察一下； why_now: 理由。", judgmentText), false, "why_now label present, but the leading sentence differs from the judgment -- stays visible")
-  assert.equal(isLegacyJudgmentActionText("今天不交易，但持續觀察； why_now: 理由。", judgmentText), false, "the leading segment must equal the judgment exactly, not just start with it")
-  assert.equal(isLegacyJudgmentActionText("先前已記錄：不因單一產品發布改動持倉。", judgmentText), false)
-  assert.equal(isLegacyJudgmentActionText("整理兩個待查問題，不由新聞直接形成交易。", judgmentText), false)
-})
-
-test("todayActionPlan drops the legacy serialized judgment paragraph only when it demonstrably is brief.judgment, keeping ambiguous ones visible", () => {
+test("structured judgment replaces only one contract-valid, unclassified formal item", () => {
   const judgment: InvestmentBriefJudgment = {
     class: "watch", judgment: "今天不交易", why_now: "尚未有新證據。",
-    revisit: null, decision_effect: null, provenance: null,
+    revisit: "收盤後再看需求訊號。", decision_effect: "需求確認才重新評估。",
+    provenance: { validated_story_ids: ["story-1"], artifact: "wiki/morning/brief.md", source_revision: "sha256:demo", source_cutoff: "2026-09-27T08:00:00+08:00" },
   }
   const template = investment.brief.action_items![0]
-  const legacyItem: InvestmentActionItem = { ...template, id: "ai:legacy", kind: "watch", status: "open", text: "今天不交易； why_now: 尚未有新證據； provenance: story_id=demo-storage-event" }
-  const ambiguousItem: InvestmentActionItem = { ...template, id: "ai:ambiguous", kind: "watch", status: "open", text: "今天不交易，但持續觀察； why_now: 尚未有新證據。" }
-  const normalItem: InvestmentActionItem = { ...template, id: "ai:normal", kind: "action", status: "open", text: "正常的行動項目。" }
-  const withJudgment: InvestmentBrief = { ...structuredClone(investment.brief), actions: [], action_items: [legacyItem, ambiguousItem, normalItem], judgment }
-  const withoutJudgment: InvestmentBrief = { ...withJudgment, judgment: null }
+  const legacyText = "舊版正式主要項目文案； why_now: 尚未有新證據； revisit: 收盤後再看； decision_effect: 訊號確認後重新評估； provenance: story_id=story-1"
+  const legacyItem: InvestmentActionItem = { ...template, id: "ai:legacy", kind: "unknown", status: "open", text: legacyText }
+  const single: InvestmentBrief = { ...structuredClone(investment.brief), actions: [legacyText], action_items: [legacyItem], judgment }
+  assert.equal(structuredBriefJudgmentReplacement(single)?.judgment, judgment)
+  assert.deepEqual(todayActionPlan(single).map(item => item.text), [], "the unique, unclassified serialized row is replaced without comparing its prose")
+  assert.deepEqual(todayActionPlan(single, undefined, false).map(item => item.text), [legacyText], "a read failure keeps the old formal row in source detail")
 
-  assert.deepEqual(todayActionPlan(withJudgment).map(item => item.text), [
-    "今天不交易，但持續觀察； why_now: 尚未有新證據。", "正常的行動項目。",
-  ], "only the exact serialized paragraph is dropped; the merely-similar one stays visible")
-  assert.deepEqual(todayActionPlan(withoutJudgment).map(item => item.text), [
-    "今天不交易； why_now: 尚未有新證據； provenance: story_id=demo-storage-event",
-    "今天不交易，但持續觀察； why_now: 尚未有新證據。",
-    "正常的行動項目。",
-  ], "without a structured judgment, both are real, independent action items")
+  const unmarked: InvestmentBrief = { ...single, actions: ["無法辨認的舊版行動文案。"], action_items: [{ ...legacyItem, text: "無法辨認的舊版行動文案。" }] }
+  assert.equal(structuredBriefJudgmentReplacement(unmarked), null, "an unmarked action is not assumed to serialize the judgment")
+  assert.deepEqual(todayActionPlan(unmarked).map(item => item.text), ["無法辨認的舊版行動文案。"])
+
+  const explicitlyTyped: InvestmentBrief = { ...single, actions: [`觀察：${legacyText}`], action_items: [{ ...legacyItem, kind: "unknown", text: `觀察：${legacyText}` }] }
+  assert.equal(structuredBriefJudgmentReplacement(explicitlyTyped), null, "a legacy prefix is an explicit generic kind even when kind metadata is missing")
+  assert.deepEqual(todayActionPlan(explicitlyTyped).map(item => item.text), [`觀察：${legacyText}`])
+
+  const ambiguous: InvestmentActionItem = { ...template, id: "ai:second", kind: "unknown", status: "open", text: "第二筆正式項目。" }
+  const multiple: InvestmentBrief = { ...single, action_items: [legacyItem, ambiguous], actions: [legacyItem.text, ambiguous.text] }
+  assert.equal(structuredBriefJudgmentReplacement(multiple), null, "multiple formal rows fail closed")
+  assert.deepEqual(todayActionPlan(multiple).map(item => item.text), [legacyItem.text, ambiguous.text])
+
+  for (const kind of ["action", "watch", "research", "no_change"] as const) {
+    const explicitGeneric = { ...single, action_items: [{ ...legacyItem, kind }] }
+    assert.equal(structuredBriefJudgmentReplacement(explicitGeneric), null, `${kind} is an explicit generic source kind`)
+    assert.deepEqual(todayActionPlan(explicitGeneric).map(item => item.text), [legacyItem.text])
+  }
+})
+
+test("structured judgment follows its class-specific completeness contract and preserves malformed legacy payloads", () => {
+  const judgment: InvestmentBriefJudgment = {
+    class: "watch", judgment: "今天先觀察", why_now: "新證據仍不足。",
+    revisit: "收盤後再看。", decision_effect: "若訊號延續才重新評估。", provenance: null,
+  }
+  const template = investment.brief.action_items![0]
+  const legacyText = "舊版觀察文字； why_now: 新證據仍不足； revisit: 收盤後再看； decision_effect: 若訊號延續才重新評估"
+  const actionItem: InvestmentActionItem = { ...template, id: "ai:legacy", kind: "unknown", status: "open", text: legacyText }
+  const valid = { ...structuredClone(investment.brief), actions: [legacyText], action_items: [actionItem], judgment }
+
+  for (const changed of [
+    { ...judgment, revisit: null },
+    { ...judgment, decision_effect: "  " },
+    { ...judgment, why_now: "  " },
+    { ...judgment, class: "unknown" as never },
+    { ...judgment, provenance: [] as never },
+    { ...judgment, provenance: { validated_story_ids: "story-1" } as never },
+  ]) {
+    const malformed = { ...valid, judgment: changed }
+    assert.equal(structuredBriefJudgmentReplacement(malformed), null)
+    assert.equal(validatedBriefJudgment(malformed), null)
+    assert.deepEqual(todayActionPlan(malformed).map(item => item.text), [actionItem.text], "invalid producer payload never consumes the legacy row")
+  }
+
+  for (const classification of ["trade", "ignore"] as const) {
+    const tradeOrIgnoreText = "舊版交易文字； why_now: 新證據仍不足"
+    const sparse = { ...valid, actions: [tradeOrIgnoreText], action_items: [{ ...actionItem, text: tradeOrIgnoreText }], judgment: { ...judgment, class: classification, revisit: null, decision_effect: null } }
+    assert.equal(structuredBriefJudgmentReplacement(sparse)?.judgment.class, classification, "trade and ignore only require judgment and why_now")
+    assert.deepEqual(todayActionPlan(sparse), [])
+  }
+
+  const explicitLegacyPrefix: InvestmentBrief = { ...valid, action_items: [], actions: ["觀察：原有行動文案。"] }
+  assert.equal(structuredBriefJudgmentReplacement(explicitLegacyPrefix), null, "legacy rows explicitly tagged as action/watch/research remain untouched")
+  assert.deepEqual(todayActionPlan(explicitLegacyPrefix).map(item => item.text), ["原有行動文案。"])
 })
 
 test("JUDGMENT_CLASS_LABEL renders the three producer classes in plain Chinese", () => {
