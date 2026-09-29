@@ -205,6 +205,29 @@ export type InvestmentOpposingCoverage = {
   reason: string
   source: InvestmentNarrativeSource
 }
+export type InvestmentNarrativeLayerReadingState = "ready" | "partial" | "unknown" | "conflict" | "drift"
+export type InvestmentNarrativeLayerReading = {
+  state: InvestmentNarrativeLayerReadingState
+  text: string | null
+  as_of: string | null
+  basis: string | null
+  authored_by: string
+  layer_revision: string | null
+  current_layer_revision: string | null
+  limitations: string[]
+  source: InvestmentNarrativeSource | null
+}
+export type InvestmentNarrativeLayerGap = {
+  gap_id: string
+  pillar_id: string
+  missing: string
+  closes_when: string
+  expected_by: string | null
+  expected_by_precision: "day" | "month" | null
+  overdue: boolean
+  state: InvestmentNarrativeEvidenceState | "drift"
+  source: InvestmentNarrativeSource | null
+}
 export type InvestmentNarrativeEvidenceLayer = {
   layer_id: string
   pillar_id?: string | null
@@ -220,6 +243,8 @@ export type InvestmentNarrativeEvidenceLayer = {
   supporting?: InvestmentNarrativeLayerEvidenceItem[]
   opposing?: InvestmentNarrativeLayerEvidenceItem[]
   opposing_coverage?: InvestmentOpposingCoverage | null
+  current_reading?: InvestmentNarrativeLayerReading | null
+  gaps?: InvestmentNarrativeLayerGap[]
   challenging?: InvestmentNarrativeLayerEvidenceItem[]
   unknown?: InvestmentNarrativeLayerEvidenceItem[]
   conflicts?: InvestmentNarrativeLayerRow[]
