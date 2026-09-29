@@ -247,7 +247,7 @@ function TodayNextSteps({ b, today, readFailed }: { b: InvestmentBrief; today?: 
   const formalEntries = [...actionPlan.actions, ...actionPlan.research].filter(entry => entry.origin === "brief")
   // The producer emits a judgment only for one primary formal item. If the
   // payload contradicts that invariant, keep every legacy item visible.
-  const structuredJudgment = structuredCandidate && formalEntries.length === 1 ? structuredCandidate : null
+  const structuredJudgment = structuredCandidate && formalEntries.length === 1 && formalEntries[0].sourceKind === null ? structuredCandidate : null
   const displayPlan = structuredJudgment ? {
     ...actionPlan,
     actions: actionPlan.actions.filter(entry => entry.origin === "update"),
