@@ -130,7 +130,7 @@ function TodayActionRow({ entry, brief, primary = false }: {
       <p className="text-caption text-ink-3">為什麼現在：來源未提供此項獨立理由。</p>
       <p className="text-caption text-ink-3">何時再看：來源未提供此項明確日期或觸發條件；保留上方原文。</p>
       <p className="text-caption text-ink-3">目前狀態：{entry.sourceStatus ? actionStatusLabel(entry.sourceStatus) : "來源未提供"}</p>
-    </> : <p className="text-caption text-ink-3">更新於 {sourceTimestamp(entry.date)}</p>}
+    </> : <p className="text-caption text-ink-3">盤中時間：{sourceTimestamp(entry.date)}</p>}
     <details>
       <summary className="cursor-pointer py-1 text-caption text-ink-3">查看來源</summary>
       <div className="flex flex-col gap-1 pt-1 text-caption text-ink-3">
@@ -155,16 +155,17 @@ function StructuredBriefJudgment({ brief }: { brief: InvestmentBrief }) {
   return <div data-testid="structured-brief-judgment" className="flex min-w-0 flex-col gap-2 border-l-2 border-accent/50 pl-3">
     <div className="flex flex-wrap items-center gap-2"><Chip tone={tone}>{label}</Chip><p className="text-body font-medium leading-relaxed text-ink"><InlineText text={todayBriefText(view.judgment, brief.date)} /></p></div>
     <p className="text-caption leading-relaxed text-ink-2"><span className="font-medium text-ink">為什麼現在：</span><InlineText text={todayBriefText(view.whyNow, brief.date)} /></p>
-    <p className="text-caption leading-relaxed text-ink-2"><span className="font-medium text-ink">何時回看：</span><InlineText text={todayBriefText(view.revisit, brief.date)} /></p>
-    <p className="text-caption leading-relaxed text-ink-2"><span className="font-medium text-ink">什麼會改變判斷：</span><InlineText text={todayBriefText(view.decisionEffect, brief.date)} /></p>
+    {view.revisit ? <p className="text-caption leading-relaxed text-ink-2"><span className="font-medium text-ink">何時回看：</span><InlineText text={todayBriefText(view.revisit, brief.date)} /></p> : null}
+    {view.decisionEffect ? <p className="text-caption leading-relaxed text-ink-2"><span className="font-medium text-ink">什麼會改變判斷：</span><InlineText text={todayBriefText(view.decisionEffect, brief.date)} /></p> : null}
     <details className="text-caption text-ink-3">
       <summary className="cursor-pointer py-1">查看來源</summary>
       <div className="flex min-w-0 flex-col gap-1 pt-1">
         <p>正式簡報：{brief.date ?? "日期未提供"} · {formalVersion}</p>
         <p>簡報截止：{sourceTimestamp(view.provenance?.source_cutoff ?? brief.source_cutoff)}</p>
-        {view.provenance?.story_id ? <p className="break-all">事件 ID：{view.provenance.story_id}</p> : null}
-        {view.provenance?.revision ? <p className="break-all">來源修訂：{view.provenance.revision}</p> : null}
-        {view.provenance?.source_ref ? <p className="break-all">來源參照：{view.provenance.source_ref}</p> : null}
+        {view.provenance?.validated_story_ids?.length ? <p className="break-all">事件 ID：{view.provenance.validated_story_ids.join("、")}</p> : null}
+        {view.provenance?.source_revision ? <p className="break-all">來源修訂：{view.provenance.source_revision}</p> : null}
+        {view.provenance?.artifact ? <p className="break-all">來源：{view.provenance.artifact}</p> : null}
+        {view.provenance?.declared_unverified ? <p className="break-all">來源原始參照：{view.provenance.declared_unverified}</p> : null}
       </div>
     </details>
   </div>
