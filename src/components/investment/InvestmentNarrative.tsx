@@ -219,6 +219,19 @@ function LayerEvidenceCard({ layer }: { layer: InvestmentNarrativeEvidenceLayer 
           {layer.opposing_coverage ? <><p>{layer.opposing_coverage.reason}</p><p>檢查日期：{sourceTimestamp(layer.opposing_coverage.checked_at)} · 範圍：{layer.opposing_coverage.scope || "未知"}</p><ul><SourceReference source={layer.opposing_coverage.source} /></ul></> : null}
         </div>
         {readingText && layer.unknown_reason ? <p><span className="font-medium text-ink-2">既有未知說明：</span>{layer.unknown_reason}</p> : null}
+        {layer.current_reading ? <div className="flex min-w-0 flex-col gap-1">
+          <p className="font-medium text-ink-2">目前認知的來源與限制</p>
+          <p>來源狀態：{layer.current_reading.state} · 整理者：{layer.current_reading.authored_by || "未提供"}</p>
+          {layer.current_reading.limitations.length ? <ul className="list-disc pl-4 text-warn">{layer.current_reading.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul> : null}
+          <ul className="flex flex-col gap-1"><SourceReference source={layer.current_reading.source} /></ul>
+        </div> : null}
+        {gaps.length ? <div className="flex min-w-0 flex-col gap-1">
+          <p className="font-medium text-ink-2">待補資訊的來源</p>
+          <ul className="flex min-w-0 flex-col gap-2">{gaps.map((gap, index) => <li key={gap.gap_id || index}>
+            <p>{gap.missing || "未提供"} · 狀態：{gap.state}</p>
+            <ul><SourceReference source={gap.source} /></ul>
+          </li>)}</ul>
+        </div> : null}
         <p><span className="font-medium text-ink-2">價值鏈位置：</span>{layer.who_earns || "來源未提供"}</p>
         <p><span className="font-medium text-ink-2">證據例：</span>{layer.evidence_examples || "來源未提供"}</p>
         <p><span className="font-medium text-ink-2">可證明範圍：</span>{layer.what_it_proves || "來源未提供"}</p>
