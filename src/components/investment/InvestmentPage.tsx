@@ -1,29 +1,33 @@
-import { useState } from "react"
-import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useEffect, useState, type ReactNode } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { DEMO_MODE } from "@/lib/transport"
 import { Button } from "@/components/ui/button"
-import { Card, CardSection, ReadingColumn, SectionHeading, SubsectionHeading } from "@/components/ui/card"
+import { Card, Field, FieldList, ReadingColumn, SectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { PageHeader } from "@/components/ui/page-header"
-import { MarketIndicators } from "./MarketIndicators"
+import { MarketPulse } from "./MarketPulse"
 import { StockMomentum } from "./StockMomentum"
 import {
-  actionStatusLabel, actionStatusNote, briefSessionRows, BRIEF_SESSION_LABELS, groupBriefRows, numberedTargets, openActionItems, todayActionPlan, todayActionSection, todayNextSteps,
-  sourceTimestamp,
+  actionStatusLabel, actionStatusNote, currentOpenActionItems, groupBriefRows,
+  JUDGMENT_CLASS_LABEL, newsScanNote, pendingActionsCountLine, providerCompletionNote, providerDetailTitle, taipeiClock,
+  sourceTimestamp, todayActionKindLabel, currentTodayActionPlan, todayGlobalDecisionSummary,
 } from "@/lib/investmentFormat"
-import { ResearchWatch, ResearchLibrary, CatalystProjection } from "./ResearchWatch"
+import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
 import { ReadingText, InlineText } from "./ReadingText"
-import { InvestmentWorkPanel, InvestmentWatchNotes } from "./InvestmentWork"
+import { buildTodayStories, todayCheckpoint, todayStoryHeadline, type TodayStory } from "@/lib/investmentToday"
+import { DayTimeline, TargetText } from "./DayTimeline"
+import { EventNews } from "./EventNews"
+import { InvestmentReminderPanel, InvestmentWorkPanel } from "./InvestmentWork"
 import { PendingBoard } from "./InvestmentPending"
 import { InvestmentHistory } from "./InvestmentHistory"
-import { InvestmentNarrativeSection } from "./InvestmentNarrative"
-import { anchorRelativeDay, buildTodayStories, taipeiCalendarDate, todayStoryHeadline, type TodayStory } from "@/lib/investmentToday"
+import { InvestmentNarrativeSection, TodayCatalysts } from "./InvestmentNarrative"
+import { InvestmentThesis } from "./InvestmentThesis"
 import {
-  getInvestment, getInvestmentWatch, getInvestmentMarket, getInvestmentPulse,
-  getTwRelativeStrength, getInvestmentPending, getInvestmentHistory, getInvestmentContext, getInvestmentResearch,
-  getInvestmentSource, getInvestmentWork,
-  getInvestmentActions, getMarketExplore, getInvestmentNarrative,
-  type InvestmentActionItem, type InvestmentBrief, type InvestmentSource, type InvestmentTodayView,
+  BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentResearch,
+  getInvestmentHistory, getInvestmentContext, getInvestmentSource,
+  getInvestmentActions, getInvestmentNarrative, getInvestmentRefreshStatus, postInvestmentRefresh,
+  type InvestmentRefreshAction, type InvestmentRefreshStatus,
+  type InvestmentActionItem, type InvestmentActions, type InvestmentBrief, type InvestmentSource, type InvestmentTodayView,
 } from "@/lib/investment"
 
 function SourceText({ source }: { source: InvestmentSource }) {
@@ -31,45 +35,38 @@ function SourceText({ source }: { source: InvestmentSource }) {
   const query = useQuery({ queryKey: ["investment-source", source.id, source.generated_at], queryFn: ({ signal }) => getInvestmentSource(source.id, signal), enabled: open, staleTime: 0, retry: false, refetchOnWindowFocus: false })
   return <details onToggle={e => setOpen(e.currentTarget.open)}>
     <summary className="cursor-pointer py-2 text-body font-medium">閱讀完整簡報 · {source.date ?? "日期未提供"}</summary>
-    <div className="w-full pt-3">{query.isPending ? <p className="text-body text-ink-3">載入原文中…</p> : query.isError ? <p role="alert" className="text-body text-warn">簡報原文讀取失敗，請按更新資料。</p> : query.data ? <ReadingText text={query.data.text} /> : null}</div>
+    <div className="max-w-[900px] pt-3">{query.isPending ? <p className="text-body text-ink-3">載入原文中…</p> : query.isError ? <p role="alert" className="text-body text-warn">簡報原文讀取失敗，請按更新資料。</p> : query.data ? <ReadingText text={query.data.text} /> : null}</div>
   </details>
 }
 
-function todayText(text: string): string {
-  return text
-    .replace(/\bCORE\b/g, "半導體核心（NVDA／台積電）")
-    .replace(/\bMEMORY\b/g, "記憶體")
-    .replace(/\bINTERCONNECT\b/g, "AI 互連")
-    .replace(/相對強度/g, "相對大盤強弱")
+function TodayAnchor({ children }: { children: ReactNode }) {
+  return <h2 className="text-label font-semibold tracking-wide text-ink-3">{children}</h2>
 }
 
-function todayBriefText(text: string, briefDate: string | null): string {
-  return anchorRelativeDay(todayText(text), briefDate)
+function durationLabel(raw: number): string {
+  const seconds = Math.max(0, Math.round(raw))
+  if (seconds < 60) return `${seconds} 秒`
+  return `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`
 }
 
-function StoryPoint({ label, text, date }: { label: string; text: string; date: string | null }) {
-  const content = todayBriefText(text, date)
-  const targets = numberedTargets(content)
-  return <li><span className="font-medium text-ink">{label}：</span>{targets ? <>
-    {targets.intro ? <InlineText text={targets.intro} /> : null}
-    <ul className="mt-1 flex flex-col gap-1 pl-5 [list-style-type:circle]">{targets.items.map((item, index) => <li key={index}><InlineText text={item} /></li>)}</ul>
-  </> : <InlineText text={content} />}</li>
-}
-
-function ThesisRows({ rows, briefDate }: { rows: InvestmentBrief["thesis_changes"]; briefDate: string | null }) {
-  return <ul className="flex flex-col gap-3">{rows.map((row, index) => <li key={index} className="text-body leading-relaxed text-ink-2">
-    <p><span className="font-medium text-ink"><InlineText text={todayBriefText(row.thesis, briefDate)} /></span>{row.change ? <> · <InlineText text={todayBriefText(row.change, briefDate)} /></> : null}</p>
-    {row.reason && row.reason.length <= 80 ? <p className="mt-1"><InlineText text={todayBriefText(row.reason, briefDate)} /></p> : null}
-    {row.reason && row.reason.length > 80 ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">查看變化理由</summary><p className="pt-1 text-body text-ink-2"><InlineText text={todayBriefText(row.reason, briefDate)} /></p></details> : null}
-  </li>)}</ul>
-}
-
-function RiskRows({ rows, briefDate }: { rows: InvestmentBrief["risks"]; briefDate: string | null }) {
-  return <ul className="flex flex-col gap-3">{rows.map((row, index) => <li key={index} className="text-body leading-relaxed text-ink-2">
-    <p className="font-medium text-warn"><InlineText text={todayBriefText(row.risk, briefDate)} /></p>
-    {row.status && row.status.length <= 80 ? <p className="mt-1"><InlineText text={todayBriefText(row.status, briefDate)} /></p> : null}
-    {row.status && row.status.length > 80 ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">查看風險狀態</summary><p className="pt-1 text-body text-ink-2"><InlineText text={todayBriefText(row.status, briefDate)} /></p></details> : null}
-  </li>)}</ul>
+function refreshStateLabel(action: InvestmentRefreshAction, status: InvestmentRefreshStatus | undefined): string {
+  const marketName = status?.market_scope === "tw" ? "台股" : status?.market_scope === "us" ? "美股" : null
+  const scanName = status?.scan_mode === "quick" ? "快掃" : status?.scan_mode === "deep" ? "深度掃描" : "掃描"
+  const name = action === "market" ? "盤面" : `${marketName ? `${marketName}消息` : "最新消息"}${scanName}`
+  if (!status || status.state === "idle") return `${name}尚未更新`
+  if (status.state === "running") {
+    const started = status.started_at ? Date.parse(status.started_at) : Number.NaN
+    const elapsed = Number.isFinite(started) ? Math.max(0, Math.floor((Date.now() - started) / 1000)) : null
+    return `${name}進行中${elapsed === null ? "…" : ` · 已進行 ${durationLabel(elapsed)}`}`
+  }
+  const providerNote = action === "news" ? providerCompletionNote(status) : null
+  const route = providerNote ? ` · ${providerNote}` : ""
+  const duration = action === "news" && typeof status.duration_seconds === "number" && Number.isFinite(status.duration_seconds)
+    ? ` · 總耗時 ${durationLabel(status.duration_seconds)}`
+    : ""
+  if (status.state === "failed") return `${name}更新失敗：${status.message}${duration}${route}`
+  if (action === "news" && status.state === "no-change") return `${name}於 ${sourceTimestamp(status.last_updated)} 完成，無影響當前判斷的新消息${duration}${route}`
+  return `${name}完成於 ${sourceTimestamp(status.last_updated)}${status.message ? ` · ${status.message}` : ""}${duration}${route}`
 }
 
 function statusTone(status: InvestmentActionItem["status"]): "warn" | "info" | "ok" {
@@ -100,285 +97,380 @@ function ContinuationRow({ item, showDate }: { item: InvestmentActionItem; showD
   </li>
 }
 
-function ContinuationList({ items, compact = false, olderCount = 0, onOpenWork }: { items: InvestmentActionItem[]; compact?: boolean; olderCount?: number; onOpenWork?: () => void }) {
-  if (!items.length && !olderCount) return null
-  const limit = compact ? 2 : 8
-  const shown = items.slice(0, limit)
-  const rest = items.slice(limit)
-  return <div className="flex min-w-0 flex-col gap-2">
-    <div className="flex flex-wrap items-baseline justify-between gap-2">
-      <SubsectionHeading>來源記錄的待續行動</SubsectionHeading>
-      {onOpenWork ? <Button variant="link" onClick={onOpenWork}>到研究與策略</Button> : null}
-    </div>
-    <p className="text-caption text-ink-3">{compact ? "還沒結束；可到研究與策略接著看。" : "來自判斷與研究紀錄，和你在本機記下的問題分開。"}{olderCount ? ` 更早的 ${olderCount} 項留在「研究與策略」。` : ""}</p>
-    <ul className="flex min-w-0 flex-col gap-2">{shown.map(item => <ContinuationRow key={item.id} item={item} showDate={!compact} />)}</ul>
-    {rest.length ? <details><summary className="cursor-pointer py-2 text-caption font-medium">來源另列 {rest.length} 項</summary><ul className="mt-2 flex min-w-0 flex-col gap-2">{rest.map(item => <ContinuationRow key={item.id} item={item} showDate={!compact} />)}</ul></details> : null}
+/** Investment Note's own unfinished actions inside 待處理: one count line, the
+ * existing rows folded into a single collapsed list. A failed or unavailable
+ * read keeps its warning and shows no count, so it never reads as zero. */
+export function InvestmentNoteActions({ data, isPending, isError, splitStatuses = false }: { data: InvestmentActions | undefined; isPending: boolean; isError: boolean; splitStatuses?: boolean }) {
+  // One flag for both the rows and the count: a failed read or an
+  // unavailable payload shows neither, whatever items it still carries.
+  const unreadable = isError || data?.state === "unavailable"
+  const items = currentOpenActionItems(data?.items ?? [], unreadable)
+  const countLine = pendingActionsCountLine(data, unreadable)
+  return <div role="group" className="flex min-w-0 flex-col gap-2 border-t border-line-soft pt-3" aria-label="Investment Note 未結案的行動">
+    {isError ? <p role="status" className="text-caption text-warn">待續行動這次讀不到；不把上次內容當成目前待續工作。本機筆記仍可使用。</p> : null}
+    {data?.state === "unavailable" ? <p role="status" className="text-caption text-warn">{data.message || "待續行動目前無法取得。"}</p> : null}
+    {isPending && !data ? <p role="status" className="text-caption text-ink-3">正在讀取 Investment Note 的行動…</p> : null}
+    {countLine ? <p className="text-body leading-relaxed text-ink-2">{countLine.split(/(\d{4}-\d{2}-\d{2})/).map((part, index) => index % 2 ? <span key={index} className="whitespace-nowrap">{part}</span> : part)}</p> : null}
+    {countLine && data?.state === "partial" && data.limitations.length ? <p className="text-caption text-ink-3">{data.limitations.join("；")}</p> : null}
+    {splitStatuses ? (["open", "has-canonical-home"] as const).map(status => {
+      const group = items.filter(item => item.status === status)
+      return group.length ? <details key={status}>
+        <summary className="cursor-pointer py-2 text-body font-medium">來源 status：{status === "open" ? "尚未結案" : "已有判斷頁可承接"} · {group.length} 項</summary>
+        <ul className="flex min-w-0 flex-col gap-2 pt-2">{group.map(item => <ContinuationRow key={item.id} item={item} showDate />)}</ul>
+      </details> : null
+    }) : items.length ? <details>
+      <summary className="cursor-pointer py-1 text-caption text-ink-3">展開 {items.length} 筆行動</summary>
+      <ul className="flex min-w-0 flex-col gap-2 pt-2">{items.map(item => <ContinuationRow key={item.id} item={item} showDate />)}</ul>
+    </details> : null}
   </div>
 }
 
-function TodayActionRow({ entry, brief, primary = false }: {
-  entry: ReturnType<typeof todayActionPlan>["actions"][number]
-  brief: InvestmentBrief
-  primary?: boolean
-}) {
-  const formalVersion = brief.session ? BRIEF_SESSION_LABELS[brief.session] : "版次未標示"
-  const sourceDate = entry.origin === "update" ? taipeiCalendarDate(entry.date) : brief.date
-  return <li data-testid={primary ? "primary-next-step" : "secondary-next-step"} className={`flex min-w-0 flex-col gap-2 ${primary ? "border-l-2 border-accent/50 pl-3" : ""}`}>
-    <p className="text-caption font-medium text-ink-3">{primary ? "優先閱讀的下一步" : "其他下一步"} · {entry.sourceKind === "watch" ? "等／觀察" : entry.sourceKind === "research" ? "查／研究" : entry.sourceKind === "action" ? "做／行動" : "做／等／查分類未提供"}</p>
-    <p className="text-body leading-relaxed text-ink-2"><InlineText text={todayBriefText(entry.text.replace(/^(?:補研究|补研究)(?:[：:]|\s)+/, ""), sourceDate)} /></p>
-    <p className="text-caption text-ink-3">為什麼現在：來源未提供此項獨立理由。</p>
-    <p className="text-caption text-ink-3">何時再看：來源未提供此項明確日期或觸發條件；保留上方原文。</p>
-    <p className="text-caption text-ink-3">目前狀態：{entry.sourceStatus ? actionStatusLabel(entry.sourceStatus) : "來源未提供"}</p>
-    {entry.origin === "update" ? <p className="text-caption text-ink-3">盤中更新 · {sourceTimestamp(entry.date)}</p> : null}
-    <details>
-      <summary className="cursor-pointer py-1 text-caption text-ink-3">查看來源</summary>
-      <div className="flex flex-col gap-1 pt-1 text-caption text-ink-3">
-        <p>來源：{entry.source ?? "未提供"}</p>
-        {entry.origin === "brief" ? <p>正式簡報：{entry.date ?? "日期未提供"} · {formalVersion}</p> : null}
-        {entry.origin === "update" ? <p className="break-all">更新 ID：{entry.id ?? "未提供"}</p> : <>
-          {entry.id ? <p>行動 ID：{entry.id}</p> : null}
-          <p>簡報截止：{sourceTimestamp(brief.source_cutoff)}</p>
-          <p>簡報產出：{sourceTimestamp(brief.generated_at)}</p>
-        </>}
-      </div>
-    </details>
-  </li>
-}
-
-type TodayBriefRows = {
-  theses: { byEvent: InvestmentBrief["thesis_changes"][]; unlinked: InvestmentBrief["thesis_changes"] }
-  risks: { byEvent: InvestmentBrief["risks"][]; unlinked: InvestmentBrief["risks"] }
-}
-
-function TodayStoryCard({ story, theses, risks, briefDate }: {
-  story: TodayStory
-  theses: TodayBriefRows["theses"]
-  risks: TodayBriefRows["risks"]
-  briefDate: string | null
-}) {
-  const latestUpdate = story.updates[0]
+function StoryCard({ story, b }: { story: TodayStory; b: InvestmentBrief }) {
+  const latest = story.updates[0]
   const heading = todayStoryHeadline(story)
-  const headingDate = latestUpdate ? taipeiCalendarDate(latestUpdate.observed_at) : briefDate
-  const latestImpact = latestUpdate?.portfolio_impact.trim()
-  const latestAction = latestUpdate?.action.trim()
-  const hasSources = story.updates.length > 0 || Boolean(story.story_id)
-  return <CardSection as="article" density="normal">
+  const impact = latest?.portfolio_impact.trim() || ""
+  const watch = latest?.action.trim() || ""
+  const hasHistory = story.updates.length > 0 || Boolean(story.story_id) || story.events.length > 1
+  const changes = groupBriefRows(b.thesis_changes, b.events.length)
+  const risks = groupBriefRows(b.risks, b.events.length)
+  return <article className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
-      <div className="min-w-0">
-        {latestUpdate ? <p className="text-caption font-medium text-ink-3">目前狀態</p> : null}
-        <SubsectionHeading><InlineText text={todayBriefText(heading, headingDate)} /></SubsectionHeading>
-      </div>
-      {latestUpdate ? <span className="shrink-0 metadata">更新於 {sourceTimestamp(latestUpdate.observed_at)}</span> : null}
+      <h3 className="min-w-0 text-body font-semibold leading-relaxed text-ink"><InlineText text={heading} /></h3>
+      {latest ? <span className="shrink-0 text-caption text-ink-3">更新於 {sourceTimestamp(latest.observed_at)}</span> : null}
     </div>
-    {story.updates.map((item, index) => <div key={item.id} className="flex min-w-0 flex-col gap-2">
-      {index > 0 ? <p className="text-caption font-medium text-ink-3">較早盤中觀察 · {sourceTimestamp(item.observed_at)}</p> : null}
-      {item.summary.trim() !== heading.trim() ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={todayBriefText(item.summary, taipeiCalendarDate(item.observed_at))} /></p> : null}
-      {item.portfolio_impact ? <ul className="flex min-w-0 flex-col gap-2 pl-5 text-body leading-relaxed text-ink-2 [list-style-type:disc]">
-        {item.portfolio_impact ? <StoryPoint label="對判斷的影響" text={item.portfolio_impact} date={taipeiCalendarDate(item.observed_at)} /> : null}
-      </ul> : null}
-      {item.action ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">這筆更新的原始提醒</summary><p className="pt-1 text-body leading-relaxed text-ink-2"><InlineText text={todayBriefText(item.action, taipeiCalendarDate(item.observed_at))} /></p></details> : null}
+    {latest && !latest.summary.trim() ? <p role="status" className="text-caption text-warn">最新盤中摘要未提供；以下保留簡報基線與其他來源。</p> : null}
+    {story.events.map(({ event, event_index }, index) => <div key={event_index} className="flex min-w-0 flex-col gap-2">
+      <p className="text-caption font-medium text-ink-3">{index === 0 ? "正式簡報基線" : "同故事中的另一份正式簡報"}</p>
+      {event.event.trim() !== heading.trim() ? <p className="text-body font-medium leading-relaxed text-ink"><InlineText text={event.event} /></p> : null}
+      {event.market_reaction ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報市場反應：</span><InlineText text={event.market_reaction} /></p> : null}
+      {event.interpretation ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報市場解讀：</span><InlineText text={event.interpretation} /></p> : null}
+      {event.impact && event.impact.trim() !== latest?.portfolio_impact.trim() ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報基線的持倉影響：</span><InlineText text={event.impact} /></p> : null}
+      {event.today && event.today.trim() !== latest?.action.trim() ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報基線提醒：</span><InlineText text={event.today} /></p> : null}
+      {changes.byEvent[event_index].length || risks.byEvent[event_index].length ? <div className="flex min-w-0 flex-col gap-2 border-t border-line-soft pt-2">
+        <p className="text-caption font-medium text-ink-3">這則事件的判斷與風險</p>
+        {changes.byEvent[event_index].length ? <ul className="flex list-disc flex-col gap-1 pl-5 text-body leading-relaxed text-ink-2">{changes.byEvent[event_index].map((row, rowIndex) => <li key={`thesis-${rowIndex}`}><span className="font-medium text-ink">{row.thesis}</span>{row.change ? <> · {row.change}</> : null}{row.reason ? <p className="text-caption text-ink-3">依據：{row.reason}</p> : null}</li>)}</ul> : null}
+        {risks.byEvent[event_index].length ? <ul className="flex list-disc flex-col gap-1 pl-5 text-body leading-relaxed text-ink-2">{risks.byEvent[event_index].map((row, rowIndex) => <li key={`risk-${rowIndex}`}><span className="text-warn">{row.risk}</span>{row.status ? <p className="text-caption text-ink-3">{row.status}</p> : null}</li>)}</ul> : null}
+      </div> : null}
     </div>)}
-    {story.events.map(({ event, event_index }, index) => <details key={event_index} open={!story.updates.length} className="min-w-0 text-ink-3">
-      <summary className="cursor-pointer py-1 text-caption font-medium">{index === 0 ? "正式簡報基線與論據" : "同故事中的另一份正式簡報"}</summary>
-      <div className="flex min-w-0 flex-col gap-2 pt-2">
-      {event.event.trim() !== heading.trim() ? <p className="text-body font-medium leading-relaxed text-ink"><InlineText text={todayBriefText(event.event, briefDate)} /></p> : null}
-      {event.market_reaction ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報市場反應：</span><InlineText text={todayBriefText(event.market_reaction, briefDate)} /></p> : null}
-      {event.interpretation ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報市場解讀：</span><InlineText text={todayBriefText(event.interpretation, briefDate)} /></p> : null}
-      {event.impact && event.impact.trim() !== latestImpact ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報基線的持倉影響：</span><InlineText text={todayBriefText(event.impact, briefDate)} /></p> : null}
-      {event.today && event.today.trim() !== latestAction ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">簡報基線提醒：</span><InlineText text={todayBriefText(event.today, briefDate)} /></p> : null}
-      </div>
-    </details>)}
-    {story.events.map(({ event_index }) => theses.byEvent[event_index].length || risks.byEvent[event_index].length ? <div key={`judgment-${event_index}`} className="flex min-w-0 flex-col gap-3 border-t border-line-soft pt-3">
-      {theses.byEvent[event_index].length ? <div><p className="mb-2 text-caption font-medium text-ink-3">此事件的論點變化</p><ThesisRows rows={theses.byEvent[event_index]} briefDate={briefDate} /></div> : null}
-      {risks.byEvent[event_index].length ? <div><p className="mb-2 text-caption font-medium text-warn">此事件的風險</p><RiskRows rows={risks.byEvent[event_index]} briefDate={briefDate} /></div> : null}
-    </div> : null)}
-    {hasSources ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
-      <summary className="cursor-pointer py-1">來源與事件身分</summary>
-      {story.story_id ? <p className="pt-1">事件 ID：{story.story_id}</p> : <p className="pt-1">來源沒有提供可用的事件 ID；此項目保持獨立。</p>}
-      {story.updates.length ? <ul className="flex min-w-0 flex-col gap-1 pt-1">{story.updates.map(item => <li key={item.id} className="break-all">{item.id} · {sourceTimestamp(item.observed_at)} · {item.source_path}</li>)}</ul> : null}
+    {impact ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">對判斷的影響：</span><InlineText text={impact} /></p> : null}
+    {watch ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">現在要注意：</span><InlineText text={watch} /></p> : null}
+    {hasHistory ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
+      <summary className="cursor-pointer py-1">來源歷史與事件身分</summary>
+      {story.story_id ? <p className="pt-1">story_id：{story.story_id}</p> : null}
+      {story.updates.length ? <ul className="flex flex-col gap-2 pt-1">{story.updates.map((update, index) => <li key={update.id}>
+        <p>{index === 0 ? "最新盤中觀察" : "較早盤中觀察"} · {sourceTimestamp(update.observed_at)}</p>
+        <p className="mt-1">來源 ID：{update.id} · 路徑：{update.source_path}</p>
+        <p className="mt-1">摘要：{update.summary.trim() || "最新摘要未提供"}</p>
+        {update.portfolio_impact ? <p className="mt-1">對判斷的影響：{update.portfolio_impact}</p> : null}
+        {update.action ? <p className="mt-1">現在要注意：{update.action}</p> : null}
+      </li>)}</ul> : null}
     </details> : null}
-  </CardSection>
+  </article>
 }
 
-function TodayBriefSessions({ brief, hasUpdates }: { brief: InvestmentBrief; hasUpdates: boolean }) {
-  const rows = briefSessionRows(brief)
-  const selected = rows.find(row => row.matches)
-  return <section aria-label="簡報版本" className="flex min-w-0 flex-col gap-2 border-b border-line-soft pb-3">
-    <p className="metadata">{brief.date ? sourceTimestamp(brief.date) : "日期未提供"} · {selected?.label ?? "版次未標示"}</p>
-    <p className="metadata">資訊截至 {sourceTimestamp(brief.source_cutoff)}{hasUpdates ? " · 下方另列盤中更新" : ""}</p>
-    <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">班次與產出時間</summary>
-      <p className="pt-1">實際產出：{sourceTimestamp(brief.generated_at)}。班次時段是目標，不代表自動產出或送達；共享資料沒有排程狀態。</p>
-      <ul className="mt-2 flex flex-col gap-1">{rows.map(row => <li key={row.session}>{row.label} · 目標 {row.targetTime} 台北 · {row.matches ? "本次所選簡報" : "本次資料未提供此班次"}</li>)}</ul>
-    </details>
+/** Keep producer-authored thesis/risk meaning in the action reading path. */
+function ThesisAttention({ b, onOpenThesis, presentation, timelineStoryIds }: {
+  b: InvestmentBrief
+  onOpenThesis: () => void
+  presentation: "timeline" | "stories" | "none"
+  timelineStoryIds: ReadonlySet<string>
+}) {
+  const changes = groupBriefRows(b.thesis_changes.filter(row => row.thesis.trim() || row.change.trim()), b.events.length)
+  const risks = groupBriefRows(b.risks.filter(row => row.risk.trim()), b.events.length)
+  const keepSeparate = <T extends { event_index: number | null }>(rows: T[][], unlinked: T[]) => [
+    ...unlinked,
+    ...rows.flatMap((items, eventIndex) => {
+      const storyId = b.events[eventIndex]?.story_id?.trim()
+      if (presentation === "stories") return []
+      if (presentation === "timeline" && storyId && timelineStoryIds.has(storyId)) return []
+      return items
+    }),
+  ]
+  const separateChanges = keepSeparate(changes.byEvent, changes.unlinked)
+  const separateRisks = keepSeparate(risks.byEvent, risks.unlinked)
+  const notes = b.risk_notes.filter(note => note.trim())
+  const thesisNotes = b.thesis_notes.filter(note => note.trim())
+  if (!separateChanges.length && !separateRisks.length && !notes.length && !thesisNotes.length) return null
+  const renderChange = (row: InvestmentBrief["thesis_changes"][number], index: number) => <li key={`thesis-${index}`}>
+    <span className="font-medium text-ink"><InlineText text={row.thesis} /></span>{row.change ? <> · <InlineText text={row.change} /></> : null}
+    {row.reason ? <p className="text-caption text-ink-3">依據：<InlineText text={row.reason} /></p> : null}
+  </li>
+  const renderRisk = (row: InvestmentBrief["risks"][number], index: number) => <li key={`risk-${index}`}>
+    <span className="text-warn"><InlineText text={row.risk} /></span>{row.status ? <p className="text-caption text-ink-3"><InlineText text={row.status} /></p> : null}
+  </li>
+  return <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
+    <summary className="cursor-pointer py-1">未連結簡報論點與風險</summary>
+    <div className="flex min-w-0 flex-col gap-2 pt-2">
+    {b.state === "stale" ? <p>沿用較早簡報的未連結內容。</p> : null}
+    {separateChanges.length || separateRisks.length ? <div className="border-l-2 border-line-soft pl-3">
+      <p className="text-caption font-medium text-ink-2">未連結或無法跨投影核對的簡報論點與風險</p>
+      {(separateChanges.some(row => row.event_index !== null) || separateRisks.some(row => row.event_index !== null)) ? <p className="text-caption text-ink-3">部分項目在簡報內有事件索引，但時間軸沒有可核對的相同 story_id；保留在這裡，不依文字或日期配對。</p> : null}
+      <ul className="flex list-disc flex-col gap-2 pl-5 text-body leading-relaxed text-ink-2">
+        {separateChanges.map(renderChange)}{separateRisks.map(renderRisk)}
+      </ul>
+    </div> : null}
+    {notes.length ? <div className="border-l-2 border-warn pl-3">
+      <p className="text-caption font-medium text-ink-2">跨日風險註記</p>
+      <ul className="list-disc pl-5 text-body leading-relaxed text-ink-2">{notes.map((note, index) => <li key={`note-${index}`}><InlineText text={note} /></li>)}</ul>
+    </div> : null}
+    {thesisNotes.length ? <div className="border-l-2 border-line-soft pl-3">
+      <p className="text-caption font-medium text-ink-2">其他論點補充</p>
+      <ul className="list-disc pl-5 text-body leading-relaxed text-ink-2">{thesisNotes.map((note, index) => <li key={`thesis-note-${index}`}><InlineText text={note} /></li>)}</ul>
+    </div> : null}
+    <Button variant="link" className="self-start" onClick={onOpenThesis}>看完整論點與來源</Button>
+    </div>
+  </details>
+}
+
+export function TodayNextSteps({ b, today, readFailed = false }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed?: boolean }) {
+  // A brief that is not current already hides action_items/actions inside
+  // currentTodayActionPlan below; gate the judgment primary row the same way
+  // so a stale/missing/invalid brief never shows an old judgment as today's.
+  const judgment = !readFailed && b.state === "current" ? b.judgment ?? null : null
+  const cachedSteps = currentTodayActionPlan(b, today)
+  const steps = readFailed ? [] : cachedSteps
+  const catalystQuery = useQuery({
+    queryKey: ["investment-narrative"],
+    queryFn: ({ signal }) => getInvestmentNarrative(signal),
+    enabled: !readFailed && b.state === "current" && b.upcoming.length === 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+  })
+  // With a judgment, its own row takes the primary slot and every step
+  // becomes a secondary/overflow row instead (the legacy serialized form of
+  // that same judgment is already filtered out of `steps` upstream).
+  const primary = judgment ? undefined : steps[0]
+  const secondary = judgment ? steps.slice(0, 2) : steps.slice(1, 3)
+  const remaining = judgment ? steps.slice(2) : steps.slice(3)
+  const decisionSummary = readFailed || b.state === "stale" ? "" : today?.decision_summary?.trim() || ""
+  const globalDecisionSummary = todayGlobalDecisionSummary(decisionSummary, steps)
+  const checkpoint = !readFailed && b.state === "current" ? todayCheckpoint(b, catalystQuery.data?.catalysts_30d) : null
+  // Detail-only content: never rendered on the card's main level (see below).
+  const checkpointNote = checkpoint
+    ? <p><span className="font-medium text-ink-2">{checkpoint.source === "brief" ? "簡報另列檢查點（與上方行動的關係未標明）" : checkpoint.relationship === "unlinked" ? "下一個來源事件（尚未連到上方行動）" : "來源未提供與上方行動的關係"}：</span> {checkpoint.date} · <InlineText text={checkpoint.text} />{checkpoint.check ? <>；檢查 <InlineText text={checkpoint.check} /></> : checkpoint.source === "brief" ? "；檢查條件未提供。" : null}{checkpoint.sourceLocation ? <span> · 來源：{checkpoint.sourceLocation}</span> : null}</p>
+    : catalystQuery.isPending && b.state === "current"
+      ? <p>簡報未另列檢查點；正在讀取 30 天來源事件。</p>
+      : catalystQuery.isError && b.state === "current"
+        ? <p>簡報未另列檢查點，且 30 天事件讀取失敗；下一檢查點未知。</p>
+        : <p>下一個明確檢查點未知；來源沒有提供可確認的日期、事件或 checkpoint。</p>
+  const status = (value: InvestmentActionItem["status"] | null) => value ? actionStatusLabel(value) : "狀態未提供"
+  // Headline (chips + text); a labelled reason field only when one exists --
+  // never a placeholder for a missing one. Source/id detail moved below.
+  const row = (item: (typeof steps)[number], isPrimary = false) => <li key={item.key} className={`flex min-w-0 flex-col gap-3 border-l-2 pl-3 ${isPrimary ? "border-accent" : "border-line-soft"}`}>
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <Chip tone={isPrimary ? "info" : "mute"}>{todayActionKindLabel(item.kind, item.origin)}</Chip>
+      <Chip tone={item.status ? statusTone(item.status) : "mute"}>{status(item.status)}</Chip>
+      <p className="min-w-0 text-body font-medium leading-relaxed text-ink"><TargetText text={item.text} /></p>
+    </div>
+    {item.reason?.trim() ? <FieldList><Field label="為什麼現在"><InlineText text={item.reason.trim()} /></Field></FieldList> : null}
+  </li>
+  const sourceNotes = (readFailed ? cachedSteps : steps).filter(item => item.date || item.source || item.id || item.sameTextRecords?.length)
+  return <section className="flex min-w-0 flex-col gap-3" aria-label="今天怎麼做">
+    <SectionHeading>今天怎麼做</SectionHeading>
+    <Card className="min-w-0 p-4 sm:p-5">
+      <div className="flex min-w-0 flex-col gap-3">
+      {b.state === "stale" ? <p role="status" className="text-caption text-warn">正式簡報沿用 {b.date ?? "較早日期"}；不把舊判斷當成今天的新決定。</p> : b.state === "missing" ? <p role="status" className="text-caption text-warn">尚未取得正式簡報；不將舊快取或殘留欄位當作今天已確認的工作。</p> : b.state === "invalid" ? <p role="status" className="text-caption text-warn">正式簡報無法完整辨識；其中的行動不列為今天已確認的工作。</p> : null}
+      {today?.state === "partial" || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">今日更新狀態為 {today.state}；空白欄位不能確認沒有新行動。</p> : null}
+      {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
+      {readFailed ? <p role="status" className="text-body text-warn">本次簡報讀取失敗；下一步尚未確認。上次判斷與行動保留在來源明細。</p> : judgment ? <div className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Chip tone="info">{JUDGMENT_CLASS_LABEL[judgment.class]}</Chip>
+            <p className="min-w-0 text-body font-medium leading-relaxed text-ink"><InlineText text={judgment.judgment} /></p>
+          </div>
+          <FieldList>
+            <Field label="為什麼現在"><InlineText text={judgment.why_now} /></Field>
+            {judgment.revisit ? <Field label="何時回看"><InlineText text={judgment.revisit} /></Field> : null}
+            {judgment.decision_effect ? <Field label="什麼會改變判斷"><InlineText text={judgment.decision_effect} /></Field> : null}
+          </FieldList>
+        </div>
+        : primary ? <ol className="flex min-w-0 flex-col gap-3" aria-label="主要下一步">{row(primary, true)}</ol>
+        : decisionSummary ? <p className="text-body leading-relaxed text-ink-2">{b.state === "stale" ? "今天的判斷尚未取得。" : checkpoint ? "來源未列出獨立行動；行動狀態未明示，下一個已知檢查點如下。" : "來源未列出獨立行動；行動狀態與下一檢查點未明示。"}</p>
+        : b.state === "current" ? <p className="text-body text-ink-3">{checkpoint ? "沒有可確認的下一步；來源未明示「今天不用動」，已知檢查點保留在來源明細。" : "沒有可確認的下一步；來源沒有明示「今天不用動」或下一檢查點。"}</p>
+        : <p role="status" className="text-body text-warn">目前沒有可確認的下一步；資料缺失不代表今天不用動。</p>}
+      {secondary.length ? <ol className="flex min-w-0 flex-col gap-3" aria-label="其他行動">{secondary.map(item => row(item))}</ol> : null}
+      {remaining.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">來源另列 {remaining.length} 項</summary><ol className="mt-3 flex min-w-0 flex-col gap-3">{remaining.map(item => row(item))}</ol></details> : null}
+      <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
+        <summary className="cursor-pointer py-1">檢查點與來源</summary>
+        <div className="mt-2 flex min-w-0 flex-col gap-3">
+          <div>{checkpointNote}</div>
+          {readFailed && b.judgment ? <p>上次讀取的判斷（目前未確認）：<InlineText text={b.judgment.judgment} /></p> : null}
+          {b.upcoming.length ? <div className="flex min-w-0 flex-col gap-2">
+            <p className="font-medium text-ink-2">近期檢查 · {b.upcoming.length}</p>
+            <p>這些事件未提供與上方行動的明確關係，分開保留。</p>
+            <ul className="flex min-w-0 flex-col gap-2">{b.upcoming.map((item, index) => <li key={index}><span>{item.date_label} · </span><InlineText text={item.event} />{item.check ? <p>檢查：<InlineText text={item.check} /></p> : <p>檢查條件未提供。</p>}</li>)}</ul>
+          </div> : null}
+          {sourceNotes.length ? <div className="flex min-w-0 flex-col gap-2">
+            <p className="font-medium text-ink-2">{readFailed ? "上次讀取的行動（目前未確認）" : "這項工作的來源"}</p>
+            <ul className="flex min-w-0 flex-col gap-2">{sourceNotes.map(item => <li key={item.key} className="flex min-w-0 flex-col gap-1"><p><TargetText text={item.text} /></p>{item.date ? <p>記錄日期：{sourceTimestamp(item.date)}</p> : null}{item.source ? <p className="break-all">來源：{item.source}</p> : null}{item.id ? <p className="break-all">ID：{item.id}</p> : null}{item.sameTextRecords?.length ? <><p>另有 {item.sameTextRecords.length} 筆來源紀錄文字完全相同；僅按原文相同收合，是否為同一件事未確認。</p><ul className="flex min-w-0 flex-col gap-1">{item.sameTextRecords.map((record, recordIndex) => <li key={`${record.origin}:${record.id ?? recordIndex}`} className="break-all">{record.origin === "brief" ? "簡報" : "盤中更新"}{record.date ? ` · ${sourceTimestamp(record.date)}` : " · 日期未提供"}{record.source ? ` · ${record.source}` : ""}{record.id ? ` · ID：${record.id}` : ""}{record.reason ? <p>該來源自己的理由：<InlineText text={record.reason} /></p> : null}</li>)}</ul></> : null}</li>)}</ul>
+          </div> : null}
+          {judgment ? <div className="flex min-w-0 flex-col gap-1">
+            <p className="font-medium text-ink-2">判斷依據</p>
+            <p>簡報版次：{b.session ? BRIEF_SESSION_LABELS[b.session] ?? b.session : "版次未標示"}</p>
+            <p>判斷資料截至：{sourceTimestamp(judgment.provenance?.source_cutoff ?? null)}</p>
+            <p>已核對的事件 story_id：{judgment.provenance?.validated_story_ids?.length ? judgment.provenance.validated_story_ids.join("、") : "無"}</p>
+            {judgment.provenance?.declared_unverified ? <p>來源自述、尚未逐項查核：{judgment.provenance.declared_unverified}</p> : null}
+          </div> : null}
+        </div>
+      </details>
+      {b.source?.limitations.length || b.envelope?.limitations.length ? <details className="border-t border-line-soft pt-3 text-caption text-ink-3"><summary className="cursor-pointer py-1">資料完整度</summary>
+        {b.envelope?.producer ? <p className="mt-2">產出方式：{b.envelope.producer}</p> : null}
+        {b.envelope?.limitations.length ? <ul className="mt-2 list-disc pl-4 text-warn">{b.envelope.limitations.map((limitation, index) => <li key={`envelope-${index}`}>{limitation}</li>)}</ul> : null}
+        {b.source?.limitations.length ? <ul className="mt-2 list-disc pl-4 text-warn">{b.source.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul> : null}
+      </details> : null}
+      </div>
+    </Card>
   </section>
 }
 
-/** Reading structure only. Meaning, order, changes and event links come from the source. */
-function TodayNextSteps({ b, today, readFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed: boolean }) {
-  const actionPlan = todayActionPlan(b, today, readFailed)
-  const actionSection = todayActionSection(b)
-  const nextSteps = todayNextSteps(actionPlan)
-  return (
-    <section className="flex min-w-0 flex-col gap-3" aria-label={actionSection.heading}>
-      <div className="flex min-w-0 flex-col gap-1">
-        <SectionHeading>{actionSection.heading}</SectionHeading>
-        {actionSection.context ? <p className="text-caption text-warn">{actionSection.context}</p> : null}
-      </div>
-      <Card density="reading" className="min-w-0">
-        {today?.decision_summary ? <p className="mb-3 text-body font-medium leading-relaxed text-ink"><InlineText text={todayBriefText(today.decision_summary, today.decision_summary_date ?? null)} /></p> : null}
-        {actionPlan.coverageMessage ? <p role="status" className="mb-3 text-caption leading-relaxed text-warn">{actionPlan.coverageMessage}</p> : null}
-        <p className="mb-3 text-caption text-ink-3">先列來源的行動／觀察，再列補研究；同類維持來源順序，這是閱讀順序。</p>
-        {nextSteps.primary ? <ul className="flex min-w-0 flex-col gap-4"><TodayActionRow entry={nextSteps.primary} brief={b} primary />{nextSteps.secondary.map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul> : <p className="text-body text-ink-3">{actionPlan.emptyMessage} 未列出項目不代表今天不用動；行動狀態與再看條件仍未知。</p>}
-        {nextSteps.remaining.length ? <details className="mt-3 border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">來源另列 {nextSteps.remaining.length} 項</summary><ul className="mt-2 flex min-w-0 flex-col gap-3">{nextSteps.remaining.map(entry => <TodayActionRow key={entry.key} entry={entry} brief={b} />)}</ul></details> : null}
-        {b.upcoming.length ? <details className="mt-3 border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">來源明示的下一次檢查 · 簡報未來 7 天</summary><p className="py-2">以下檢查點未提供與行動的明確關係，獨立列出。</p><ul className="flex flex-col gap-2">{b.upcoming.map((item, index) => <li key={index}>{item.date_label} · <InlineText text={item.event} />{item.check ? <p>要看什麼：<InlineText text={item.check} /></p> : <p>驗證條件未提供。</p>}</li>)}</ul></details> : null}
-        {b.thesis_changes.length || b.risks.length ? <p className="mt-4 border-t border-line-soft pt-3 text-caption leading-relaxed text-ink-3">論點變化 {b.thesis_changes.length} 條、風險 {b.risks.length} 條；見下方事件與「未連結故事的判斷與風險」。來源未標明與哪項行動相關。</p> : null}
-        {b.headline ? <details className="mt-4 border-t border-line-soft pt-3 text-caption text-ink-3"><summary className="cursor-pointer py-1">晨報判斷</summary><div className="w-full pt-2 text-body leading-relaxed text-ink-2"><ReadingText text={todayBriefText(b.headline, b.date)} /></div></details> : null}
-        {b.source?.limitations.length || b.envelope?.limitations.length ? <details className="mt-3 border-t border-line-soft pt-3 text-caption text-ink-3"><summary className="cursor-pointer py-1">資料完整度</summary>
-          {b.envelope?.producer ? <p className="mt-2">產出方式：{b.envelope.producer}</p> : null}
-          {b.envelope?.limitations.length ? <ul className="mt-2 list-disc pl-4 text-warn">{b.envelope.limitations.map((limitation, index) => <li key={`envelope-${index}`}>{limitation}</li>)}</ul> : null}
-          {b.source?.limitations.length ? <ul className="mt-2 list-disc pl-4 text-warn">{b.source.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul> : null}
-        </details> : null}
-      </Card>
-    </section>
-  )
-}
-
-function TodayBrief({ b, today }: { b: InvestmentBrief; today?: InvestmentTodayView }) {
+function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; newsStatus?: InvestmentRefreshStatus; onOpenThesis: () => void; readFailed: boolean }) {
+  const eventQuery = useQuery({ queryKey: ["investment-narrative"], queryFn: ({ signal }) => getInvestmentNarrative(signal), retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
+  const news = eventQuery.isError ? null : eventQuery.data?.news_events
+  const version = b.session ? BRIEF_SESSION_LABELS[b.session] : null
   const updates = today?.updates ?? []
+  // The producer's own cycle line. Empty from a producer too old to send it, in
+  // which case the day still renders through the per-story cards below.
+  const timeline = today?.timeline ?? []
   const stories = buildTodayStories(b.date, b.events, updates)
-  const theses = groupBriefRows(b.thesis_changes, b.events.length)
-  const risks = groupBriefRows(b.risks, b.events.length)
-  const hasUnlinked = theses.unlinked.length > 0 || risks.unlinked.length > 0 || b.thesis_notes.length > 0 || b.risk_notes.length > 0
   const envelopeIncomplete = b.envelope && b.envelope.completeness !== "ready"
+  const headline = b.headline.trim()
+  const decisionSummary = b.state === "stale" ? "" : today?.decision_summary?.trim() || ""
+  const cutoffClock = taipeiClock(b.source_cutoff)
+  const scanNote = newsScanNote(newsStatus, b.source_cutoff)
   return <section aria-label="今日簡報" className="flex min-w-0 flex-col gap-6 break-words">
-
-
-    <TodayBriefSessions brief={b} hasUpdates={updates.length > 0} />
+    <TodayNextSteps b={b} today={today} readFailed={readFailed} />
     <section aria-label="今天發生了什麼" className="flex min-w-0 flex-col gap-3">
-      <SectionHeading>今天發生了什麼</SectionHeading>
-      {b.state === "stale" ? <p role="status" className="text-caption text-warn">這是較早的正式簡報；目前尚無今日新版。</p> : null}
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <TodayAnchor>今天發生了什麼</TodayAnchor>
+        {/* With a line, "資料截至 <baseline cutoff>" is the wrong number to put at
+            the top: the baseline is only the newest formal brief, and an intraday
+            update after it is more recent than its cutoff. Name the newest point
+            on the line instead; each version's own cutoff sits on its own node. */}
+        <span className="text-caption text-ink-3">{b.date ?? "日期未提供"}{version ? ` · ${version}` : " · 版次未標示"}{cutoffClock ? ` · 資料截至 ${cutoffClock}` : ""}{scanNote ? ` · ${scanNote}` : ""}</span>
+      </div>
+      {b.state === "stale" ? <p role="status" className="text-caption text-warn">目前是較早的簡報，請留意資料截止時間。</p> : null}
       {b.state === "invalid" ? <p role="status" className="text-caption text-warn">這份簡報部分內容未能辨識，已保留可讀段落與完整原文。</p> : null}
       {envelopeIncomplete ? <p role="status" className="text-caption text-warn">{b.envelope?.completeness === "partial" ? "這份簡報資料不完整；細節可在下方來源展開查看。" : "這份簡報的資料包目前無法確認是否完整。"}</p> : null}
-      {stories.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
-        {stories.map(story => <TodayStoryCard key={story.key} story={story} theses={theses} risks={risks} briefDate={b.date} />)}
-      </Card> : b.headline ? <Card density="reading" className="min-w-0"><ReadingText text={todayBriefText(b.headline, b.date)} /></Card> : <p className="text-body text-ink-3">尚未取得可讀的今日變化。</p>}
-      {b.event_notes.length ? <ReadingText text={todayBriefText(b.event_notes.join("\n\n"), b.date)} /> : null}
-      {hasUnlinked ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">未連結故事的判斷與風險</summary><Card density="reading" className="mt-2 grid min-w-0 gap-4">
-        {theses.unlinked.length > 0 || b.thesis_notes.length > 0 ? <div className="flex min-w-0 flex-col gap-3"><ThesisRows rows={theses.unlinked} briefDate={b.date} />{b.thesis_notes.length ? <ReadingText text={todayBriefText(b.thesis_notes.join("\n\n"), b.date)} /> : null}</div> : null}
-        {risks.unlinked.length > 0 || b.risk_notes.length > 0 ? <div className="flex min-w-0 flex-col gap-3"><p className="text-caption font-medium text-warn">要留意的風險</p><RiskRows rows={risks.unlinked} briefDate={b.date} />{b.risk_notes.length ? <ReadingText text={todayBriefText(b.risk_notes.join("\n\n"), b.date)} /> : null}</div> : null}
-      </Card></details> : null}
+      {news ? <><EventNews projection={news} />{timeline.length ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">簡報版次與掃描時間軸</summary><DayTimeline nodes={timeline} brief={b} /></details> : null}</> : timeline.length
+        // One line for the whole cycle. The headline is not repeated above it:
+        // it is the newest brief's own first line and already sits on that node,
+        // and printing it separately is what made 今日基線 read as contradicting
+        // the card underneath whenever an intraday update had moved on.
+        ? <DayTimeline nodes={timeline} brief={b} />
+        : stories.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
+        {headline && headline !== decisionSummary ? <p className="p-4 text-body leading-relaxed text-ink-2 sm:p-5"><span className="font-medium text-ink">今日基線：</span><ReadingText text={headline} /></p> : null}
+        {stories.map(story => <StoryCard key={story.key} story={story} b={b} />)}
+      </Card> : headline ? <Card className="min-w-0 p-4 sm:p-5"><span className="font-medium text-ink">今日基線：</span><ReadingText text={headline} /></Card> : <p className="text-body text-ink-3">尚未取得可讀的今日變化。</p>}
+      {b.event_notes.length ? <ReadingText text={b.event_notes.join("\n\n")} /> : null}
+      <ThesisAttention
+        b={b}
+        onOpenThesis={onOpenThesis}
+        presentation={timeline.length ? "timeline" : stories.length ? "stories" : "none"}
+        timelineStoryIds={new Set(timeline.flatMap(node => node.kind === "brief" ? node.events.flatMap(event => event.story_id?.trim() ? [event.story_id.trim()] : []) : []))}
+      />
     </section>
-
 
     {b.source ? <div className="border-t border-line-soft"><SourceText key={b.source.id} source={b.source} /></div> : null}
   </section>
 }
 
-const VIEWS = [["today", "今日"], ["judgment", "我的判斷"], ["research", "研究與策略"], ["review", "復盤與學習"]] as const
+const VIEWS = [["today", "Today"], ["thesis", "我的判斷"], ["work", "研究與策略"], ["history", "復盤與學習"]] as const
 type View = typeof VIEWS[number][0]
 
 export function InvestmentPage() {
   const [view, setView] = useState<View>("today")
-  const [refreshing, setRefreshing] = useState(false)
-  const [notice, setNotice] = useState("")
+  const [refreshError, setRefreshError] = useState("")
   const client = useQueryClient()
-  const fetching = useIsFetching({ predicate: q => String(q.queryKey[0]).startsWith("investment") })
   const query = useQuery({ queryKey: ["investment"], queryFn: ({ signal }) => getInvestment(signal), retry: false, refetchOnWindowFocus: true, staleTime: 60_000 })
-  const watch = useQuery({ queryKey: ["investment-watch"], queryFn: ({ signal }) => getInvestmentWatch(signal), enabled: view === "research", retry: false, refetchOnWindowFocus: false })
-  const researchIndex = useQuery({ queryKey: ["investment-research"], queryFn: ({ signal }) => getInvestmentResearch(signal), enabled: view === "research", retry: false, refetchOnWindowFocus: false })
-  const actions = useQuery({ queryKey: ["investment-actions"], queryFn: ({ signal }) => getInvestmentActions(signal), enabled: view === "research", retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
-  const history = useQuery({ queryKey: ["investment-history"], queryFn: ({ signal }) => getInvestmentHistory(signal), enabled: view === "review", retry: false, refetchOnWindowFocus: false })
-  const context = useQuery({ queryKey: ["investment-context"], queryFn: ({ signal }) => getInvestmentContext(signal), enabled: view === "review", retry: false, refetchOnWindowFocus: false })
-  const hub = useQuery({ queryKey: ["investment-narrative"], queryFn: ({ signal }) => getInvestmentNarrative(signal), enabled: view === "today" || view === "research", retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
+  const marketRefresh = useQuery({ queryKey: ["investment-refresh-status", "market"], queryFn: ({ signal }) => getInvestmentRefreshStatus("market", signal), retry: false, refetchOnWindowFocus: false, refetchInterval: (q) => q.state.data?.state === "running" ? 2_000 : false })
+  const newsRefresh = useQuery({ queryKey: ["investment-refresh-status", "news"], queryFn: ({ signal }) => getInvestmentRefreshStatus("news", signal), retry: false, refetchOnWindowFocus: false, refetchInterval: (q) => q.state.data?.state === "running" ? 2_000 : false })
+  const watch = useQuery({ queryKey: ["investment-watch"], queryFn: ({ signal }) => getInvestmentWatch(signal), enabled: view === "work", retry: false, refetchOnWindowFocus: false })
+  const researchIndex = useQuery({ queryKey: ["investment-research"], queryFn: ({ signal }) => getInvestmentResearch(signal), enabled: view === "work", retry: false, refetchOnWindowFocus: false })
+  const actions = useQuery({ queryKey: ["investment-actions"], queryFn: ({ signal }) => getInvestmentActions(signal), enabled: view === "work", retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
+  const history = useQuery({ queryKey: ["investment-history"], queryFn: ({ signal }) => getInvestmentHistory(signal), enabled: view === "history", retry: false, refetchOnWindowFocus: false })
+  const context = useQuery({ queryKey: ["investment-context"], queryFn: ({ signal }) => getInvestmentContext(signal), enabled: view === "history", retry: false, refetchOnWindowFocus: false })
+  useEffect(() => {
+    const state = marketRefresh.data?.state
+    if (!state || state === "idle" || state === "running") return
+    void Promise.all([
+      client.invalidateQueries({ queryKey: ["investment-market"], refetchType: "active" }),
+      client.invalidateQueries({ queryKey: ["investment-pulse"], refetchType: "active" }),
+      client.invalidateQueries({ queryKey: ["investment"], refetchType: "active" }),
+      client.invalidateQueries({ queryKey: ["investment-narrative"], refetchType: "active" }),
+      client.invalidateQueries({ queryKey: ["investment-source"], refetchType: "active" }),
+    ])
+  }, [client, marketRefresh.data?.last_updated, marketRefresh.data?.state])
+  useEffect(() => {
+    const state = marketRefresh.data?.discovery_state
+    if (!state || state === "idle" || state === "running") return
+    void client.invalidateQueries({ queryKey: ["investment-explore"], refetchType: "active" })
+  }, [client, marketRefresh.data?.discovery_state, marketRefresh.data?.discovery_updated_at])
+  useEffect(() => {
+    const state = newsRefresh.data?.state
+    if (!state || state === "idle" || state === "running" || state === "failed") return
+    void Promise.all([
+      client.invalidateQueries({ queryKey: ["investment"], refetchType: "active" }),
+      client.invalidateQueries({ queryKey: ["investment-narrative"], refetchType: "active" }),
+      client.invalidateQueries({ queryKey: ["investment-source"], refetchType: "active" }),
+    ])
+  }, [client, newsRefresh.data?.last_updated, newsRefresh.data?.state])
   const b = query.data?.brief
-  const workContinuation = openActionItems(actions.data?.items ?? [])
-  const openSourceActions = workContinuation.filter(item => item.status === "open")
-  const sourceActionsWithHome = workContinuation.filter(item => item.status === "has-canonical-home")
   function openView(next: View) {
     setView(next)
     document.getElementById(`investment-tab-${next}`)?.focus()
   }
-  async function refresh() {
-    setRefreshing(true)
-    setNotice("正在更新目前頁面的資料…")
-    const failures: string[] = []
-    async function run<T>(label: string, key: readonly unknown[], fn: () => Promise<T>): Promise<T | undefined> {
-      try { return await client.fetchQuery({ queryKey: key, queryFn: fn, staleTime: 0, retry: false }) }
-      catch { failures.push(label); return undefined }
-    }
+  async function runRefresh(action: InvestmentRefreshAction, market?: "tw" | "us") {
+    setRefreshError("")
     try {
-      if (view === "today") {
-        const [brief, market, explore, pulse] = await Promise.all([
-          run("簡報", ["investment"], () => getInvestment()),
-          run("市場行情", ["investment-market"], () => getInvestmentMarket(undefined, true)),
-          run("市場探索", ["investment-explore"], () => getMarketExplore(undefined, true)),
-          run("台股整體盤感", ["investment-pulse"], () => getInvestmentPulse()),
-          run("催化劑投影", ["investment-narrative"], () => getInvestmentNarrative()),
-          run("台股持倉相對強弱", ["investment-tw-relative-strength"], () => getTwRelativeStrength()),
-        ])
-        if (brief?.brief.state === "invalid" || brief?.brief.state === "missing") failures.push("簡報內容")
-        if (brief?.brief.source?.limitations.length) failures.push("簡報部分段落")
-        if (market?.state === "unavailable" || market?.state === "partial") failures.push("部分市場報價")
-        if (explore?.state === "partial") failures.push("部分市場探索")
-        if (!pulse || pulse.state !== "ready") failures.push("台股整體盤感")
-        await client.invalidateQueries({ queryKey: ["investment-source"], refetchType: "active" })
-      } else if (view === "judgment") {
-        const narrative = await run("我的判斷", ["investment-narrative"], () => getInvestmentNarrative())
-        if (narrative && narrative.state !== "ready") failures.push("我的論點部分來源")
-        if (!narrative) failures.push("我的論點")
-      } else if (view === "research") {
-        const [research, sourceDates, actionBoard, personalWork, systemReminders] = await Promise.all([
-          run("正式 Research", ["investment-research"], () => getInvestmentResearch()),
-          run("Watch 日期", ["investment-watch"], () => getInvestmentWatch()),
-          run("待續行動", ["investment-actions"], () => getInvestmentActions()),
-          run("我的投資事項", ["investment-work"], () => getInvestmentWork()),
-          run("系統提醒", ["investment-pending"], () => getInvestmentPending()),
-        ])
-        await run("催化劑投影", ["investment-narrative"], () => getInvestmentNarrative())
-        if (research && research.state !== "ready" && research.state !== "empty") failures.push("正式 Research 部分來源")
-        if (sourceDates && ((sourceDates.state !== "ready" && sourceDates.state !== "empty") || sourceDates.watch.coverage.errors.length)) failures.push("部分 Watch 日期來源")
-        if (actionBoard?.state === "unavailable") failures.push("待續行動")
-        if (!personalWork) failures.push("我的投資事項")
-        if (systemReminders && systemReminders.state !== "ready" && systemReminders.state !== "empty") failures.push("系統提醒部分來源")
-      } else {
-        const [records] = await Promise.all([
-          run("歷史來源", ["investment-history"], () => getInvestmentHistory()),
-          run("研究脈絡", ["investment-context"], () => getInvestmentContext()),
-        ])
-        if (records && records.state !== "ready") failures.push("部分歷史來源")
-      }
-      const at = new Date().toLocaleTimeString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })
-      setNotice(`${at} ${failures.length ? `已重新讀取，仍未取得：${[...new Set(failures)].join("、")}` : "已重新讀取目前頁面"}。各資料的截止時間仍以頁面標示為準。`)
-    } finally { setRefreshing(false) }
+      await postInvestmentRefresh(action, market)
+      await client.invalidateQueries({ queryKey: ["investment-refresh-status", action] })
+    } catch (error) {
+      setRefreshError(error instanceof Error ? error.message : "更新操作失敗，請稍後重試。")
+    }
   }
+
   return <div className="flex min-w-0 flex-col gap-4 break-words">
-    <PageHeader page="investment" showSummary action={<Button disabled={refreshing || fetching > 0} onClick={() => void refresh()}>{refreshing ? "更新中…" : fetching > 0 ? "資料載入中…" : "更新資料"}</Button>} />
-    {notice ? <p role="status" aria-live="polite" className="text-caption text-ink-3">{notice}</p> : null}
+    <PageHeader page="investment" />
+    {view === "today" ? <div className="flex min-w-0 flex-col gap-2" aria-label="Today 更新操作">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <Button disabled={marketRefresh.data?.state === "running"} onClick={() => void runRefresh("market")}>刷新盤面</Button>
+        <Button disabled={newsRefresh.data?.state === "running"} onClick={() => void runRefresh("news", "tw")}>台股消息快掃</Button>
+        <Button disabled={newsRefresh.data?.state === "running"} onClick={() => void runRefresh("news", "us")}>美股消息快掃</Button>
+      </div>
+      <div className="flex min-w-0 flex-col gap-1 text-caption text-ink-3" aria-live="polite">
+        <p>{refreshStateLabel("market", marketRefresh.data)}{marketRefresh.data?.discovery_state === "running" ? " · 市場資金掃描仍在背景整理" : marketRefresh.data?.discovery_state === "partial" ? " · 市場資金掃描部分完成" : marketRefresh.data?.discovery_state === "failed" ? " · 市場資金掃描失敗" : ""}</p>
+        <p title={providerDetailTitle(newsRefresh.data)}>{refreshStateLabel("news", newsRefresh.data)}</p>
+      </div>
+    </div> : null}
+    {refreshError ? <p role="alert" aria-live="polite" className="text-caption text-warn">{refreshError}</p> : null}
     <nav aria-label="投資內容" className="flex min-w-0 gap-4 overflow-x-auto border-b border-line-soft sm:gap-5" role="tablist">{VIEWS.map(([key, label], index) => <Button key={key} id={`investment-tab-${key}`} role="tab" aria-controls={`investment-panel-${key}`} aria-selected={view === key} tabIndex={view === key ? 0 : -1} variant="link" className={`shrink-0 rounded-none border-b-2 px-0 py-3 ${view === key ? "border-accent text-ink" : "border-transparent text-ink-3"}`} onClick={() => setView(key)} onKeyDown={event => {
       const next = event.key === "ArrowRight" ? (index + 1) % VIEWS.length : event.key === "ArrowLeft" ? (index + VIEWS.length - 1) % VIEWS.length : event.key === "Home" ? 0 : event.key === "End" ? VIEWS.length - 1 : null
       if (next !== null) { event.preventDefault(); openView(VIEWS[next][0]) }
     }}>{label}</Button>)}</nav>
-    <div id="investment-panel-today" role="tabpanel" aria-labelledby="investment-tab-today" hidden={view !== "today"} className={view === "today" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
+    <div id="investment-panel-today" role="tabpanel" aria-labelledby="investment-tab-today" hidden={view !== "today"} className={view === "today" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
       {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次內容。" : ""}請按更新資料重試。</p> : null}
       {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
-      <ReadingColumn className="flex min-w-0 flex-col gap-6">
-        {b ? <TodayNextSteps b={b} today={query.data?.today} readFailed={query.isError} /> : null}
-        <CatalystProjection data={hub.data?.catalysts_30d} pending={hub.isPending} failed={hub.isError} />
-        {b ? <TodayBrief b={b} today={query.data?.today} /> : null}
-      </ReadingColumn>
-      <MarketIndicators />
-      <StockMomentum />
+      {b ? <TodayBrief b={b} today={query.data?.today} readFailed={query.isError} newsStatus={newsRefresh.data} onOpenThesis={() => openView("thesis")} /> : null}
+      <TodayCatalysts enabled={view === "today"} />
+      <section className="flex min-w-0 flex-col gap-3" aria-label="現在盤面">
+        <TodayAnchor>現在盤面</TodayAnchor>
+        <MarketPulse />
+      </section>
+      <section className="flex min-w-0 flex-col gap-3" aria-label="我的持倉">
+        <TodayAnchor>我的持倉</TodayAnchor>
+        <StockMomentum />
+      </section>
     </div>
-    <div id="investment-panel-judgment" role="tabpanel" aria-labelledby="investment-tab-judgment" hidden={view !== "judgment"} className={view === "judgment" ? "flex min-w-0 flex-col gap-6" : "hidden"}>
-      <ReadingColumn><InvestmentNarrativeSection enabled={view === "judgment"} onOpenHistory={() => openView("review")} /></ReadingColumn>
+    <div id="investment-panel-thesis" role="tabpanel" aria-labelledby="investment-tab-thesis" hidden={view !== "thesis"} className={view === "thesis" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
+      <ReadingColumn><InvestmentNarrativeSection enabled={view === "thesis"} onOpenHistory={() => openView("history")} /></ReadingColumn>
+      {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
+      {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次讀取的資料；資料截止時間仍以簡報標示為準。" : "目前沒有可用的簡報資料。"}請按更新資料重試。</p> : null}
+      {b ? <ReadingColumn><InvestmentThesis b={b} /></ReadingColumn> : null}
     </div>
-    <div id="investment-panel-research" role="tabpanel" aria-labelledby="investment-tab-research" hidden={view !== "research"} className={view === "research" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
+    <div id="investment-panel-work" role="tabpanel" aria-labelledby="investment-tab-work" hidden={view !== "work"} className={view === "work" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
       {watch.isError ? <p role="alert" className="text-body text-warn">Watch 日期來源本次讀取失敗。{watch.data ? "仍顯示上次內容。" : ""}</p> : null}
       {researchIndex.isError ? <p role="alert" className="text-body text-warn">正式 Research index 讀取失敗；不以 Watch 項目代替。</p> : null}
-      {actions.isError ? <p role="status" className="text-caption text-warn">待續行動這次讀不到。{actions.data ? "以下保留上次內容。" : ""}本機筆記仍可使用。</p> : null}
-      {actions.data?.state === "unavailable" ? <p role="status" className="text-caption text-warn">{actions.data.message || "待續行動目前無法取得。"}</p> : null}
-      <ReadingColumn><CatalystProjection heading="未來 30 天催化劑" data={hub.data?.catalysts_30d} pending={hub.isPending} failed={hub.isError} /></ReadingColumn>
-      {watch.data ? <details><summary className="cursor-pointer py-2 text-caption text-ink-3">既有 Watch 與簡報日期清單（涵蓋獨立）</summary><ReadingColumn><ResearchWatch data={watch.data} brief={b} /></ReadingColumn></details> : null}
+      <ReadingColumn><TodayCatalysts enabled={view === "work"} heading="未來 30 天催化劑" /></ReadingColumn>
       <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
         <section className="flex min-w-0 flex-col gap-3" aria-label="研究">
           <div className="flex flex-col gap-1"><SectionHeading>目前研究方向</SectionHeading><p className="text-body text-ink-3">先看來源明示的方向；個別研究、證據與來源按需展開。未連結／未知項目留在 Other coverage。</p></div>
@@ -391,41 +483,32 @@ export function InvestmentPage() {
           <Card density="compact" className="flex flex-col gap-2"><p className="text-body text-ink-2">目前的唯讀資料契約沒有提供獨立的策略內容，因此這裡標示為尚未提供。</p><p className="text-caption text-ink-3">不從研究文字、持倉或市場行情推導策略。</p></Card>
         </section>
       </div>
-      {actions.data && actions.data.state !== "unavailable" ? <section className="flex min-w-0 flex-col gap-2" aria-label="來源記錄的待續事項" data-testid="investment-source-actions">
-        <SectionHeading>來源記錄的待續事項</SectionHeading>
-        <p className="text-caption text-ink-3">按來源提供的 status 分開顯示。資料契約沒有判定哪些項目需要 owner 決策或代表系統狀態，因此不推定緊急程度；個人筆記與系統提醒另列。</p>
-        {openSourceActions.length ? <details><summary className="cursor-pointer py-2 text-body font-medium">來源 status：尚未結案 · {openSourceActions.length} 項</summary><ReadingColumn className="pt-2"><ContinuationList items={openSourceActions} /></ReadingColumn></details> : null}
-        {sourceActionsWithHome.length ? <details><summary className="cursor-pointer py-2 text-body font-medium">來源 status：已有判斷頁可承接 · {sourceActionsWithHome.length} 項</summary><ReadingColumn className="pt-2"><ContinuationList items={sourceActionsWithHome} /></ReadingColumn></details> : null}
-        {!workContinuation.length ? <p className="text-body text-ink-3">目前讀取的來源沒有 status 為尚未結案或已有判斷頁可承接的記錄；這不代表已確認沒有需要 owner 決定的事項。</p> : null}
-        {actions.data.limitations.map((note, index) => <p key={index} className="text-caption text-warn">{note}</p>)}
-      </section> : null}
-      <details className="border-t border-line-soft pt-2" data-testid="investment-personal-notes">
-        <summary className="cursor-pointer py-2 text-body font-medium text-ink">PersonalOS 本機：我的問題與提醒</summary>
-        <ReadingColumn className="flex min-w-0 flex-col gap-5 pt-3">
-          <section className="flex min-w-0 flex-col gap-3" aria-label="我留下的問題與研究">
-            <div className="flex flex-col gap-1"><SectionHeading>我留下的問題與研究</SectionHeading><p className="text-caption text-ink-3">只保存 PersonalOS 本機的結論與待續筆記，不會改寫正式判斷；它們與來源狀態和系統整理分開。</p></div>
-            <InvestmentWorkPanel research={watch.data?.watch.research ?? []} />
-          </section>
-          <InvestmentWatchNotes />
-        </ReadingColumn>
-      </details>
+      <ReadingColumn className="flex min-w-0 flex-col gap-5">
+        <section className="flex min-w-0 flex-col gap-3" aria-label="待處理">
+          <div className="flex flex-col gap-1"><SectionHeading>待處理</SectionHeading><p className="text-caption text-ink-3">你記下的問題與研究，加上 Investment Note 還沒結案的行動。</p></div>
+          <InvestmentWorkPanel research={watch.data?.watch.research ?? []} />
+          <InvestmentNoteActions data={actions.data} isPending={actions.isPending} isError={actions.isError} splitStatuses />
+        </section>
+        <InvestmentReminderPanel mode="attention" enabled={view === "work"} />
+      </ReadingColumn>
+      {watch.data ? <details><summary className="cursor-pointer py-2 text-caption text-ink-3">既有 Watch 與簡報日期清單（涵蓋獨立）</summary><ReadingColumn><ResearchWatch data={watch.data} brief={b} /></ReadingColumn></details> : null}
       <details className="border-t border-line-soft pt-2" data-testid="investment-system-status">
         <summary className="cursor-pointer py-2 text-body font-medium text-ink">系統整理的狀態提醒（唯讀，不自動列為 owner 待辦）</summary>
         <ReadingColumn className="pt-3"><PendingBoard /></ReadingColumn>
       </details>
     </div>
-    <div id="investment-panel-review" role="tabpanel" aria-labelledby="investment-tab-review" hidden={view !== "review"} className={view === "review" ? "flex min-w-0 flex-col gap-4" : "hidden"}>
+
+    <div id="investment-panel-history" role="tabpanel" aria-labelledby="investment-tab-history" hidden={view !== "history"} className={view === "history" ? "flex min-w-0 flex-col gap-4" : "hidden"}>
       {history.isPending || context.isPending ? <p className="text-body text-ink-3">讀取歷史與研究脈絡中…</p> : null}
       {history.isError ? <p role="alert" className="text-body text-warn">歷史來源這次無法取得，請稍後重試。</p> : null}
       {context.isError ? <p role="alert" className="text-body text-warn">研究脈絡這次無法取得；歷史資料仍可單獨查看。</p> : null}
       {history.data ? <ReadingColumn><InvestmentHistory data={history.data} context={context.data} /></ReadingColumn> : null}
     </div>
-    <details className="border-t border-line-soft pt-3"><summary className="cursor-pointer py-2 text-caption text-ink-3">資料來源與讀取狀況{watch.data?.watch.coverage.errors.length ? ` · ${watch.data.watch.coverage.errors.length} 項異常` : ""}</summary><div className="flex flex-col gap-2 pt-2 metadata">
-      <p>{DEMO_MODE ? "簡報、研究、日期與行情全由合成資料提供。更新資料只重讀範例，不連接帳戶或外部資料。" : "簡報、研究和日期讀取本機 Investment Note；行情向 Yahoo Finance 查詢。更新資料不會同步 Git 或重新生成 AI 簡報。"}</p>
+    <details className="border-t border-line-soft pt-3"><summary className="cursor-pointer py-2 text-caption text-ink-3">資料來源與讀取狀況{watch.data?.watch.coverage.errors.length ? ` · ${watch.data.watch.coverage.errors.length} 項異常` : ""}</summary><div className="flex flex-col gap-2 pt-2 text-caption text-ink-3">
+      <p>{DEMO_MODE ? "簡報、研究、日期與行情全由合成資料提供。更新資料只重讀範例，不連接帳戶或外部資料。" : "簡報、研究和日期讀取本機 Investment Note；行情向 Yahoo Finance 查詢。「刷新盤面」會先把本機 Investment Note 快轉到 GitHub 最新（只 fast-forward，本機有分岔或未提交重疊就停），不會重新生成 AI 簡報，也不會推送任何東西。"}</p>
       <p>每週觀察：{query.data?.weekly_watch.date ?? "尚未取得日期"}。目前只提供日期，無法據此確認本週回顧是否完成。</p>
       <p>投資論點的自動檢查尚未接入；没有提醒不代表論點已通過檢查。</p>
-      {researchIndex.data ? <p>正式 Research：{researchIndex.data.state} · producer {researchIndex.data.producer} · source_cutoff {researchIndex.data.source_cutoff}</p> : null}
-      {watch.data ? <><p>Watch 已讀 {watch.data.watch.coverage.scanned_files} 份相關來源；{watch.data.watch.coverage.missing_catalysts.length} 份未填下次事件日期。未填日期不算讀取故障。</p>{watch.data.watch.coverage.errors.map((error, index) => <p key={index}>{error.path}：{error.message}</p>)}{watch.data.watch.coverage.omissions.length ? <p>另有 {watch.data.watch.coverage.omissions.length} 份相關來源未納入：{watch.data.watch.coverage.omissions.slice(0, 5).map(item => `${item.path}（${item.reason}）`).join("、")}</p> : null}</> : null}
+      {watch.data ? <><p>已讀 {watch.data.watch.coverage.scanned_files} 份相關來源；{watch.data.watch.coverage.missing_catalysts.length} 份未填下次事件日期。未填日期不算讀取故障。</p>{watch.data.watch.coverage.errors.map((error, index) => <p key={index}>{error.path}：{error.message}</p>)}{watch.data.watch.coverage.omissions.length ? <p>另有 {watch.data.watch.coverage.omissions.length} 份相關來源未納入：{watch.data.watch.coverage.omissions.slice(0, 5).map(item => `${item.path}（${item.reason}）`).join("、")}</p> : null}</> : null}
     </div></details>
   </div>
 }

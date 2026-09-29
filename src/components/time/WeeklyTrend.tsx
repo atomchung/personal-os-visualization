@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import type { WeeklyUsageRow } from "@/lib/api"
 import { humanizeSystemLabel } from "@/lib/informationArchitecture"
 
-/* 每週 output token 趨勢：一根 = 一個自然週，堆疊 = 三個 agent。
+/* 每週 output token 趨勢：一根 = 一個自然週，堆疊 = 一個 agent。
  *
  * 只畫 output 不畫總 token，因為 input 幾乎全是 cache read（cache hit ~97%），
  * 那條線量的是「同一段 context 被重讀幾次」，不是「做了多少事」。 */
@@ -13,6 +13,7 @@ const AGENT_COLOR: Record<string, string> = {
   claude: "--color-sys-orange",
   codex: "--color-sys-indigo",
   antigravity: "--color-sys-teal",
+  grok: "--color-sys-green",
 }
 
 // null is "the aggregate for that agent failed", never zero — a dash, not a 0.00M.

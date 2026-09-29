@@ -1,15 +1,10 @@
 /** Synthetic showcase fixture; never generated from a real API or private vault. */
-import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
-import type { TwRelativeStrength, InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchDetail, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, RelativeStrength, StockMomentumData, StockQuote } from "../lib/investment"
-import { investmentScenario } from "./generated/investment-scenario.ts"
+import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../../src/lib/api"
+import type { InvestmentActionItem, InvestmentActions, InvestmentBriefJudgment, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryItem, InvestmentHistorySource, InvestmentMarket, InvestmentMarketPulse, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeLayerEvidence, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchItem, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, RelativeStrength, StockMomentumData, StockQuote, TwRelativeStrength } from "../../src/lib/investment"
+import { investmentScenario } from "../../src/demo/generated/investment-scenario.ts"
 
 export const DATE = investmentScenario.as_of
 export const STAMP = `${DATE}T12:00:00+08:00`
-const PREVIOUS_DATE = new Date(Date.parse(`${DATE}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
-const NEXT_DATE = new Date(Date.parse(`${DATE}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
-const BRIEF_GENERATED_AT = `${DATE}T21:30:00+08:00`
-const BRIEF_SOURCE_CUTOFF = `${DATE}T21:15:00+08:00`
-const UPDATE_OBSERVED_AT = `${NEXT_DATE}T00:27:00+08:00`
 export const WEEK = "2026-W38"
 
 export function createState() {
@@ -27,8 +22,6 @@ export function createState() {
     investmentWork: [] as InvestmentWork[],
   }
 }
-/** Shared in-memory state for the selected synthetic Investment provider. */
-export const demoWorkState = createState()
 export type DemoState = ReturnType<typeof createState>
 
 export function cockpit(state: DemoState): Cockpit {
@@ -108,7 +101,7 @@ export function timeData(period: TimePeriod): TimeData {
     kpis: { output: { label: "輸出 token", value: "0.48M", delta: "合成數字", sub: null }, cost: { label: "成本", value: "—", sub: "未提供", caveat: "未連接帳單" }, sessions: { label: "Sessions", value: "9", delta: "合成活動" }, active_hours: { label: "活動時數", value: "12h", sub: "示範時數" } },
     verdict: { available: false, tone: "mute", text: "" }, summary_lines: ["範例顯示原型開發、閱讀及研究三類活動。"],
     weekly_trend: { available: true, agents: [{ key: "demo", label: "範例 Agent" }], rows: period === "4w" ? rows : rows.slice(period === "last_week" ? 2 : 3, period === "last_week" ? 3 : 4), coverage_note: "所有週資料均為手工合成。", hint: "" },
-    ccstory_mcp: { available: false, error: "展示模式不連接 CCStory；沒有用量快照。", recap: null, trend: null, comparison: null },
+    ccstory_mcp: { available: false, error: "展示模式不連接本機 CCStory MCP，也不放入虛構用量。", recap: null, trend: null, comparison: null },
     worth_rows: [], narrative_state: { available: true, period_key: WEEK, source_window: "2026-09-14_2026-09-20", window_note: "固定範例週", hint: "" },
     activity_blocks: [{ category: "輸出", hours: 7, session_count: 5, sub_breakdown: "原型與測試", narrative: "完成紙飛機筆記的搜尋流程。", fallback_bullets: [] }, { category: "學習", hours: 3, session_count: 2, sub_breakdown: "閱讀", narrative: "把兩篇虛構閱讀材料整理成摘要。", fallback_bullets: [] }],
     agent_rows: [{ agent: "demo", agent_label: "範例 Agent", session_count: 9, active_hhmm: "12h", median_min: 45, output_m: 0.48, longest_min: 100, longest_topic: "紙飛機搜尋原型" }],
@@ -142,11 +135,12 @@ export const health: HealthData = {
   history: { strength_log: [{ date: "2026-09-17", exercise: "臥推（虛構）", set_number: 1, weight_kg: 40, assist_kg: null, reps: 8, rpe: null, slow_negative: false, notes: "合成範例" }], pullup_assist_trend: [{ date: "2026-09-10", assist_kg: 30, max_reps: 6 }, { date: "2026-09-17", assist_kg: 25, max_reps: 6 }] },
 }
 
-const source = { id: investmentScenario.source_id, title: investmentScenario.source_title, date: DATE, generated_at: BRIEF_GENERATED_AT, source_cutoff: BRIEF_SOURCE_CUTOFF, age_days: 0, state: "current" as const, limitations: ["由私人情境規格重新生成，並非市場資訊"], url: null }
+const source = { id: investmentScenario.source_id, title: investmentScenario.source_title, date: DATE, generated_at: STAMP, source_cutoff: STAMP, age_days: 0, state: "current" as const, limitations: ["由私人情境規格重新生成，並非市場資訊"], url: null }
 const openActionItem: InvestmentActionItem = {
   id: "ai:demo-deliver-questions",
   text: investmentScenario.action,
   status: "open",
+  kind: "research",
   tickers: [investmentScenario.symbol],
   evidence: [investmentScenario.evidence_to_check],
   artifact_id: investmentScenario.source_id,
@@ -157,6 +151,7 @@ const homeActionItem: InvestmentActionItem = {
   id: "ai:demo-canonical-home",
   text: "把交付證據門檻寫進判斷頁後再決定是否改變假設。",
   status: "has-canonical-home",
+  kind: "action",
   tickers: [investmentScenario.symbol],
   evidence: ["判斷頁已有交付問題"],
   artifact_id: "demo-thesis-page",
@@ -167,43 +162,88 @@ const closedActionItem: InvestmentActionItem = {
   id: "ai:demo-closed-prior",
   text: "先前已記錄：不因單一產品發布改動持倉。",
   status: "closed",
+  kind: "no_change",
   tickers: [investmentScenario.symbol],
   evidence: ["synthetic/investment-research-loop-v1"],
   artifact_id: investmentScenario.source_id,
   source: "decision-review",
   date: "2026-09-13",
 }
+const demoJudgment: InvestmentBriefJudgment = {
+  class: "watch",
+  judgment: `先觀察${investmentScenario.label}，暫不進出。`,
+  why_now: investmentScenario.thesis_reason,
+  revisit: investmentScenario.next_check_date,
+  decision_effect: `若${investmentScenario.evidence_to_check}出現明確結果，才重新評估。`,
+  provenance: {
+    declared_unverified: "story_id=demo-storage-event",
+    validated_story_ids: ["demo-storage-event"],
+    artifact: investmentScenario.source_id,
+    source_revision: "sha256:synthetic-demo-judgment",
+    source_cutoff: STAMP,
+  },
+}
 export const investment: InvestmentData = {
-  as_of: UPDATE_OBSERVED_AT,
+  as_of: STAMP,
   today: {
     state: "ready",
     decision_summary: "今天不需要因這則新訊號調整部位。",
-    decision_summary_date: DATE,
     limitations: [],
     updates: [{
       id: "news:demo-intraday-1",
       story_id: "demo-storage-event",
-      observed_at: UPDATE_OBSERVED_AT,
-      summary: "隔夜價格反應確認前一版事件有被市場交易，但幅度仍不足以改變原判斷。",
+      observed_at: `${DATE}T15:10:00+08:00`,
+      summary: "盤中價格反應確認早盤事件有被市場交易，但幅度仍不足以改變原判斷。",
       portfolio_impact: "原本的核心假設不變；這次更新只提高對後續量能確認的優先級。",
       action: "收盤前再看一次量能是否延續，不因單一盤中波動追價。",
       relevance: ["new-price-discovery", "action-watch-change"],
       source_path: `wiki/morning/${DATE}_news.md`,
     }],
+    timeline: [
+      {
+        kind: "brief",
+        at: `${DATE}T08:20:00+08:00`,
+        date: DATE,
+        session: "tw-open-prep",
+        path: `wiki/morning/briefs/${DATE}.md`,
+        headline: investmentScenario.headline,
+        events: [{
+          story_id: "demo-storage-event",
+          event: investmentScenario.event_text,
+          market_reaction: investmentScenario.market_reaction,
+          interpretation: investmentScenario.interpretation,
+          impact: "新增待查證事項",
+          today: `先讀${investmentScenario.next_check}說明`,
+        }],
+      },
+      {
+        kind: "update",
+        at: `${DATE}T15:10:00+08:00`,
+        id: "news:demo-intraday-1",
+        story_id: "demo-storage-event",
+        observed_at: `${DATE}T15:10:00+08:00`,
+        summary: "盤中價格反應確認早盤事件有被市場交易，但幅度仍不足以改變原判斷。",
+        portfolio_impact: "原本的核心假設不變；這次更新只提高對後續量能確認的優先級。",
+        action: "收盤前再看一次量能是否延續，不因單一盤中波動追價。",
+        relevance: ["new-price-discovery", "action-watch-change"],
+        source_path: `wiki/morning/${DATE}_news.md`,
+      },
+    ],
   },
-  brief: { state: "current", date: DATE, generated_at: BRIEF_GENERATED_AT, source_cutoff: BRIEF_SOURCE_CUTOFF, session: "us-open-prep",
+  brief: { state: "current", date: DATE, generated_at: STAMP, source_cutoff: STAMP, session: null,
     headline: investmentScenario.headline,
     market_pulse: [{ variable: investmentScenario.market_index.label, latest: `${investmentScenario.market_index.value.toLocaleString()} · +${investmentScenario.market_index.change_percent}%`, meaning: investmentScenario.market_index.meaning }], market_pulse_notes: [],
     events: [{ story_id: "demo-storage-event", event: investmentScenario.event_text, market_reaction: investmentScenario.market_reaction, interpretation: investmentScenario.interpretation, impact: "新增待查證事項", today: `先讀${investmentScenario.next_check}說明` }], event_notes: [],
     thesis_changes: [{ thesis: investmentScenario.thesis, event_ref: "範例事件", event_index: 0, change: investmentScenario.thesis_change, reason: investmentScenario.thesis_reason }], thesis_notes: [],
     upcoming: [{ date_label: investmentScenario.next_check_date.slice(5).replace("-", "/"), event: investmentScenario.upcoming_event, check: investmentScenario.evidence_to_check }], upcoming_notes: [], actions: [investmentScenario.action],
     action_items: [openActionItem],
+    judgment: demoJudgment,
     envelope: {
       artifact: "daily-brief",
       id: investmentScenario.source_id,
       as_of: DATE,
-      generated_at: BRIEF_GENERATED_AT,
-      source_cutoff: BRIEF_SOURCE_CUTOFF,
+      generated_at: STAMP,
+      source_cutoff: STAMP,
       producer: "synthetic-demo",
       completeness: "ready",
       limitations: [],
@@ -228,194 +268,49 @@ const demoChallengeSignalSource: InvestmentNarrativeSource = {
   label: "合成挑戰訊號",
 }
 
+const demoChallengeEvidence: InvestmentNarrativeLayerEvidence = {
+  evidence_id: "demo-evidence-challenge-l0", pillar_id: "L0", entity_id: "demo-hardware-provider",
+  entity_ticker: null, player: "Synthetic hardware provider", evidence_type: "fact",
+  numeric_state: "unknown", numeric_value: null, unit: null, source_date: "2026-09-18",
+  source_type: "public_research", source_url: null, polarity: "challenges",
+  explanation: "Synthetic example: utilization fell below the stated threshold.", as_of: "2026-09-18",
+  recorded_at: STAMP, freshness: "current", valid_until: null, source: demoChallengeSignalSource,
+  state: "ready", limitations: ["僅為合成資料。"],
+}
+
 const demoEvidenceLayers: InvestmentNarrativeEvidenceLayer[] = [
-  {
-    opposing_coverage: { state: "insufficient", checked_at: DATE, scope: "虛構案例的兩份公開文件", reason: "此合成示例只檢查兩份文件，尚不足以確認反方涵蓋。", source: { path: "synthetic/coverage.md", line: 1 } },
-    layer_id: "L0", pillar_id: "l0_hardware", label: "硬體供應",
-    who_earns: "合成硬體供應商", evidence_examples: "例如：已出貨的設備數量",
-    what_it_proves: "只說明硬體需求已反映在出貨，不代表下游已獲利。", direction_state: "supports",
-    link_state: "linked", state: "ready",
-    current_reading: {
-      state: "partial", text: "合成層的目前認知。", as_of: "2026-09-27", basis: "合成依據（2026-09-20）",
-      authored_by: "ai_scorecard", layer_revision: "0123456789abcdef", current_layer_revision: "0123456789abcdef",
-      limitations: ["合成案例示範 partial reading 仍可直接閱讀。"], source: demoEvidenceSource,
-    },
-    gaps: [{
-      gap_id: "gap-synthetic", pillar_id: "l0_hardware", missing: "合成缺口", closes_when: "合成季報",
-      expected_by: "2026-10", expected_by_precision: "month", overdue: false, state: "ready", source: demoEvidenceSource,
-    }],
-    players: [{
-      entity_id: "synthetic-hardware-provider", player: "合成硬體供應商甲",
-      recorded_at: "2026-09-19", source: demoEvidenceSource,
-    }],
-    evidence: [{
-      evidence_id: "synthetic-hardware-shipment", pillar_id: "l0_hardware",
-      entity_id: "synthetic-hardware-provider", player: "合成硬體供應商甲",
-      evidence_type: "unknown", entity_ticker: null, numeric_state: "unknown", numeric_value: null, unit: null,
-      source_date: "2026-09-18",
-      evidence_date: "2026-09-18", source_type: "public_research",
-      source_url: "https://example.com/synthetic/hardware-shipment", polarity: "supports",
-      explanation: "合成示例：已出貨容量增加，支持硬體需求正在實現；不能單獨證明下游獲利。",
-      as_of: "2026-09-19", recorded_at: "2026-09-20", freshness: "current",
-      valid_until: "2026-12-31", state: "ready", limitations: [], source: demoSupportSignalSource,
-    }],
-    supporting: [{
-      evidence_id: "synthetic-hardware-shipment", pillar_id: "l0_hardware",
-      entity_id: "synthetic-hardware-provider", player: "Synthetic hardware provider",
-      evidence_type: "unknown", entity_ticker: null, numeric_state: "unknown", numeric_value: null, unit: null,
-      source_date: "2026-09-18",
-      evidence_date: "2026-09-18", source_type: "public_research",
-      source_url: "https://example.com/synthetic/hardware-shipment", polarity: "supports",
-      explanation: "合成示例：已出貨容量增加，支持硬體需求正在實現；不能單獨證明下游獲利。",
-      as_of: "2026-09-19", recorded_at: "2026-09-20", freshness: "current",
-      valid_until: "2026-12-31", state: "ready", limitations: [], source: demoSupportSignalSource,
-    }],
-    opposing: [], unknown: [], conflicts: [], unlinked_evidence: [], unlinked_players: [],
-    limitations: [], unknown_reason: null, source_date: null,
-    document_updated: "2026-09-20", source: demoEvidenceSource,
-  },
-  {
-    layer_id: "L1", pillar_id: "l1_cloud", label: "雲端算力",
-    who_earns: "合成雲端服務商", evidence_examples: "例如：客戶付費使用的算力",
-    what_it_proves: "只說明雲端工作負載的使用情況。", direction_state: "unknown",
-    link_state: "unlinked", state: "unknown", players: [{
-      entity_id: "synthetic-cloud-operator", player: "合成雲端服務商甲",
-      recorded_at: "2026-09-19", source: demoEvidenceSource,
-    }],
-    evidence: [], supporting: [], opposing: [], unknown: [], conflicts: [],
-    unlinked_evidence: [],
-    unlinked_players: [{
-      pillar_id: "l1_cloud", entity_id: "TICKER", player: "合成雲端服務商",
-      recorded_at: "2026-09-19", state: "unlinked",
-      limitations: ["合成例：玩家 ID 不符合穩定識別格式。"], source: demoEvidenceSource,
-    }],
-    limitations: ["此層已有明確玩家關係，但尚無明確連結的日期化公開證據。"],
-    unknown_reason: "已記錄這一層的參與者，但沒有明確連結的公開證據。",
-    source_date: null, document_updated: "2026-09-20", source: demoEvidenceSource,
-  },
-  {
-    layer_id: "L2", pillar_id: "l2_models", label: "基礎模型",
-    who_earns: "合成模型服務商", evidence_examples: "例如：持續付費使用模型",
-    what_it_proves: "只說明模型需求，不單獨證明服務商有獲利。", direction_state: "challenges",
-    link_state: "linked", state: "stale", players: [{
-      entity_id: "synthetic-model-provider", player: "合成模型服務商甲",
-      recorded_at: "2026-09-18", source: demoEvidenceSource,
-    }],
-    evidence: [{
-      evidence_id: "synthetic-model-retention", pillar_id: "l2_models",
-      entity_id: "synthetic-model-provider", player: "合成模型服務商甲",
-      evidence_type: "unknown", entity_ticker: null, numeric_state: "unknown", numeric_value: null, unit: null,
-      source_date: "2026-08-30",
-      evidence_date: "2026-08-30", source_type: "company_ir",
-      source_url: "https://example.com/synthetic/model-retention", polarity: "challenges",
-      explanation: "合成示例：付費使用留存下降，挑戰模型需求持續的假設。",
-      as_of: "2026-09-01", recorded_at: "2026-09-02", freshness: "stale",
-      valid_until: "2026-09-10", state: "stale", limitations: ["來源超過 valid_until"], source: demoChallengeSignalSource,
-    }],
-    supporting: [],
-    opposing: [{
-      evidence_id: "synthetic-model-retention", pillar_id: "l2_models",
-      entity_id: "synthetic-model-provider", player: "Synthetic model provider",
-      evidence_type: "unknown", entity_ticker: null, numeric_state: "unknown", numeric_value: null, unit: null,
-      source_date: "2026-08-30",
-      evidence_date: "2026-08-30", source_type: "company_ir",
-      source_url: "https://example.com/synthetic/model-retention", polarity: "challenges",
-      explanation: "合成示例：付費使用留存下降，挑戰模型需求持續的假設。",
-      as_of: "2026-09-01", recorded_at: "2026-09-02", freshness: "stale",
-      valid_until: "2026-09-10", state: "stale", limitations: ["來源超過 valid_until"], source: demoChallengeSignalSource,
-    }],
-    unknown: [], conflicts: [], unlinked_evidence: [], unlinked_players: [],
-    limitations: ["來源超過 valid_until"], unknown_reason: "來源較舊，需重新確認。",
-    source_date: null, document_updated: "2026-09-20", source: demoEvidenceSource,
-  },
-  {
-    layer_id: "L2.5", pillar_id: "l2_5_application_software", label: "應用軟體",
-    who_earns: "合成軟體公司", evidence_examples: "例如：持續付費的使用者",
-    what_it_proves: "只說明應用有被採用，尚未證明付費留存。", direction_state: "unknown",
-    link_state: "linked", state: "unknown", players: [{
-      entity_id: "synthetic-app-vendor", player: "合成軟體公司甲",
-      recorded_at: "2026-09-19", source: demoEvidenceSource,
-    }],
-    evidence: [{
-      evidence_id: "synthetic-app-adoption", pillar_id: "l2_5_application_software",
-      entity_id: "synthetic-app-vendor", player: "合成軟體公司甲",
-      evidence_type: "unknown", entity_ticker: null, numeric_state: "unknown", numeric_value: null, unit: null,
-      source_date: "2026-09-18",
-      evidence_date: "2026-09-18", source_type: "public_research",
-      source_url: "https://example.com/synthetic/app-adoption", polarity: "unknown",
-      explanation: "合成示例：使用者數據已記錄，但此來源未能判斷付費留存方向。",
-      as_of: "2026-09-18", recorded_at: "2026-09-20", freshness: "unknown",
-      valid_until: null, state: "unknown", limitations: ["來源新鮮度尚未確認"], source: demoEvidenceSource,
-    }],
-    supporting: [], opposing: [],
-    unknown: [{
-      evidence_id: "synthetic-app-adoption", pillar_id: "l2_5_application_software",
-      entity_id: "synthetic-app-vendor", player: "合成軟體公司甲",
-      evidence_type: "unknown", entity_ticker: null, numeric_state: "unknown", numeric_value: null, unit: null,
-      source_date: "2026-09-18",
-      evidence_date: "2026-09-18", source_type: "public_research",
-      source_url: "https://example.com/synthetic/app-adoption", polarity: "unknown",
-      explanation: "合成示例：使用者數據已記錄，但此來源未能判斷付費留存方向。",
-      as_of: "2026-09-18", recorded_at: "2026-09-20", freshness: "unknown",
-      valid_until: null, state: "unknown", limitations: ["來源新鮮度尚未確認"], source: demoEvidenceSource,
-    }],
-    conflicts: [], unlinked_evidence: [], unlinked_players: [],
-    limitations: ["來源新鮮度尚未確認"], unknown_reason: "來源新鮮度尚未確認；方向仍未知。",
-    source_date: null, document_updated: "2026-09-20", source: demoEvidenceSource,
-  },
-  {
-    layer_id: "L3", pillar_id: "l3_end_buyers", label: "終端買方",
-    who_earns: "合成企業客戶", evidence_examples: "例如：客戶投資報酬",
-    what_it_proves: "只說明客戶是否獲得價值。", direction_state: "unknown",
-    link_state: "unlinked", state: "conflict", players: [], evidence: [],
-    supporting: [], opposing: [], unknown: [],
-    conflicts: [
-      {
-        pillar_id: "l3_end_buyers", entity_id: "synthetic-end-user", player: "合成買方甲",
-        recorded_at: "2026-09-18", state: "conflict",
-        limitations: ["同一 pillar/entity_id 對應多個 player 名稱"], source: demoEvidenceSource,
-      },
-      {
-        pillar_id: "l3_end_buyers", entity_id: "synthetic-end-user", player: "合成買方乙",
-        recorded_at: "2026-09-18", state: "conflict",
-        limitations: ["同一 pillar/entity_id 對應多個 player 名稱"], source: demoChallengeSignalSource,
-      },
-      {
-        evidence_id: "synthetic-duplicate-evidence", pillar_id: "l3_end_buyers",
-        entity_id: "synthetic-end-user", player: "合成企業客戶",
-        explanation: "合成衝突例：同一證據 ID 出現互相矛盾的內容；未選任一版本。",
-        recorded_at: "2026-09-18", state: "conflict",
-        limitations: ["相同 evidence_id 對應互相衝突的資料列"], source: demoEvidenceSource,
-      },
-      {
-        evidence_id: "synthetic-duplicate-evidence", pillar_id: "l3_end_buyers",
-        entity_id: "synthetic-end-user", player: "合成企業客戶",
-        explanation: "合成衝突例：同一證據 ID 出現互相矛盾的內容；未選任一版本。",
-        recorded_at: "2026-09-18", state: "conflict",
-        limitations: ["相同 evidence_id 對應互相衝突的資料列"], source: demoChallengeSignalSource,
-      },
-    ],
-    unlinked_evidence: [{
-      evidence_id: "synthetic-invalid-player-link", pillar_id: "l3_end_buyers",
-      entity_id: "TICKER", player: "合成買方", source_url: "https://example.com/synthetic/unlinked",
-      state: "unlinked", limitations: ["entity_id 不是穩定小寫 ID"], source: demoEvidenceSource,
-    }],
-    unlinked_players: [],
-    limitations: ["此層存在互相矛盾的玩家識別與證據關聯。"],
-    unknown_reason: "合成範例：玩家身份互相衝突；未任選一個。",
-    source_date: null, document_updated: "2026-09-20", source: demoEvidenceSource,
-  },
-]
+  ["L0", "Hardware", "Synthetic hardware provider", "Example: shipped capacity", "Only demonstrates realized hardware demand"],
+  ["L1", "Cloud", "Synthetic cloud operator", "Example: paid utilization", "Only demonstrates cloud workload use"],
+  ["L2", "Model", "Synthetic model provider", "Example: recurring model usage", "Only demonstrates model demand"],
+  ["L2.5", "App software", "Synthetic software vendor", "Example: retained paid users", "Only demonstrates application adoption"],
+  ["L3", "End user", "Synthetic customer", "Example: customer ROI", "Only demonstrates end-user value"],
+].map(([layer_id, label, who_earns, evidence_examples, what_it_proves], index) => ({
+  layer_id, label, who_earns, evidence_examples, what_it_proves,
+  direction_state: "unknown",
+  link_state: index === 3 ? "unlinked" : "linked",
+  supporting: [],
+  opposing: index === 0 ? [demoChallengeEvidence] : [],
+  evidence: index === 0 ? [demoChallengeEvidence] : [],
+  opposing_coverage: index === 0 ? { state: "sufficient", checked_at: STAMP, scope: "synthetic layer", reason: "合成反例展示：有一項明確連結的挑戰證據。", source: demoChallengeSignalSource }
+    : index === 1 ? { state: "insufficient", checked_at: STAMP, scope: "synthetic layer", reason: "合成資料只涵蓋一部分來源。", source: demoEvidenceSource }
+    : index === 2 ? { state: "unavailable", checked_at: null, scope: "synthetic layer", reason: "合成檢查來源目前不可用。", source: null }
+    : index === 3 ? { state: "unknown", checked_at: null, scope: null, reason: "合成資料無法確認涵蓋狀態。", source: null }
+    : undefined,
+  unknown_reason: "合成展示資料沒有把正反訊號明確連到此層。",
+  source_date: null,
+  document_updated: null,
+  source: demoEvidenceSource,
+}))
 
 const demoDirectionalSignals: InvestmentNarrativeDirectionalSignal[] = [
   {
-    direction: "supports", layer_id: null, priority: "示範", indicator: "付費使用持續性",
-    dispute: "需求能否持續", text: "合成例：付費使用持續增加，支持需求具有持續性。",
+    direction: "supports", layer_id: null, priority: "示範", indicator: "Synthetic paid usage",
+    dispute: "Synthetic demand durability", text: "Synthetic example: recurring paid usage would support demand durability.",
     source_channels: "合成資料", source_date: "2026-09-18", document_updated: "2026-09-20", source: demoSupportSignalSource,
   },
   {
-    direction: "challenges", layer_id: null, priority: "示範", indicator: "客戶獲得的回報",
-    dispute: "終端客戶是否受益", text: "合成例：來源指出客戶獲得的回報偏弱，挑戰終端價值假設。",
+    direction: "challenges", layer_id: null, priority: "示範", indicator: "Synthetic customer return",
+    dispute: "Synthetic end-user value", text: "Synthetic example: source marks weak customer return as a challenge to end-user value.",
     source_channels: "合成資料", source_date: null, document_updated: "2026-09-19", source: demoChallengeSignalSource,
   },
 ]
@@ -424,35 +319,6 @@ const demoThesisEvidence: InvestmentNarrativeThesisEvidence = {
   state: "partial",
   layers: demoEvidenceLayers,
   directional_signals: demoDirectionalSignals,
-  unlinked_evidence: [{
-    evidence_id: "synthetic-unmapped-evidence", pillar_id: "unmapped_pillar",
-    entity_id: "synthetic-unmapped-company", player: "合成公司", evidence_date: "2026-09-18",
-    state: "unlinked", limitations: ["pillar_id 不在既定五層內；保留為全域未連結資料。"],
-    source: demoEvidenceSource,
-  }, {
-    evidence_id: "synthetic-invalid-player-link", pillar_id: "l3_end_buyers",
-    entity_id: "TICKER", player: "合成買方", source_url: "https://example.com/synthetic/unlinked",
-    state: "unlinked", limitations: ["合成回歸：此列雖在頂層陣列重複回傳，但屬 L3，應只在 L3 顯示。"],
-    source: demoEvidenceSource,
-  }],
-  unlinked_players: [{
-    pillar_id: "unmapped_pillar", entity_id: "synthetic-unmapped-player",
-    player: "合成參與者", recorded_at: "2026-09-18", state: "unlinked",
-    limitations: ["pillar_id 不在既定五層內；不猜測對應層級。"], source: demoEvidenceSource,
-  }, {
-    pillar_id: "l1_cloud", entity_id: "TICKER", player: "合成雲端服務商",
-    recorded_at: "2026-09-19", state: "unlinked",
-    limitations: ["合成回歸：此列屬 L1，應只在 L1 顯示。"], source: demoEvidenceSource,
-  }],
-  scorecard_update: {
-    updated_at: "2026-09-20",
-    status: "evidence_pending_review",
-    scope: ["l0_hardware", "l1_cloud", "l2_models", "l2_5_application_software", "l3_end_buyers"],
-    document_updated_at: "2026-09-20",
-    state: "partial",
-    reason: "合成例：覆核與新證據只有日期、沒有時間，先後順序不明。",
-    source: demoEvidenceSource,
-  },
   latest_recorded_change: {
     date: null, judgment: null, key_evidence: null, later_verification: null,
     state: "unknown", missing: ["展示資料沒有正式的日期化判斷與驗證記錄。"], source: null,
@@ -463,10 +329,10 @@ const demoThesisEvidence: InvestmentNarrativeThesisEvidence = {
 export const investmentNarrative: InvestmentNarrative = {
   catalysts_30d: {
     state: "partial", window_start: DATE, window_end: "2026-10-20",
-    items: [{ ticker: "DEMO", type: "虛構財報", raw: "2026-10-05 公布虛構公司財報，核對需求是否延續。", date_precision: "day", date: "2026-10-05", date_label: "2026-10-05", source_qualifiers: [], source: { path: "synthetic/catalysts.md", line: 1 }, window_membership: "within" }],
-    uncertain_items: [{ ticker: "DEMO", type: "虛構產品驗證", raw: "2026-10 月可能公布驗證結果，日期尚未確認。", date_precision: "month", date: null, date_label: "2026-10", source_qualifiers: ["日期未確認"], source: { path: "synthetic/catalysts.md", line: 2 }, window_membership: "possible" },
-      { ticker: "DEMO-C", type: "虛構待公布事項", raw: "虛構事項尚未登記日期與窗口關係。", date_precision: "imprecise", date: null, date_label: null, source_qualifiers: ["窗口關係未知"], source: { path: "synthetic/catalysts.md", line: 3 }, window_membership: "unknown" }],
-    coverage_gaps: [{ ticker: "DEMO-B", reason: "合成來源尚未登記下一個事件。" }], limitations: ["合成案例只示範部分催化劑來源。"],
+    items: [{ ticker: "DEMO", type: "event", raw: "2026-10-05 合成交付檢查：比對交期與出貨節奏", date_precision: "day", date: "2026-10-05", date_label: "2026-10-05", source_qualifiers: ["合成事件"], source: { path: "synthetic/catalysts.md", line: 12 }, window_membership: "within" }],
+    uncertain_items: [{ ticker: "DEMO", type: "event", raw: "十月中旬合成客戶更新", date_precision: "approximate_day", date: null, date_label: "十月中旬", source_qualifiers: ["日期約略"], source: { path: "synthetic/catalysts.md", line: 18 }, window_membership: "possible" }],
+    coverage_gaps: [{ ticker: "DEMO", reason: "合成示例保留一項來源覆蓋缺口。", source: { path: "synthetic/catalysts.md", line: 24 } }],
+    limitations: ["僅供展示 30 天窗口、日期精度與來源限制。"],
   },
   artifact: "personalos-investment-hub",
   schema_version: "1.0",
@@ -511,7 +377,7 @@ export const investmentActions: InvestmentActions = {
 
 function exploreItem(partial: Partial<MarketExploreItem> & Pick<MarketExploreItem, "symbol" | "label">): MarketExploreItem {
   return {
-    change_1d_pct: null, change_7d_pct: null, activity: { label: null, value: null },
+    price: null, change_1d_pct: null, change_7d_pct: null, activity: { label: null, value: null },
     rsi14: null, vs_50ma_pct: null, rs_benchmark_1m_pp: null, rs_benchmark_window: null,
     researched: false, ...partial,
   }
@@ -532,29 +398,29 @@ export const marketExplore: MarketExplore = {
         {
           key: "fast", label: "漲得快", method: "1 日漲幅，並附 7 日對照",
           items: [
-            exploreItem({ symbol: "ISLE-A", label: "島嶼設備甲", change_1d_pct: 8.2, change_7d_pct: 12.1 }),
-            exploreItem({ symbol: "ISLE-B", label: "島嶼設備乙", change_1d_pct: 6.4, change_7d_pct: 4.0, researched: true }),
-            exploreItem({ symbol: "ISLE-C", label: "島嶼設備丙", change_1d_pct: 5.1, change_7d_pct: null }),
+            exploreItem({ symbol: "ISLE-A", price: 128.5, label: "島嶼設備甲", change_1d_pct: 8.2, change_7d_pct: 12.1 }),
+            exploreItem({ symbol: "ISLE-B", price: 64.2, label: "島嶼設備乙", change_1d_pct: 6.4, change_7d_pct: 4.0, researched: true }),
+            exploreItem({ symbol: "ISLE-C", price: 902.0, label: "島嶼設備丙", change_1d_pct: 5.1, change_7d_pct: null }),
           ],
         },
         {
           key: "active", label: "量能熱", method: "相對成交量，不是周轉率",
           items: [
-            exploreItem({ symbol: "HARBOR-1", label: "港灣材料", change_1d_pct: 2.4, activity: { label: "相對成交量", value: 3.2 } }),
-            exploreItem({ symbol: "HARBOR-2", label: "港灣零件", change_1d_pct: 1.1, activity: { label: "相對成交量", value: 2.1 } }),
+            exploreItem({ symbol: "HARBOR-1", price: 41.8, label: "港灣材料", change_1d_pct: 2.4, activity: { label: "相對成交量", value: 3.2 } }),
+            exploreItem({ symbol: "HARBOR-2", price: 25.6, label: "港灣零件", change_1d_pct: 1.1, activity: { label: "相對成交量", value: 2.1 } }),
           ],
         },
         {
           key: "sustained", label: "持續強", method: "相對範例指數 1 個月超額",
           items: [
-            exploreItem({ symbol: "RIDGE-1", label: "山脊儲能", vs_50ma_pct: 8.5, rs_benchmark_1m_pp: 6.2, rs_benchmark_window: "1M vs 範例指數", rsi14: 62 }),
+            exploreItem({ symbol: "RIDGE-1", price: 311.0, label: "山脊儲能", vs_50ma_pct: 8.5, rs_benchmark_1m_pp: 6.2, rs_benchmark_window: "1M vs 範例指數", rsi14: 62 }),
           ],
         },
       ],
     },
     {
-      market: "us", artifact: "market-explore-us", id: "demo-explore-us", as_of: PREVIOUS_DATE,
-      generated_at: STAMP, source_cutoff: `${PREVIOUS_DATE}T13:00:00+08:00`, producer: "synthetic-demo", state: "partial",
+      market: "us", artifact: "market-explore-us", id: "demo-explore-us", as_of: DATE,
+      generated_at: STAMP, source_cutoff: STAMP, producer: "synthetic-demo", state: "partial",
       limitations: ["2/20 通過門檻"], universe_size: 20,
       buckets: [
         { key: "fast", label: "漲得快", method: "1 日漲幅，並附 7 日對照", items: [] },
@@ -581,12 +447,7 @@ const investmentHistoryItem: InvestmentHistoryItem = {
   learning_state: "unknown",
   state: "partial",
   missing: ["後續結果尚未記錄，結果保持未知。", "合成來源未提供 learning_role；分類保持未知。"],
-  source: {
-    path: investmentScenario.source_path,
-    line: demoHistoryRow.source.line_start,
-    line_end: demoHistoryRow.source.line_end,
-    label: "Scorecard 時間線項目（合成）",
-  },
+  source: { path: investmentScenario.source_path, line: demoHistoryRow.source.line_start, line_end: demoHistoryRow.source.line_end, label: "Scorecard 時間線項目（合成）" },
   reason: demoHistoryRow.excerpt,
   evidence: null,
   outcome: { text: null, state: "unknown" },
@@ -608,7 +469,7 @@ const investmentDecisionEpisode: InvestmentHistoryItem = {
   learning_state: "unknown",
   state: "partial",
   missing: ["No recorded checkpoint outcome; outcome is unknown.", "No separate learning field is recorded; learning is unknown."],
-  source: { path: investmentScenario.source_path, label: "Decision View sidecar (synthetic)" },
+  source: { path: investmentScenario.source_path, line: demoEpisodeRow.source.line_start, line_end: demoEpisodeRow.source.line_end, label: "Decision View sidecar (synthetic)" },
   reason: demoEpisodeRow.excerpt,
   evidence: [{ path: investmentScenario.source_path, line: demoEpisodeRow.source.line_start }],
   outcome: { text: null, state: "unknown" },
@@ -662,37 +523,23 @@ export const investmentHistory: InvestmentHistory = {
   history: { items: [investmentHistoryItem, investmentDecisionEpisode, investmentUnindexedHistoryItem, { ...investmentLinkedHistoryItem, reason: undefined, decision_source: undefined, learning: undefined, learning_source: undefined, checkpoints: undefined }], count: 4 },
 }
 
-export const investmentHistorySources: Record<string, InvestmentHistoryDetail> = Object.fromEntries(
+export const investmentHistorySources: Record<string, InvestmentHistorySource> = Object.fromEntries(
   [
-    [investmentLinkedHistoryItem.id, { ...investmentHistory, artifact: "investment-history-detail", id: "history-detail:synthetic-linked", state: "ready", limitations: [], history: { item: investmentLinkedHistoryItem, source_text: null } }],
-    [investmentHistoryItem.id, {
-      schema_version: "1.0",
-      artifact: "investment-history-detail",
-      id: `history-detail:${investmentHistoryItem.id}`,
-      as_of: investmentHistoryItem.date ?? "unknown",
-      generated_at: STAMP,
-      source_cutoff: "unknown",
-      producer: "tools/history_view.py",
-      state: "partial",
-      limitations: investmentHistoryItem.missing,
-      sources: [investmentScenario.source_path],
-      history: { item: investmentHistoryItem, source_text: demoHistoryRow.detail },
+    [investmentLinkedHistoryItem.id!, { ...investmentHistory, artifact: "investment-history-detail", id: "history-detail:synthetic-linked", state: "ready", limitations: [], history: { item: investmentLinkedHistoryItem, source_text: null } }],
+    [investmentHistoryItem.id!, {
+      schema_version: "1.0", artifact: "investment-history-detail", id: `history-detail:${investmentHistoryItem.id}`,
+      as_of: investmentHistoryItem.date ?? "unknown", generated_at: STAMP, source_cutoff: "unknown",
+      producer: "tools/history_view.py", state: "partial", limitations: investmentHistoryItem.missing,
+      sources: [investmentScenario.source_path], history: { item: investmentHistoryItem, source_text: demoHistoryRow.detail },
     }],
-    [investmentDecisionEpisode.id, {
-      schema_version: "1.0",
-      artifact: "investment-history-detail",
-      id: `history-detail:${investmentDecisionEpisode.id}`,
-      as_of: investmentDecisionEpisode.date ?? "unknown",
-      generated_at: STAMP,
-      source_cutoff: "unknown",
-      producer: "tools/history_view.py",
-      state: "partial",
-      limitations: investmentDecisionEpisode.missing,
-      sources: [investmentScenario.source_path],
-      history: { item: investmentDecisionEpisode, source_text: null },
+    [investmentDecisionEpisode.id!, {
+      schema_version: "1.0", artifact: "investment-history-detail", id: `history-detail:${investmentDecisionEpisode.id}`,
+      as_of: investmentDecisionEpisode.date ?? "unknown", generated_at: STAMP, source_cutoff: "unknown",
+      producer: "tools/history_view.py", state: "partial", limitations: investmentDecisionEpisode.missing,
+      sources: [investmentScenario.source_path], history: { item: investmentDecisionEpisode, source_text: null },
     }],
   ],
-) as Record<string, InvestmentHistoryDetail>
+) as Record<string, InvestmentHistorySource>
 
 export const investmentContext: InvestmentContext = {
   schema_version: 1,
@@ -711,64 +558,17 @@ export const investmentContext: InvestmentContext = {
 
 export const market: InvestmentMarket = { fetched_at: STAMP, state: "ready", cached: true, active: false,
   items: [
-    { symbol: investmentScenario.symbol, market: "tw", label: investmentScenario.market_index.label, code: investmentScenario.symbol, value: investmentScenario.market_index.value, unit: "點", change: investmentScenario.market_index.change, change_percent: investmentScenario.market_index.change_percent, quoted_at: STAMP, session: "closed", state: "available", error: null, source_url: "#demo-source" },
-    { symbol: "DEMO-US-INDEX", market: "us", label: "合成美股指數", code: null, value: 5200, unit: "點", change: -18, change_percent: -0.35, quoted_at: `${DATE}T09:30:00-04:00`, session: "regular", state: "available", error: null, source_url: "#demo-source" },
+    { symbol: investmentScenario.symbol, market: "tw", label: investmentScenario.market_index.label, code: investmentScenario.symbol, value: investmentScenario.market_index.value, unit: "點", change: investmentScenario.market_index.change, change_percent: investmentScenario.market_index.change_percent, quoted_at: STAMP, session: "closed", session_start: null, session_end: null, state: "available", error: null, source_url: "#demo-source" },
+    { symbol: "SPY", market: "us", label: "美股大盤", code: "SPY", value: 612.2, unit: "USD", change: 3.1, change_percent: 0.51, quoted_at: STAMP, session: "closed", session_start: null, session_end: null, state: "available", error: null, source_url: "#demo-source" },
+    { symbol: "QQQ", market: "us", label: "科技", code: "QQQ", value: 545.4, unit: "USD", change: 5.1, change_percent: 0.95, quoted_at: STAMP, session: "closed", session_start: null, session_end: null, state: "available", error: null, source_url: "#demo-source" },
+    { symbol: "^SOX", market: "us", label: "半導體", code: "SOX", value: 584.2, unit: "點", change: 12.1, change_percent: 2.09, quoted_at: STAMP, session: "closed", session_start: null, session_end: null, state: "available", error: null, source_url: "#demo-source" },
   ] }
-const basePulse: InvestmentMarketPulse = {
-  as_of: PREVIOUS_DATE, requested_date: DATE, source_dates: { twse: PREVIOUS_DATE, tpex: PREVIOUS_DATE },
-  generated_at: STAMP, source_cutoff: `${PREVIOUS_DATE}T13:30:00+08:00`, producer: "synthetic-demo", state: "partial",
-  limitations: ["全部數字都是合成展示資料；這份日結統計不是盤中報價。", `合成狀態：要求 ${DATE}，來源只回傳 ${PREVIOUS_DATE}。`],
-  index: { label: "合成台股指數", value: 21880, change: 120, change_pct: 0.55, direction_check: { status: "confirmed", as_of: PREVIOUS_DATE } },
-  artifact: "tw-market-pulse", id: "synthetic-pulse",
-  breadth: { twse: {up: 620, down: 310, flat: 90, limit_up: 12, limit_down: 3}, tpex: {up: 430, down: 210, flat: 60, limit_up: 8, limit_down: 2}, combined: { up: 1050, down: 520, flat: 150, limit_up: 20, limit_down: 5 }, advancer_ratio: 0.61 },
-  turnover: { twse_common_stock: 285000000000, tpex_stock: 135000000000, combined_stock: 420_000_000_000 },
-  themes: {
-    label: "科技鏈熱度（合成關注清單）", source: "SUPPLY_CHAIN",
-    strongest: [{ theme: "合成晶圓代工鏈", sample_size: null, limit_up: null, avg_change_pct: 2.1 }, { theme: "合成 AI 伺服器鏈", sample_size: null, limit_up: null, avg_change_pct: 1.6 }],
-    weakest: [{ theme: "合成顯示鏈", sample_size: null, limit_up: null, avg_change_pct: -1.2 }],
-  },
-  flow: { as_of: null, index_close: null, index_change: null, turnover_ntd: null, prev_turnover_ntd: null, avg20_turnover_ntd: null, turnover_vs_prev_pct: null, turnover_vs_avg20_pct: null, institutional: { published: false, status: "not_published", foreign_net_ntd: null, trust_net_ntd: null, dealer_net_ntd: null, total_net_ntd: null, prev_foreign_net_ntd: null }, basis: "合成範例未提供盤後量價。", sources: [], limitations: [] },
-}
-export const pulseIntegrityScenarios = {
-  confirmed: {
-    ...basePulse,
-    as_of: DATE,
-    source_dates: { twse: DATE, tpex: DATE },
-    source_cutoff: `${DATE}T13:30:00+08:00`,
-    state: "ready",
-    limitations: ["全部數字都是合成展示資料；這份日結統計不是盤中報價。"],
-    index: { ...basePulse.index, direction_check: { status: "confirmed", as_of: DATE } },
-  } satisfies InvestmentMarketPulse,
-  needsReview: {
-    ...basePulse,
-    state: "partial",
-    limitations: [...basePulse.limitations, "合成衝突：方向未確認，保留來源數值供查看。"],
-    index: {
-      ...basePulse.index,
-      direction_check: {
-        status: "needs_review",
-        reason: "合成衝突：兩個來源的同日漲跌方向不一致；未選定方向。",
-        as_of: PREVIOUS_DATE,
-        twse_change: 120,
-        twse_change_pct: 0.55,
-        session_flow_change: -120,
-        twse_close: 21880,
-        session_flow_close: 21880,
-        session_flow_status: "close_matched",
-      },
-    },
-  } satisfies InvestmentMarketPulse,
-  previousSessionPartial: {
-    ...basePulse,
-    as_of: PREVIOUS_DATE,
-    requested_date: DATE,
-    source_dates: { twse: PREVIOUS_DATE, tpex: null },
-    source_cutoff: `${PREVIOUS_DATE}T13:30:00+08:00`,
-    state: "partial",
-    limitations: [...basePulse.limitations, `合成狀態：要求 ${DATE}，來源只回傳 ${PREVIOUS_DATE}。`],
-  } satisfies InvestmentMarketPulse,
-}
-export const pulse: InvestmentMarketPulse = pulseIntegrityScenarios.needsReview
+export const pulse: InvestmentMarketPulse = { artifact: "tw-market-pulse", id: "demo-pulse", as_of: DATE, generated_at: STAMP, source_cutoff: STAMP, producer: "synthetic-demo", state: "ready", limitations: [], index: { label: "加權指數", value: 21880, change: 120, change_pct: 0.55 }, breadth: { twse: { up: 620, down: 310, flat: 90, limit_up: 12, limit_down: 3 }, tpex: { up: 430, down: 210, flat: 60, limit_up: 8, limit_down: 2 }, combined: { up: 1050, down: 520, flat: 150, limit_up: 20, limit_down: 5 }, advancer_ratio: 0.61 }, turnover: { twse_common_stock: 285000000000, tpex_stock: 135000000000, combined_stock: 420000000000 }, themes: { label: "科技鏈熱度", source: "SUPPLY_CHAIN", strongest: [{ theme: "晶圓代工", sample_size: 4, avg_change_pct: 2.1, limit_up: 0 }, { theme: "AI伺服器/EMS", sample_size: 6, avg_change_pct: 1.6, limit_up: 1 }], weakest: [{ theme: "面板/顯示", sample_size: 5, avg_change_pct: -1.2, limit_up: 0 }] }, flow: { as_of: DATE, index_close: 21880, index_change: 120, turnover_ntd: 420000000000, prev_turnover_ntd: 460000000000, avg20_turnover_ntd: 410000000000, turnover_vs_prev_pct: -8.7, turnover_vs_avg20_pct: 2.44, institutional: { published: true, status: "published", foreign_net_ntd: 3500000000, trust_net_ntd: -600000000, dealer_net_ntd: 900000000, total_net_ntd: 3800000000, prev_foreign_net_ntd: 4100000000 }, basis: "集中市場（上市）總成交金額，含 ETF 等全部證券；與 turnover.combined_stock（上市＋上櫃個股）口徑不同。", sources: [], limitations: [] } }
+export const universe: MomentumUniverse = { state: "ready", symbols: [investmentScenario.symbol], label: "虛構標的", note: `${investmentScenario.symbol} 為展示代號，沒有真實持倉。`, source: "合成資料", excluded_count: 0 }
+export const quote: StockQuote = { symbol: investmentScenario.symbol, label: investmentScenario.label, value: investmentScenario.price.value, unit: "範例幣", change: investmentScenario.price.change, change_percent: investmentScenario.price.change_percent, quoted_at: STAMP, session: "closed", session_start: null, session_end: null, state: "available", error: null, source_url: "#demo-source", fetched_at: STAMP, cached: true }
+export const momentum: StockMomentumData = { symbol: investmentScenario.symbol, fetched_at: STAMP, cached: true, state: "ready",
+  daily: { state: "available", source: "live", stored_at: null, as_of: DATE, lag_sessions: 0, missing_dates: [], last_close: 42, rsi14: 55, macd: "flat", return_20d_pct: 4.8, vs_5ma_pct: 1.2, vs_20ma_pct: 2.6, vs_50ma_pct: 2, range_252_low: 30, range_252_high: 50, range_252_position_pct: 60, distance_high_pct: -16, observations: 252, notes: ["所有指標均為合成數字"] },
+  source_url: "#demo-source" }
 export const relativeStrength: RelativeStrength = {
   state: "ready", as_of: DATE, window_trading_days: 60,
   benchmarks: { market: 4.2, sector: -3.1 },
@@ -780,43 +580,31 @@ export const relativeStrength: RelativeStrength = {
   note: "合成資料；不是真實的相對強度。", message: "",
 }
 
-
 export const twRelativeStrength: TwRelativeStrength = {
-  schema_version: "1.0", artifact: "tw-holdings-relative-strength", id: "tw-rs:synthetic",
-  cached: true, market: "tw", state: "partial", as_of: PREVIOUS_DATE, requested_date: DATE,
-  read_at: null, generated_at: STAMP, source_cutoff: PREVIOUS_DATE,
-  producer: "tools/tw_relative_strength.py", window_trading_days: 60,
-  limitations: ["合成資料示範已核實的前一交易日；同業籃子尚未提供。"], sources: ["synthetic/tw-rs"],
-  holdings: [
-    { symbol: "DEMO-TW-A", market: "tw", exchange: "TWSE", provider_symbol: "DEMO-TW-A.TW", as_of: PREVIOUS_DATE,
-      window_start: "2026-06-24", window_trading_days: 60, state: "partial", reason_codes: ["peer_group_unavailable"], limitations: ["同業籃子尚未提供，不以大盤代替。"],
-      market_rs_pp: 3.25, market_benchmark: { id: "^TWII", label: "臺灣證交所發行量加權股價指數" }, peer_rs_pp: null, peer_group: null,
-      coverage: { expected_sessions: 61, holding_sessions: 61 }, price_source: "Synthetic adjusted daily close", benchmark_source: "synthetic/official-calendar" },
-    { symbol: "DEMO-TW-B", market: "tw", exchange: "TPEx", provider_symbol: "DEMO-TW-B.TWO", as_of: PREVIOUS_DATE,
-      window_start: "2026-06-24", window_trading_days: 60, state: "unavailable", reason_codes: ["holding_endpoint_mismatch", "peer_group_unavailable"], limitations: ["個股與大盤收盤日不同。", "同業籃子尚未提供。"],
-      market_rs_pp: null, market_benchmark: { id: "^TWII", label: "臺灣證交所發行量加權股價指數" }, peer_rs_pp: null, peer_group: null,
-      coverage: { expected_sessions: 61, holding_sessions: 60 }, price_source: "Synthetic adjusted daily close", benchmark_source: "synthetic/official-calendar" },
-    { symbol: "DEMO-TW-C", market: "tw", exchange: null, provider_symbol: null, as_of: null, window_start: null,
-      window_trading_days: 60, state: "unavailable", reason_codes: ["exchange_unverified", "peer_group_unavailable"], limitations: ["交易所身分尚未核實。", "同業籃子尚未提供。"],
-      market_rs_pp: null, market_benchmark: { id: "^TWII", label: "臺灣證交所發行量加權股價指數" }, peer_rs_pp: null, peer_group: null,
-      coverage: { expected_sessions: 61, holding_sessions: 0 }, price_source: "Synthetic adjusted daily close", benchmark_source: "synthetic/official-calendar" },
-  ],
+  artifact: "tw-holdings-relative-strength", schema_version: "1.0", id: "tw-rs:synthetic-demo",
+  state: "partial", as_of: DATE, generated_at: STAMP, source_cutoff: STAMP,
+  producer: "synthetic-demo", limitations: ["合成資料；不代表真實持倉、報酬或官方基準結果。"],
+  sources: ["synthetic/tw-relative-strength"], market: "tw", requested_date: DATE,
+  read_at: STAMP, window_trading_days: 20, cached: true,
+  holdings: [{
+    symbol: "DEMO-TWSE", market: "tw", exchange: "TWSE", provider_symbol: "SYNTHETIC-TWSE",
+    as_of: DATE, window_start: "2026-08-24", window_trading_days: 20, state: "partial",
+    reason_codes: ["synthetic_example"], limitations: ["合成列僅展示 null peer RS 與 session coverage 欄位。"],
+    market_rs_pp: 2.4, market_benchmark: { id: "DEMO-TAIEX", label: "合成加權基準" },
+    peer_rs_pp: null, peer_group: null, coverage: { expected_sessions: 20, holding_sessions: 20 },
+    price_source: "synthetic-close-series", benchmark_source: "synthetic-twse-benchmark",
+  }],
 }
 
-export const universe: MomentumUniverse = { state: "ready", symbols: [investmentScenario.symbol], label: "虛構標的", note: `${investmentScenario.symbol} 為展示代號，沒有真實持倉。`, source: "合成資料", excluded_count: 0 }
-export const quote: StockQuote = { symbol: investmentScenario.symbol, label: investmentScenario.label, value: investmentScenario.price.value, unit: "範例幣", change: investmentScenario.price.change, change_percent: investmentScenario.price.change_percent, quoted_at: STAMP, session: "closed", state: "available", error: null, source_url: "#demo-source", fetched_at: STAMP, cached: true }
-export const momentum: StockMomentumData = { symbol: investmentScenario.symbol, fetched_at: STAMP, cached: true, state: "ready",
-  daily: { source: "live", stored_at: null, lag_sessions: 0, missing_dates: [], state: "available", as_of: DATE, last_close: 42, rsi14: 55, macd: "flat", return_20d_pct: 4.8, vs_5ma_pct: 1.2, vs_20ma_pct: 2.6, vs_50ma_pct: 2, range_252_low: 30, range_252_high: 50, range_252_position_pct: 60, distance_high_pct: -16, observations: 252, notes: ["所有指標均為合成數字"] },
-  premarket: { state: "unavailable", price: null, change_percent: null, quoted_at: null, note: "範例未提供盤前資料" }, source_url: "#demo-source" }
-const enrichedLeaderReference: MomentumLeaders = { state: "ready", as_of: DATE,
+export const leaders: MomentumLeaders = { state: "ready", as_of: DATE,
   coverage: { candidate_count: 3, holding_count: 1, watch_count: 2, scored_count: 3, unavailable_count: 0, unavailable_symbols: [], lagging_symbols: ["DEMO-C"] },
   reading: { scored: 3, as_of: DATE, strong: 2, above_20ma: 3, above_20ma_unknown: 0, above_50ma: 3, above_50ma_unknown: 0,
     rsi_over_70: 0, rsi_under_30: 0, rsi_unknown: 0, macd_bearish: 0,
-    strongest: { symbol: investmentScenario.symbol, return_20d_pct: 4.8 }, weakest: { symbol: "DEMO-C", return_20d_pct: 1.4 },
+    strongest: { symbol: "SYNTH", return_20d_pct: 4.8 }, weakest: { symbol: "DEMO-C", return_20d_pct: 1.4 },
     definition: "強勢＝最近 20 個完整交易日報酬為正，且收盤在 20／50 日線上方。這是合成清單。" },
   note: "強勢＝最近 20 個完整交易日報酬為正，且收盤在 20／50 日線上方；涵蓋持倉與已登記觀察清單全部標的，不是全市場掃描。",
   rows: [
-    { symbol: investmentScenario.symbol, holding: true, state: "available", source: "live", stored_at: null, as_of: DATE, lag_sessions: 0, missing_dates: [],
+    { symbol: "SYNTH", holding: true, state: "available", source: "live", stored_at: null, as_of: DATE, lag_sessions: 0, missing_dates: [],
       last_close: 42, return_20d_pct: 4.8, vs_5ma_pct: 1.2, vs_20ma_pct: 2.6, vs_50ma_pct: 2, rsi14: 55, macd: "bullish",
       distance_high_pct: -16, range_252_position_pct: 60, range_252_low: 30, range_252_high: 50, strong: true, notes: ["所有指標均為合成數字"] },
     { symbol: "DEMO-B", holding: false, state: "available", source: "live", stored_at: null, as_of: DATE, lag_sessions: 0, missing_dates: [],
@@ -827,30 +615,24 @@ const enrichedLeaderReference: MomentumLeaders = { state: "ready", as_of: DATE,
       distance_high_pct: -30, range_252_position_pct: 40, range_252_low: 12, range_252_high: 24, strong: false,
       notes: ["本次行情來源失敗（合成示範）；沿用 2026/09/20 17:00 取得、截至 2026-09-19 的日線。"] },
   ] }
-export const leaders: MomentumLeaders = { rows: enrichedLeaderReference.rows, state: "ready", as_of: DATE, universe,
-  coverage: { holding_count: 1, watch_count: 0, unavailable_symbols: [], lagging_symbols: [], candidate_count: 3, scored_count: 3, unavailable_count: 0 },
-  note: "強勢＝最近 20 個完整交易日報酬為正，且收盤在 20／50 日線上方；這是合成研究清單，不是全市場掃描。",
-  leaders: [
-    { symbol: "SYNTH", rank: 1, state: "ready", as_of: DATE, last_close: 42, return_20d_pct: 4.8, vs_5ma_pct: 1.2, vs_20ma_pct: 2.6, vs_50ma_pct: 2, rsi14: 55, macd: "bullish", notes: [] },
-    { symbol: "DEMO-B", rank: 2, state: "ready", as_of: DATE, last_close: 88, return_20d_pct: 3.1, vs_5ma_pct: 0.8, vs_20ma_pct: 1.7, vs_50ma_pct: 2.2, rsi14: 62, macd: "bullish_cross", notes: [] },
-    { symbol: "DEMO-C", rank: 3, state: "partial", as_of: DATE, last_close: 17, return_20d_pct: 1.4, vs_5ma_pct: -0.2, vs_20ma_pct: 0.9, vs_50ma_pct: 1.1, rsi14: 58, macd: "flat", notes: [] },
-  ] }
 const watchSource = { path: investmentScenario.source_path, label: "合成研究", section: "待查問題", updated: DATE, source_id: investmentScenario.source_id }
-export const investmentResearchItem = {
-  id: "source:research/synthetic_capacity_question.md",
-  kind: "research_note",
-  title: investmentScenario.research_title,
-  question: investmentScenario.question,
-  status: "open",
-  ticker: null,
-  narrative_id: null,
-  decision_id: null,
-  updated: DATE,
-  as_of: DATE,
-  state: "partial",
-  missing: ["Synthetic item has no canonical narrative or decision link."],
-  source: { path: investmentScenario.source_path, line: 4 },
-} satisfies InvestmentResearch["research"]["items"][number]
+const watchBody: InvestmentWatch["watch"] = {
+  coverage: { scope: ["合成範例"], scanned_files: 1, omissions: [], errors: [], missing_catalysts: [] },
+  catalysts: [{ id: "demo-catalyst", topic: investmentScenario.label, label: investmentScenario.next_check, raw: `${investmentScenario.next_check_date}（合成日期）`, date: investmentScenario.next_check_date.slice(0, 7), date_precision: "month", estimated: true, bucket: "undated", source: watchSource }],
+  research: [{ id: "demo-research", topic: investmentScenario.label, title: investmentScenario.research_title, status: "觀察", purpose: "整理待查問題", excerpt: investmentScenario.research_excerpt, session_refs: [], source: watchSource }], session_followups: [] }
+export const watch: InvestmentWatch = {
+  schema_version: "1.0", artifact: "investment-watch", id: "investment-watch:v1",
+  as_of: "unknown", generated_at: STAMP, source_cutoff: "unknown",
+  producer: "synthetic-demo", state: "partial", limitations: ["僅供範例展示"],
+  sources: ["demo/investment"], watch: watchBody,
+}
+export const investmentResearchItem: InvestmentResearchItem = {
+  id: "source:research/synthetic.md", kind: "research_source",
+  title: investmentScenario.research_title, question: investmentScenario.question,
+  status: "open", ticker: null, narrative_id: null, decision_id: null,
+  updated: DATE, as_of: null, state: "partial",
+  missing: ["合成範例未提供 source_cutoff"], source: { path: "research/synthetic.md" },
+}
 const researchDirectionDefinitions = [
   ["ai-economics-capex", "AI 經濟、CapEx 回報與 L3 買方 ROI（目前最重要的共享主線）"],
   ["compute-tsm-capacity", "運算／TSM 共同依賴與容量"],
@@ -860,61 +642,46 @@ const researchDirectionDefinitions = [
 ] as const
 const syntheticDirectionItems = researchDirectionDefinitions.map(([id], index) => ({
   ...investmentResearchItem,
-  id: index===0 ? investmentResearchItem.id : `source:research/synthetic-direction-${index}.md`,
-  title: `合成研究問題 ${index+1}`,
+  id: index === 0 ? investmentResearchItem.id : `source:research/synthetic-direction-${index}.md`,
+  title: index === 0 ? investmentResearchItem.title : `合成研究問題 ${index + 1}`,
   source: { path: `synthetic/research-direction-${index}`, line: 4 },
-  direction: { state: "linked" as const, group_ids: [id], sources: [{ group_id: id, path: "synthetic/research-index", line: index+1, expect: "synthetic explicit membership" }] },
+  direction: { state: "linked" as const, group_ids: [id], sources: [{ group_id: id, path: "synthetic/research-index", line: index + 1, expect: "synthetic explicit membership" }] },
 }))
-const syntheticOtherItems = (["unlinked", "unknown"] as const).map((state,index)=>({
-  ...investmentResearchItem, id: `source:research/synthetic-other-${index}.md`,
+const syntheticOtherItems = (["unlinked", "unknown"] as const).map((state, index) => ({
+  ...investmentResearchItem,
+  id: `source:research/synthetic-other-${index}.md`,
   title: "Memory CapEx 光學 TSM：同名也不推定方向", ticker: "TSM",
   direction: { state, group_ids: [], sources: [] },
 }))
 export const investmentResearch: InvestmentResearch = {
   schema_version: "1.0", artifact: "investment-research-index", id: "research-index",
-  as_of: DATE, generated_at: STAMP, source_cutoff: "unknown", producer: "tools/research_view.py",
-  state: "partial", limitations: ["Synthetic Research fixture has no producer cutoff."],
-  sources: [investmentScenario.source_path],
-  research: { items: [...syntheticDirectionItems,...syntheticOtherItems], count: 7,
-    direction_groups: { schema_version: 1, state: "partial", source: { path: "synthetic/research-index" }, limitations: ["Synthetic unknown classification is preserved."],
-      groups: researchDirectionDefinitions.map(([id,title],index)=>({ id,title,state: "ready", source: { path: "synthetic/research-index", line: index+1, expect: "synthetic direction marker" },
-        item_ids: [syntheticDirectionItems[index].id], relations: [{ item_id: syntheticDirectionItems[index].id, source: { path: "synthetic/research-index", line: index+1, expect: "synthetic explicit membership" } }], limitations: [] })),
-      unlinked_item_ids: [syntheticOtherItems[0].id], unknown_item_ids: [syntheticOtherItems[1].id], unlinked_count: 1, unknown_count: 1,
+  as_of: "unknown", generated_at: STAMP, source_cutoff: "unknown",
+  producer: "synthetic-demo", state: "partial", limitations: ["僅供範例展示"],
+  sources: ["research/synthetic.md"], research: {
+    items: [...syntheticDirectionItems, ...syntheticOtherItems], count: 7,
+    direction_groups: {
+      schema_version: 1, state: "partial", source: { path: "synthetic/research-index" },
+      limitations: ["Synthetic unknown classification is preserved."],
+      groups: researchDirectionDefinitions.map(([id, title], index) => ({
+        id, title, state: "ready" as const,
+        source: { path: "synthetic/research-index", line: index + 1, expect: "synthetic direction marker" },
+        item_ids: [syntheticDirectionItems[index].id],
+        relations: [{ item_id: syntheticDirectionItems[index].id, source: { path: "synthetic/research-index", line: index + 1, expect: "synthetic explicit membership" } }],
+        limitations: [],
+      })),
+      unlinked_item_ids: [syntheticOtherItems[0].id], unknown_item_ids: [syntheticOtherItems[1].id],
+      unlinked_count: 1, unknown_count: 1,
     },
   },
 }
-export const investmentResearchDetails: Record<string, InvestmentResearchDetail> = {
-  ...Object.fromEntries([...syntheticDirectionItems,...syntheticOtherItems].map(item=>[item.id,{
-    schema_version: "1.0", artifact: "investment-research-detail" as const, id: `research-detail:${item.id}`,
-    as_of: DATE, generated_at: STAMP, source_cutoff: "unknown", producer: "tools/research_view.py", state: "partial" as const,
-    limitations: item.missing, sources: [item.source.path], research: { item, detail: { text: "完全虛構的研究明細。", what: item.question } },
-  }])),
-  [investmentResearchItem.id]: {
-    schema_version: "1.0", artifact: "investment-research-detail", id: `research-detail:${investmentResearchItem.id}`,
-    as_of: DATE, generated_at: STAMP, source_cutoff: "unknown", producer: "tools/research_view.py",
-    state: "partial", limitations: investmentResearchItem.missing, sources: [investmentScenario.source_path],
-    research: { item: syntheticDirectionItems[0], detail: { text: investmentScenario.research_excerpt, what: investmentScenario.next_check } },
-  },
-}
-export const watch: InvestmentWatch = {
-  schema_version: "1.0", artifact: "investment-watch", id: "investment-watch:synthetic",
-  as_of: STAMP, generated_at: STAMP, source_cutoff: "unknown", producer: "PersonalOS.core.investment_watch",
-  state: "partial", limitations: ["Synthetic Watch fixture has no source cutoff."], sources: [investmentScenario.source_path],
-  watch: {
-    coverage: { scope: ["合成範例"], scanned_files: 1, omissions: [], errors: [], missing_catalysts: [] },
-    catalysts: [{ id: "demo-catalyst", topic: investmentScenario.label, label: investmentScenario.next_check, raw: `${investmentScenario.next_check_date}（合成日期）`, date: investmentScenario.next_check_date.slice(0, 7), date_precision: "month", estimated: true, bucket: "undated", source: watchSource }],
-    research: [{ id: "demo-research", topic: investmentScenario.label, title: investmentScenario.research_title, status: "觀察", purpose: "整理待查問題", excerpt: investmentScenario.research_excerpt, session_refs: [], source: watchSource }],
-    session_followups: [],
-  },
-}
 const block = { source: "合成資料", note: "展示案例", state: "ready" as const, message: "", limitations: ["未呼叫外部工具"] }
+const pendingBody: InvestmentPending["pending"] = { scope: "全合成展示",
+  revisit: { ...block, title: "待回顧", groups: [{ ticker: investmentScenario.symbol, label: investmentScenario.label, overdue_days: 0, items: [{ decision: investmentScenario.question, ticker: investmentScenario.symbol, horizon: 7, due: DATE, overdue_days: 0, status: "待查", candidate_runs: [] }] }], counts: { due_unmarked: 1, groups: 1 } },
+  gate: { ...block, title: "待決定", items: [], counts: { registered: 0, due: 0, later: 0 } },
+  weekly: { ...block, title: "範例週回顧", date: DATE, path: "synthetic/weekly", age_days: 0, alerts: [], action_items: [{ text: "整理兩個產品交付問題", done: false, detail: ["全合成案例"] }] } }
 export const pending: InvestmentPending = {
-  schema_version: "1.0", artifact: "investment-pending", id: "investment-pending:synthetic",
-  as_of: STAMP, generated_at: STAMP, source_cutoff: "unknown", producer: "PersonalOS.core.investment_pending",
-  state: "partial", limitations: ["Synthetic pending fixture has no source cutoff."], sources: [investmentScenario.source_path],
-  pending: { scope: "全合成展示",
-    revisit: { ...block, title: "待回顧", groups: [{ ticker: investmentScenario.symbol, label: investmentScenario.label, overdue_days: 0, items: [{ decision: investmentScenario.question, ticker: investmentScenario.symbol, horizon: 7, due: DATE, overdue_days: 0, status: "待查", candidate_runs: [] }] }], counts: { due_unmarked: 1, groups: 1 } },
-    gate: { ...block, title: "待決定", items: [], counts: { registered: 0, due: 0, later: 0 } },
-    weekly: { ...block, title: "範例週回顧", date: DATE, path: "synthetic/weekly", age_days: 0, alerts: [], action_items: [{ text: "整理兩個產品交付問題", done: false, detail: ["全合成案例"] }] },
-  },
+  schema_version: "1.0", artifact: "investment-pending", id: "investment-pending:v1",
+  as_of: "unknown", generated_at: STAMP, source_cutoff: "unknown",
+  producer: "synthetic-demo", state: "partial", limitations: ["僅供範例展示"],
+  sources: ["demo/investment"], pending: pendingBody,
 }

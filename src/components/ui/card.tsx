@@ -1,5 +1,5 @@
+import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
-import { cva } from "class-variance-authority"
 
 type ContentDensity = "compact" | "normal" | "reading"
 
@@ -104,4 +104,42 @@ export function SubsectionHeading({
   className?: string
 }) {
   return <h3 className={cn("text-body font-semibold tracking-tight text-ink", className)}>{children}</h3>
+}
+
+/** Labelled fields inside a card: each label sits on its own line in small
+ * secondary text with the body below it, so every field starts at the same
+ * left edge -- instead of a bold inline "標籤：" run into long text. */
+export function FieldList({ className, ...props }: React.ComponentProps<"dl">) {
+  return <dl data-slot="field-list" className={cn("flex min-w-0 flex-col gap-3", className)} {...props} />
+}
+
+const fieldBodyVariants = cva("text-body leading-relaxed", {
+  variants: {
+    tone: {
+      default: "text-ink-2",
+      /** A fixed stand-in for something the source did not provide. */
+      muted: "text-ink-3",
+      /** Summary text that already carried emphasis before it had a label. */
+      strong: "font-medium text-ink",
+    },
+  },
+  defaultVariants: { tone: "default" },
+})
+
+export function Field({
+  label,
+  children,
+  tone,
+  className,
+}: {
+  label: React.ReactNode
+  children: React.ReactNode
+  className?: string
+} & VariantProps<typeof fieldBodyVariants>) {
+  return (
+    <div data-slot="field" className={cn("flex min-w-0 flex-col gap-1", className)}>
+      <dt className="text-caption text-ink-3">{label}</dt>
+      <dd className={fieldBodyVariants({ tone })}>{children}</dd>
+    </div>
+  )
 }

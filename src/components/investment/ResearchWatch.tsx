@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import type { InvestmentResearch, InvestmentResearchItem, InvestmentWatch, InvestmentBrief, InvestmentReadState, InvestmentCatalysts30d, InvestmentCatalystItem } from "@/lib/investment"
 import { getInvestmentResearchDetail } from "@/lib/investment"
-import { researchDirectionView } from "@/lib/investmentFormat"
+import { RESEARCH_EVENT_LINKAGE_COPY, RESEARCH_ROLE_COPY, researchDirectionView } from "@/lib/investmentFormat"
 import { catalystDateGroups } from "@/lib/investmentToday"
 import { buildTimeline, watchDateWindow } from "@/lib/investmentDates"
 import { Card, SectionHeading } from "@/components/ui/card"
@@ -69,6 +69,7 @@ export function ResearchLibrary({data}: {data: InvestmentResearch}) {
   const unresolvedDirectionCount = view.other.length - unlinkedCount
   return <section className="flex min-w-0 flex-col gap-2" aria-label="正式 Research">
     <SectionHeading>主要研究方向</SectionHeading>
+    <p className="text-caption text-ink-3">{RESEARCH_ROLE_COPY}</p>
     <p className="text-caption text-ink-3">以下只列出來源明示的方向；未連結或分類未知的項目留在 Other，不作為第六個方向。</p>
     {view.state!=="ready"?<p role="status" className="text-caption text-warn">方向分類{readStateLabel(view.state)}；未能確認方向的研究保留在其他研究。</p>:null}
     {view.groups.map(group=><ResearchDirection key={group.id} group={group}/>)}
@@ -85,10 +86,9 @@ export function ResearchWatch({data,brief}: {data: InvestmentWatch; brief?:Inves
   const months=window?data.watch.catalysts.filter(e=>e.date_precision==="month"&&e.date!==null&&e.date>=window.start.slice(0,7)&&e.date<=window.end.slice(0,7)):[]
   return <section className="flex min-w-0 flex-col gap-3" aria-label="接下來會改變判斷的事情">
     <SectionHeading>接下來會改變判斷的事情</SectionHeading><p className="text-body text-ink-3">{window?`日期篩選範圍 ${window.start} 至 ${window.end}；目前可讀 Watch 登記日期與簡報的未來 7 天事項。這不是完整 30 天催化劑覆蓋；缺少事件不代表沒有催化劑。`:"無法由 Watch producer timestamp 確定日期範圍；目前不推定未來日期事件。"}</p>
-    <p className="break-words metadata">producer：{data.producer} · 狀態：{readStateLabel(data.state)} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at}</p>
-    {data.state!=="ready"&&data.state!=="empty"?<div role="status" className="flex flex-col gap-1 text-caption text-warn">{data.limitations.map((note,index)=><p key={index}>{note}</p>)}</div>:null}
+    <p className="text-caption text-ink-3">{RESEARCH_EVENT_LINKAGE_COPY}</p>
+    {data.limitations.length>0?<p role="status" className="text-caption text-ink-3">部分來源讀取不完整（{data.limitations.length} 項），展開看明細</p>:null}
     {!window?<p role="status" className="text-body text-warn">generated_at 未提供可驗證的日期或時區時間；Watch 日期事件範圍未知，不能當作空清單。</p>:null}
-    {data.watch.coverage.errors.map((error,index)=><p key={`${index}:${error.path}`} role="status" className="break-words text-caption text-warn">{error.path}：{error.message}</p>)}
     {window&&events.length===0&&(data.state==="ready"||data.state==="empty")?<p className="text-body text-ink-3">Watch 與簡報來源已讀取；目前沒有列出這段期間的日期事件。</p>:null}
     {window&&events.length===0&&data.state!=="ready"&&data.state!=="empty"?<p className="text-body text-warn">目前沒有可確認的日期事件；來源狀態不完整時，不把空列表當成沒有事件。</p>:null}
     <ul className="divide-y divide-line-soft">{events.map(e=>{
@@ -96,13 +96,18 @@ export function ResearchWatch({data,brief}: {data: InvestmentWatch; brief?:Inves
       const rawIsAdditional=Boolean(raw && raw!==e.title.trim() && raw!==e.verify.trim())
       const hasAdditionalInfo=rawIsAdditional||e.sources.some(source=>source.trim().length>0)
       return <li key={e.key} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 py-2">
-        <span className="row-span-2 shrink-0 pt-px text-label tabular-nums text-ink-3">{e.date.slice(5)}{e.estimated?" 約":""}</span>
+        <span className="row-span-2 shrink-0 pt-px text-label tabular-nums text-ink-3">{e.date_label}{e.estimated?" 約":""}</span>
         <span className="min-w-0 text-body font-medium"><InlineText text={e.title}/></span>
         {e.verify?<p className="min-w-0 text-caption leading-relaxed text-ink-2">要看什麼：<InlineText text={e.verify}/></p>:null}
         {hasAdditionalInfo?<details className="col-start-2 min-w-0"><summary className="cursor-pointer text-right text-caption text-ink-3">原文與來源</summary><div className="flex min-w-0 flex-col gap-2 break-words pt-2 text-caption text-ink-3">{rawIsAdditional?<ReadingText text={raw}/>:null}{e.sources.length?<p className="break-words">{e.sources.join("；")}</p>:null}</div></details>:null}
       </li>
     })}</ul>
     {months.length>0?<details><summary className="cursor-pointer text-caption text-ink-3">只知道月份的 Watch 日期（{months.length}）</summary><div className="flex flex-col gap-2 pt-2">{months.map(e=><p key={e.id} className="text-body">{e.topic} · <InlineText text={e.raw}/></p>)}</div></details>:null}
+    <details><summary className="cursor-pointer text-caption text-ink-3">資料來源與讀取狀況</summary><div className="flex min-w-0 flex-col gap-1 pt-2">
+      <p className="break-words metadata">Watch producer：{data.producer} · as_of：{data.as_of} · source_cutoff：{data.source_cutoff} · generated_at：{data.generated_at} · 狀態：{readStateLabel(data.state)}</p>
+      {data.limitations.map((note,index)=><p key={index} className="break-words text-caption text-warn">{note}</p>)}
+      {data.watch.coverage.errors.map((error,index)=><p key={`${index}:${error.path}`} className="break-words text-caption text-warn">{error.path}：{error.message}</p>)}
+    </div></details>
   </section>
 }
 
@@ -114,7 +119,7 @@ function ProjectedCatalyst({ item }: { item: InvestmentCatalystItem }) {
     <p className="text-caption text-ink-3">與今日行動／論點的關係：未連結；來源未提供關係 ID。</p>
     {item.date_precision !== "day" || item.window_membership !== "within" ? <p className="text-caption text-warn">日期精度：{item.date_precision} · 範圍關係：{item.window_membership === "possible" ? "可能在範圍內" : item.window_membership === "unknown" ? "未知（未確認是否在範圍內）" : "來源確認在範圍內"}；不轉成確定的日期。</p> : null}
     {qualifiers ? <p className="text-caption text-ink-3">來源限定：{qualifiers}</p> : null}
-    <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">催化劑來源</summary><p className="break-all">{item.source.path} · {item.source.line ?? "行數未提供"}</p></details>
+    <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">催化劑來源</summary><p className="break-all">{item.source?.path ?? "來源未提供"} · {item.source?.line ?? "行數未提供"}</p></details>
   </li>
 }
 

@@ -1,3 +1,15 @@
+import "./convergence-regressions.test.ts"
+import "./ccstoryPricing.test.ts"
+import "./checkpoint-identity-copy.test.ts"
+import "./event-news.test.ts"
+import "./investment-metadata-details.test.ts"
+import "./judgment-and-folds.test.ts"
+import "./owner-decisions-0927.test.ts"
+import "./relative-strength-format.test.ts"
+import "./state-reason-details.test.ts"
+import "./taiwan-session.test.ts"
+import "./private-ui-baseline.test.ts"
+import "./private-taiwan-rs.test.ts"
 import "./taiwan-rs.test.ts"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
@@ -937,7 +949,7 @@ test("layer readings show producer-authored current understanding and gaps witho
   assert.equal(layerReadingCaption(readyLayer.current_reading), "AI 整理・2026-09-27・依據：合成依據（2026-09-20）")
   assert.equal(layerGapLine(readyLayer.gaps[0]), "還缺：合成缺口｜合成季報・預計 2026-10")
   assert.equal(layerReadingText({ ...readyLayer.current_reading, text: "   " }), null, "blank producer text falls back instead of becoming a fake summary")
-  assert.equal(layerReadingCaption({ ...readyLayer.current_reading, as_of: null, basis: null }), "AI 整理・未提供・依據：未提供")
+  assert.equal(layerReadingCaption({ ...readyLayer.current_reading, as_of: null, basis: null }), "AI 整理・日期未提供・依據：未提供")
   assert.match(layerGapLine({ ...readyLayer.gaps[0], overdue: true }), /已過預計時間$/)
   assert.equal(layerReadingText(legacyLayer.current_reading), null, "old producers remain supported")
 })

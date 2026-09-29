@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Chip } from "@/components/ui/chip"
 import { DayStack } from "@/components/time/DayStack"
 import { WeeklyTrend } from "@/components/time/WeeklyTrend"
+import { CcstoryMcpPanel } from "@/components/time/CcstoryMcpPanel"
 import { PageHeader } from "@/components/ui/page-header"
 import { humanizeSystemLabel } from "@/lib/informationArchitecture"
 
@@ -26,6 +27,7 @@ const MODEL_TOKEN: Record<string, string> = {
   Haiku: "--color-sys-green",
   GPT: "--color-sys-purple",
   Gemini: "--color-sys-teal",
+  Grok: "--color-sys-green",
   Other: "--color-sys-gray",
 }
 
@@ -175,6 +177,10 @@ export function TimePage() {
         ) : (
           <Card className="p-4 text-body text-ink-3">{trend.hint}</Card>
         )}
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <CcstoryMcpPanel data={data.ccstory_mcp} />
       </section>
 
       {/* 訂閱對帳 */}
@@ -333,7 +339,7 @@ export function TimePage() {
           </table>
         </Card>
         <p className="text-micro text-ink-4">
-          時數合計未去重（同一段時間平行使用兩個工具會各算一次），所以三列加起來會多於
+          時數合計未去重（同一段時間平行使用多個工具會各算一次），所以各列加起來會多於
           上面的主動時數；中位長度是解釋下面那張榜單的閱讀方式。
         </p>
       </section>

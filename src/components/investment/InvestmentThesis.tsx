@@ -1,8 +1,8 @@
 import { Card, CardSection, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { ReadingText, InlineText } from "./ReadingText"
-import { BRIEF_SESSION_LABELS, sourceTimestamp } from "@/lib/investmentFormat"
-import type { InvestmentBrief } from "@/lib/investment"
+import { sourceTimestamp } from "@/lib/investmentFormat"
+import { BRIEF_SESSION_LABELS, type InvestmentBrief } from "@/lib/investment"
 
 /** The arrow is the producer's own direction mark at the head of `change`.
  * It is read, never assigned: an unmarked row keeps its text and gets no chip,
