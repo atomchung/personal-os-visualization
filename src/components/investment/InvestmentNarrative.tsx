@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardSection, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { DEMO_MODE } from "@/lib/transport"
-import { NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeDisplayState, narrativeSignalSections, sourceTimestamp, unlinkedRowsWithoutLayerCard } from "@/lib/investmentFormat"
+import { layerGapLine, layerReadingCaption, layerReadingText, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeDisplayState, narrativeSignalSections, sourceTimestamp, unlinkedRowsWithoutLayerCard } from "@/lib/investmentFormat"
 import {
   getInvestmentNarrative,
   type InvestmentNarrative,
@@ -174,19 +174,29 @@ function LayerEvidenceCard({ layer }: { layer: InvestmentNarrativeEvidenceLayer 
   ].filter(group => group.items.length)
   const linkedEvidenceCount = supporting.length + opposing.length + unknown.length
   const stateCopy = layer.state ? LAYER_STATE_COPY[layer.state] : null
+  const readingText = layerReadingText(layer.current_reading)
+  const readingCaption = layerReadingCaption(layer.current_reading)
+  const gaps = layer.gaps ?? []
+  const opposingSummary = opposing.length
+    ? "有反方證據"
+    : layer.opposing_coverage?.state === "sufficient"
+      ? "查過沒找到"
+      : layer.opposing_coverage?.state === "insufficient" || layer.opposing_coverage?.state === "unavailable"
+        ? "查得不完整"
+        : "還沒查"
   return <li className="flex min-w-0 flex-col gap-3 border-t border-line-soft py-4 first:border-0 first:pt-0 last:pb-0">
     <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
       <h4 className="text-body font-semibold text-ink">{layer.layer_id} · {layer.label}</h4>
       {stateCopy ? <Chip tone={stateCopy.tone}>{stateCopy.label}</Chip> : null}
     </div>
-    <div className="flex min-w-0 flex-col gap-1 text-caption text-ink-3" aria-label="反方資料涵蓋">
-      <p>反方涵蓋：{layer.opposing_coverage?.state === "sufficient" ? "來源記錄已充分檢查" : layer.opposing_coverage?.state === "insufficient" ? "檢查涵蓋不足" : layer.opposing_coverage?.state === "unavailable" ? "檢查來源不可用" : "反方涵蓋未知／來源未提供"}</p>
-      {!opposing.length ? <p role="status" className="text-warn">目前未連結明確的挑戰證據；不能判定沒有反方。</p> : null}
-      {layer.opposing_coverage ? <><p>{layer.opposing_coverage.reason}</p><p>檢查日期：{sourceTimestamp(layer.opposing_coverage.checked_at)} · 範圍：{layer.opposing_coverage.scope || "未知"}</p><details><summary className="cursor-pointer py-1">反方檢查記錄來源</summary><ul><SourceReference source={layer.opposing_coverage.source} /></ul></details></> : null}
-    </div>
-    {layer.unknown_reason ? <p className="text-caption leading-relaxed text-ink-3">{layer.unknown_reason}</p> : null}
+    {readingText ? <>
+      <p className="text-body font-medium leading-relaxed text-ink"><InlineText text={readingText} /></p>
+      <p className="text-caption text-ink-3">{readingCaption}</p>
+    </> : <p className="text-caption text-ink-3" aria-label="此層目前狀態">支持 {supporting.length} 筆 · 挑戰 {opposing.length} 筆 · 反方：{opposingSummary}</p>}
+    {gaps.length ? <ul className="flex min-w-0 flex-col gap-1 text-caption text-ink-2">{gaps.map((gap, index) => <li key={gap.gap_id || index}>{layerGapLine(gap)}</li>)}</ul> : null}
+    {layer.unknown_reason && !readingText ? <p className="text-caption leading-relaxed text-ink-3">{layer.unknown_reason}</p> : null}
     {linkedEvidenceCount ? <>
-      <p className="text-caption text-ink-3" aria-label="明確連結的資料列數">已連結資料列：支持 {supporting.length} · 挑戰 {opposing.length} · 方向未定 {unknown.length}</p>
+      {!readingText ? <p className="text-caption text-ink-3" aria-label="明確連結的資料列數">已連結資料列：支持 {supporting.length} · 挑戰 {opposing.length} · 方向未定 {unknown.length}</p> : null}
       <div className="grid min-w-0 gap-4 sm:grid-cols-2">{groups.map(group => <EvidenceGroup key={group.title} title={group.title} items={group.items} />)}</div>
     </> : <p className="text-body leading-relaxed text-ink-3">
       {layer.link_state === "unlinked"
@@ -202,6 +212,13 @@ function LayerEvidenceCard({ layer }: { layer: InvestmentNarrativeEvidenceLayer 
       <summary className="cursor-pointer py-1">這層的背景與來源</summary>
       <div className="flex flex-col gap-2 pt-2">
         <PlayerRelations players={players} />
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="font-medium text-ink-2">反方資料涵蓋</p>
+          <p>反方涵蓋：{layer.opposing_coverage?.state === "sufficient" ? "來源記錄已充分檢查" : layer.opposing_coverage?.state === "insufficient" ? "檢查涵蓋不足" : layer.opposing_coverage?.state === "unavailable" ? "檢查來源不可用" : "反方涵蓋未知／來源未提供"}</p>
+          {!opposing.length ? <p className="text-warn">目前未連結明確的挑戰證據；不能判定沒有反方。</p> : null}
+          {layer.opposing_coverage ? <><p>{layer.opposing_coverage.reason}</p><p>檢查日期：{sourceTimestamp(layer.opposing_coverage.checked_at)} · 範圍：{layer.opposing_coverage.scope || "未知"}</p><ul><SourceReference source={layer.opposing_coverage.source} /></ul></> : null}
+        </div>
+        {readingText && layer.unknown_reason ? <p><span className="font-medium text-ink-2">既有未知說明：</span>{layer.unknown_reason}</p> : null}
         <p><span className="font-medium text-ink-2">價值鏈位置：</span>{layer.who_earns || "來源未提供"}</p>
         <p><span className="font-medium text-ink-2">證據例：</span>{layer.evidence_examples || "來源未提供"}</p>
         <p><span className="font-medium text-ink-2">可證明範圍：</span>{layer.what_it_proves || "來源未提供"}</p>
