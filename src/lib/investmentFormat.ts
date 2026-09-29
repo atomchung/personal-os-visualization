@@ -1,4 +1,4 @@
-import type { ActionItemStatus, InvestmentActionItem, InvestmentBrief, InvestmentTodayView } from "./investment.ts"
+import type { ActionItemStatus, InvestmentActionItem, InvestmentBrief, InvestmentNarrativeLayerGap, InvestmentNarrativeLayerReading, InvestmentTodayView } from "./investment.ts"
 
 const VALUE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const CHANGE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "exceptZero" })
@@ -40,6 +40,25 @@ export function unlinkedRowsWithoutLayerCard<
     return pillarId ? [pillarId] : []
   }))
   return (rows ?? []).filter(row => !row.pillar_id || !displayedPillarIds.has(row.pillar_id))
+}
+
+export function layerReadingText(reading: InvestmentNarrativeLayerReading | null | undefined): string | null {
+  const text = reading?.text?.trim()
+  return text ? text : null
+}
+
+export function layerReadingCaption(reading: InvestmentNarrativeLayerReading | null | undefined): string | null {
+  if (!reading) return null
+  const asOf = reading.as_of?.trim() || "未提供"
+  const basis = reading.basis?.trim() || "未提供"
+  return `AI 整理・${asOf}・依據：${basis}`
+}
+
+export function layerGapLine(gap: InvestmentNarrativeLayerGap): string {
+  const missing = gap.missing?.trim() || "未提供"
+  const closesWhen = gap.closes_when?.trim() || "未提供"
+  const expectedBy = gap.expected_by?.trim() || "未提供"
+  return `還缺：${missing}｜${closesWhen}・預計 ${expectedBy}${gap.overdue ? "・已過預計時間" : ""}`
 }
 
 /** Taipei clock time; never mistake the same month/day in another year for today. */
