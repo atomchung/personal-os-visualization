@@ -243,7 +243,11 @@ function TodayBriefSessions({ brief, hasUpdates }: { brief: InvestmentBrief; has
 function TodayNextSteps({ b, today, readFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed: boolean }) {
   const actionPlan = todayActionPlan(b, today, readFailed)
   const actionSection = todayActionSection(b)
-  const structuredJudgment = briefJudgmentView(b.judgment)
+  const structuredCandidate = briefJudgmentView(b.judgment)
+  const formalEntries = [...actionPlan.actions, ...actionPlan.research].filter(entry => entry.origin === "brief")
+  // The producer emits a judgment only for one primary formal item. If the
+  // payload contradicts that invariant, keep every legacy item visible.
+  const structuredJudgment = structuredCandidate && formalEntries.length === 1 ? structuredCandidate : null
   const displayPlan = structuredJudgment ? {
     ...actionPlan,
     actions: actionPlan.actions.filter(entry => entry.origin === "update"),
