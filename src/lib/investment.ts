@@ -50,6 +50,21 @@ export type InvestmentActions = {
   counts: { open: number; has_canonical_home: number; closed: number }
 }
 
+export type InvestmentBriefJudgmentClass = "trade" | "watch" | "ignore"
+export type InvestmentBriefJudgment = {
+  class: InvestmentBriefJudgmentClass
+  judgment: string | null
+  why_now: string | null
+  revisit: string | null
+  decision_effect: string | null
+  provenance?: {
+    story_id?: string | null
+    revision?: string | null
+    source_ref?: string | null
+    source_cutoff?: string | null
+  } | null
+}
+
 export type InvestmentBrief = {
   state: InvestmentSourceState
   date: string | null
@@ -57,6 +72,8 @@ export type InvestmentBrief = {
   source_cutoff: string | null
   session: string | null
   headline: string
+  /** Producer-authored decision summary. Consumers must fall back to legacy actions if incomplete. */
+  judgment?: InvestmentBriefJudgment | null
   market_pulse: { variable: string; latest: string; meaning: string }[]
   market_pulse_notes: string[]
   events: {
