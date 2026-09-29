@@ -233,7 +233,17 @@ const demoEvidenceLayers: InvestmentNarrativeEvidenceLayer[] = [
     layer_id: "L0", pillar_id: "l0_hardware", label: "硬體供應",
     who_earns: "合成硬體供應商", evidence_examples: "例如：已出貨的設備數量",
     what_it_proves: "只說明硬體需求已反映在出貨，不代表下游已獲利。", direction_state: "supports",
-    link_state: "linked", state: "ready", players: [{
+    link_state: "linked", state: "ready",
+    current_reading: {
+      state: "partial", text: "合成層的目前認知。", as_of: "2026-09-27", basis: "合成依據（2026-09-20）",
+      authored_by: "ai_scorecard", layer_revision: "0123456789abcdef", current_layer_revision: "0123456789abcdef",
+      limitations: ["合成案例示範 partial reading 仍可直接閱讀。"], source: demoEvidenceSource,
+    },
+    gaps: [{
+      gap_id: "gap-synthetic", pillar_id: "l0_hardware", missing: "合成缺口", closes_when: "合成季報",
+      expected_by: "2026-10", expected_by_precision: "month", overdue: false, state: "ready", source: demoEvidenceSource,
+    }],
+    players: [{
       entity_id: "synthetic-hardware-provider", player: "合成硬體供應商甲",
       recorded_at: "2026-09-19", source: demoEvidenceSource,
     }],
