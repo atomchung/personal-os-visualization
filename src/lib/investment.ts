@@ -58,10 +58,12 @@ export type InvestmentBriefJudgment = {
   revisit: string | null
   decision_effect: string | null
   provenance?: {
-    story_id?: string | null
-    revision?: string | null
-    source_ref?: string | null
+    declared_unverified?: string | null
+    validated_story_ids?: string[]
+    artifact?: string | null
+    source_revision?: string | null
     source_cutoff?: string | null
+    market_signals_receipt?: unknown
   } | null
 }
 
