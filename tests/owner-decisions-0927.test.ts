@@ -396,6 +396,9 @@ test("今天怎麼做 renders the judgment as a headline plus label-over-body fi
   const { TodayNextSteps } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
   const brief = structuredClone(investment.brief)
   const judgment = brief.judgment!
+  const serializedLegacy = `${judgment.judgment}； why_now: ${judgment.why_now}； revisit: ${judgment.revisit}； decision_effect: ${judgment.decision_effect}； provenance: story_id=demo-storage-event`
+  brief.actions = [serializedLegacy]
+  brief.action_items = [{ ...brief.action_items![0], kind: "unknown", text: serializedLegacy }]
   const html = withQueryData(createElement(TodayNextSteps, { b: brief, today: structuredClone(investment.today) }))
   assert.doesNotMatch(html, /為什麼現在：|何時回看：|什麼會改變判斷：/, "no inline 標籤： prefixes remain")
   assert.doesNotMatch(html, /<span class="font-medium text-ink">/, "no bold inline label spans remain in the card")
@@ -408,6 +411,10 @@ test("今天怎麼做 renders the judgment as a headline plus label-over-body fi
   assert.ok(html.indexOf(">為什麼現在</dt>") < html.indexOf(">何時回看</dt>") && html.indexOf(">何時回看</dt>") < html.indexOf(">什麼會改變判斷</dt>"))
   assert.match(html, /<dt class="text-caption text-ink-3">整體判斷<\/dt><dd class="text-body leading-relaxed font-medium text-ink">/, "the overall summary keeps its emphasis under its own label")
   assert.match(html, /<summary class="cursor-pointer py-1">檢查點與來源<\/summary>/, "the bottom details stays")
+  assert.match(html, /已核對的事件 story_id：demo-storage-event/)
+  assert.match(html, /來源文件：demo-investment-research-loop-v1/)
+  assert.match(html, /來源修訂：sha256:synthetic-demo-judgment/)
+  assert.doesNotMatch(html, /why_now: /, "the producer's serialized legacy fields do not repeat the structured card")
   assert.doesNotMatch(html, /<details class="mt-3|class="mb-[23] /, "spacing comes from the container gap, not child margins")
 })
 

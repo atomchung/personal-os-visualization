@@ -31,8 +31,21 @@ await page.addInitScript(scenario => {
     if (Array.isArray(data?.rows) && typeof data?.coverage?.candidate_count === 'number') {
       data.rows = [...data.rows, ...['DEMO-TW-A.TW', 'DEMO-TW-B.TWO', 'DEMO-TW-C.TW'].map(symbol => ({ ...data.rows[0], symbol, holding: true }))]
     }
-    if (data?.brief && scenario === 'structured-judgment') {
-      data.brief.judgment = { class: 'watch', judgment: '合成判斷：先等正式結果', why_now: '尚缺公開需求證據', revisit: '2026-10-05', decision_effect: '需求確認才重新評估', provenance: { validated_story_ids: ['demo-storage-event'], source_cutoff: data.brief.source_cutoff } }
+    if (data?.brief && scenario.startsWith('structured-judgment')) {
+      const serialized = '合成判斷：先等正式結果； why_now: 尚缺公開需求證據； revisit: 2026-10-05； decision_effect: 需求確認才重新評估； provenance: story_id=demo-storage-event'
+      const judgment = { class: 'watch', judgment: '合成判斷：先等正式結果', why_now: '尚缺公開需求證據', revisit: '2026-10-05', decision_effect: '需求確認才重新評估', provenance: { artifact: 'wiki/morning/synthetic-brief.md', source_revision: 'sha256:synthetic-judgment-r1', validated_story_ids: ['demo-storage-event'], source_cutoff: data.brief.source_cutoff } }
+      if (scenario === 'structured-judgment-invalid-watch') { judgment.revisit = null; judgment.decision_effect = null }
+      if (scenario === 'structured-judgment-invalid-provenance') judgment.provenance = []
+      data.brief.judgment = judgment
+      data.brief.actions = [serialized]
+      if (Array.isArray(data.brief.action_items) && data.brief.action_items.length) {
+        data.brief.action_items[0].text = scenario === 'structured-judgment-generic-action' ? `行動：${serialized}` : serialized
+        data.brief.action_items[0].kind = scenario === 'structured-judgment-generic-action' ? 'action' : 'unknown'
+        if (scenario === 'structured-judgment-multiple-primary') {
+          data.brief.action_items.push({ ...data.brief.action_items[0], id: 'ai:synthetic-second', kind: 'unknown', text: '第二筆正式行動，需保留。' })
+          data.brief.actions.push('第二筆正式行動，需保留。')
+        }
+      }
     }
     if (data?.narratives?.[0]?.thesis_evidence?.layers && scenario === 'layer-reading') {
       data.narratives[0].thesis_evidence.layers[0].current_reading = { state: 'partial', text: '合成分層解讀：出貨增加但終端需求待確認', as_of: '2026-09-20', authored_by: 'AI', basis: '合成公開證據', layer_revision: 'synthetic-v1', current_layer_revision: 'synthetic-v1', limitations: ['涵蓋仍不完整'], source: null }
@@ -342,7 +355,7 @@ try {
     await page.close()
   }
   // Preserve legacy degraded-state scenarios, now checked against the converged owner layout.
-  const scenarios = ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility', 'tw-rs-unavailable', 'tw-rs-read-error', 'structured-judgment', 'layer-reading', 'quote-cached-error', 'pulse-cached-error', 'market-empty-refetch', 'market-omitted-refetch', 'legacy-evidence']
+  const scenarios = ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility', 'tw-rs-unavailable', 'tw-rs-read-error', 'structured-judgment', 'structured-judgment-generic-action', 'structured-judgment-multiple-primary', 'structured-judgment-invalid-watch', 'structured-judgment-invalid-provenance', 'layer-reading', 'quote-cached-error', 'pulse-cached-error', 'market-empty-refetch', 'market-omitted-refetch', 'legacy-evidence']
   for (const scenario of scenarios) {
     console.log(`Checking ${scenario}`)
     const { page, errors, externalRequests } = await openPage(320, scenario)
@@ -381,6 +394,9 @@ try {
     }
     await expand(panel)
     const text = await panel.innerText()
+    const todaySteps = scenario.startsWith('structured-judgment')
+      ? await page.locator('#investment-panel-today section[aria-label="今天怎麼做"]').innerText()
+      : ''
     switch (scenario) {
       case 'unlinked-long':
         assert.match(text, /合成未關聯判斷|缺少新證據/)
@@ -422,7 +438,30 @@ try {
         break
       case 'tw-rs-unavailable': assert.match(text, /來源不可用/); assert.doesNotMatch(await page.locator('[data-tw-rs-symbol="DEMO-TW-A.TW"]').innerText(), /\+3.25%/); break
       case 'tw-rs-read-error': assert.match(text, /讀取失敗，來源狀態未知/); break
-      case 'structured-judgment': assert.match(text, /合成判斷：先等正式結果/); assert.match(text, /何時回看[\s\S]*2026-10-05/); break
+      case 'structured-judgment':
+        assert.match(todaySteps, /合成判斷：先等正式結果/)
+        assert.match(todaySteps, /何時回看[\s\S]*2026-10-05/)
+        assert.match(todaySteps, /什麼會改變判斷[\s\S]*需求確認才重新評估/)
+        assert.match(todaySteps, /wiki\/morning\/synthetic-brief\.md/)
+        assert.match(todaySteps, /sha256:synthetic-judgment-r1/)
+        assert.match(todaySteps, /demo-storage-event/)
+        assert.match(todaySteps, /判斷資料截至/)
+        assert.doesNotMatch(todaySteps, /why_now: 尚缺公開需求證據/)
+        break
+      case 'structured-judgment-generic-action':
+        assert.doesNotMatch(todaySteps, /什麼會改變判斷/)
+        assert.match(todaySteps, /行動：合成判斷：先等正式結果； why_now:/)
+        break
+      case 'structured-judgment-multiple-primary':
+        assert.doesNotMatch(todaySteps, /什麼會改變判斷/)
+        assert.match(todaySteps, /合成判斷：先等正式結果； why_now:/)
+        assert.match(todaySteps, /第二筆正式行動，需保留。/)
+        break
+      case 'structured-judgment-invalid-watch':
+      case 'structured-judgment-invalid-provenance':
+        assert.doesNotMatch(todaySteps, /什麼會改變判斷/)
+        assert.match(todaySteps, /合成判斷：先等正式結果； why_now:/)
+        break
       case 'quote-cached-error': assert.match(text, /更新失敗，顯示上次數值/); break
       case 'pulse-cached-error': assert.match(text, /台股市場脈搏更新失敗/); break
       case 'market-empty-refetch':

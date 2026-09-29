@@ -10,7 +10,7 @@ import { StockMomentum } from "./StockMomentum"
 import {
   actionStatusLabel, actionStatusNote, currentOpenActionItems, groupBriefRows,
   JUDGMENT_CLASS_LABEL, newsScanNote, pendingActionsCountLine, providerCompletionNote, providerDetailTitle, taipeiClock,
-  sourceTimestamp, todayActionKindLabel, currentTodayActionPlan, todayGlobalDecisionSummary,
+  sourceTimestamp, structuredBriefJudgmentReplacement, todayActionKindLabel, currentTodayActionPlan, todayGlobalDecisionSummary,
 } from "@/lib/investmentFormat"
 import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
 import { ReadingText, InlineText } from "./ReadingText"
@@ -223,11 +223,16 @@ function ThesisAttention({ b, onOpenThesis, presentation, timelineStoryIds }: {
 }
 
 export function TodayNextSteps({ b, today, readFailed = false }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed?: boolean }) {
-  // A brief that is not current already hides action_items/actions inside
-  // currentTodayActionPlan below; gate the judgment primary row the same way
-  // so a stale/missing/invalid brief never shows an old judgment as today's.
-  const judgment = !readFailed && b.state === "current" ? b.judgment ?? null : null
-  const cachedSteps = currentTodayActionPlan(b, today)
+  // Only a contract-consistent judgment may replace the unique unclassified
+  // formal row. Read failures retain the legacy row in source detail.
+  const replacement = !readFailed && b.state === "current" ? structuredBriefJudgmentReplacement(b) : null
+  const judgment = replacement?.judgment ?? null
+  const previousJudgment = readFailed && typeof b.judgment?.judgment === "string" && b.judgment.judgment.trim()
+    ? b.judgment.judgment.trim()
+    : null
+  const cachedSteps = readFailed
+    ? currentTodayActionPlan(b, today, false)
+    : currentTodayActionPlan(b, today)
   const steps = readFailed ? [] : cachedSteps
   const catalystQuery = useQuery({
     queryKey: ["investment-narrative"],
@@ -294,7 +299,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
         <summary className="cursor-pointer py-1">檢查點與來源</summary>
         <div className="mt-2 flex min-w-0 flex-col gap-3">
           <div>{checkpointNote}</div>
-          {readFailed && b.judgment ? <p>上次讀取的判斷（目前未確認）：<InlineText text={b.judgment.judgment} /></p> : null}
+          {previousJudgment ? <p>上次讀取的判斷（目前未確認）：<InlineText text={previousJudgment} /></p> : null}
           {b.upcoming.length ? <div className="flex min-w-0 flex-col gap-2">
             <p className="font-medium text-ink-2">近期檢查 · {b.upcoming.length}</p>
             <p>這些事件未提供與上方行動的明確關係，分開保留。</p>
@@ -307,8 +312,10 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
           {judgment ? <div className="flex min-w-0 flex-col gap-1">
             <p className="font-medium text-ink-2">判斷依據</p>
             <p>簡報版次：{b.session ? BRIEF_SESSION_LABELS[b.session] ?? b.session : "版次未標示"}</p>
-            <p>判斷資料截至：{sourceTimestamp(judgment.provenance?.source_cutoff ?? null)}</p>
-            <p>已核對的事件 story_id：{judgment.provenance?.validated_story_ids?.length ? judgment.provenance.validated_story_ids.join("、") : "無"}</p>
+            {(judgment.provenance?.source_cutoff || b.source_cutoff) ? <p>判斷資料截至：{sourceTimestamp(judgment.provenance?.source_cutoff ?? b.source_cutoff)}</p> : null}
+            {judgment.provenance?.validated_story_ids?.length ? <p className="break-all">已核對的事件 story_id：{judgment.provenance.validated_story_ids.join("、")}</p> : null}
+            {judgment.provenance?.artifact ? <p className="break-all">來源文件：{judgment.provenance.artifact}</p> : null}
+            {judgment.provenance?.source_revision ? <p className="break-all">來源修訂：{judgment.provenance.source_revision}</p> : null}
             {judgment.provenance?.declared_unverified ? <p>來源自述、尚未逐項查核：{judgment.provenance.declared_unverified}</p> : null}
           </div> : null}
         </div>
