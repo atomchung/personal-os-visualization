@@ -1,4 +1,4 @@
-import type { ActionItemKind, ActionItemStatus, InvestmentActionItem, InvestmentActions, InvestmentBrief, InvestmentBriefJudgmentClass, InvestmentLayerGap, InvestmentLayerReading, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeLayerEvidence, InvestmentNewsMarket, InvestmentRefreshStatus, InvestmentTodayView, InvestmentWork } from "./investment"
+import type { ActionItemKind, ActionItemStatus, InvestmentActionItem, InvestmentActions, InvestmentBrief, InvestmentBriefJudgmentClass, InvestmentLayerGap, InvestmentLayerReading, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeLayerEvidence, InvestmentNarrativeLayerEvidenceItem, InvestmentNarrativeLayerRow, InvestmentNewsMarket, InvestmentRefreshStatus, InvestmentTodayView, InvestmentWork } from "./investment"
 
 const VALUE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const CHANGE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "exceptZero" })
@@ -244,18 +244,38 @@ export function narrativeSignalSections<T extends { direction: "supports" | "cha
  * records come from `evidence` when the producer sends it (its supporting and
  * opposing arrays then repeat the same records); older producers only send
  * `supporting`/`opposing`, where plain strings are legacy source records. */
-export function layerEvidenceGroups(layer: Pick<InvestmentNarrativeEvidenceLayer, "evidence" | "supporting" | "opposing">) {
-  const isRecord = (item: InvestmentNarrativeLayerEvidence | string): item is InvestmentNarrativeLayerEvidence => typeof item !== "string"
+export function layerEvidenceGroups(layer: Pick<InvestmentNarrativeEvidenceLayer, "evidence" | "supporting" | "opposing" | "challenging" | "unknown">) {
+  const supporting = layer.supporting ?? []
+  const opposing = [...(layer.opposing ?? []), ...(layer.challenging ?? [])]
+  const normalize = (item: InvestmentNarrativeLayerRow | InvestmentNarrativeLayerEvidence, side: "supports" | "challenges" | "unknown" = "unknown"): InvestmentNarrativeLayerEvidence => {
+    const full = item as Partial<InvestmentNarrativeLayerEvidence>
+    return {
+      evidence_id: item.evidence_id ?? "", pillar_id: item.pillar_id ?? "",
+      entity_id: item.entity_id ?? "", entity_ticker: full.entity_ticker ?? null, player: item.player ?? "來源未提供玩家",
+      evidence_type: full.evidence_type ?? "unknown", numeric_state: full.numeric_state ?? "unknown",
+      numeric_value: full.numeric_value ?? null, unit: full.unit ?? null,
+      source_date: full.source_date ?? item.evidence_date ?? null, evidence_date: item.evidence_date,
+      source_type: item.source_type ?? "", source_url: item.source_url ?? null,
+      // Group membership is an explicitly authored direction; it is never
+      // inferred from a ticker, title, date or prose. An explicit polarity wins.
+      polarity: item.polarity ?? side, explanation: item.explanation ?? "",
+      as_of: item.as_of ?? null, recorded_at: item.recorded_at ?? null,
+      freshness: item.freshness ?? "unknown", valid_until: item.valid_until ?? null,
+      source: item.source ?? null, state: item.state === "unlinked" ? "unknown" : item.state ?? "unknown",
+      limitations: item.limitations ?? [],
+    }
+  }
+  const records = (items: InvestmentNarrativeLayerEvidenceItem[], side: "supports" | "challenges" | "unknown") => items.flatMap(item => typeof item === "string" ? [] : [normalize(item, side)])
   const evidence = layer.evidence?.length
-    ? layer.evidence
-    : [...layer.supporting, ...layer.opposing].filter(isRecord)
+    ? layer.evidence.map(item => normalize(item))
+    : [...records(supporting, "supports"), ...records(opposing, "challenges"), ...records(layer.unknown ?? [], "unknown")]
   return {
     evidence,
     supporting: evidence.filter(item => item.polarity === "supports"),
     challenging: evidence.filter(item => item.polarity === "challenges"),
     unknown: evidence.filter(item => item.polarity === "unknown"),
-    legacySupporting: layer.supporting.filter((item): item is string => typeof item === "string"),
-    legacyOpposing: layer.opposing.filter((item): item is string => typeof item === "string"),
+    legacySupporting: supporting.filter((item): item is string => typeof item === "string"),
+    legacyOpposing: opposing.filter((item): item is string => typeof item === "string"),
   }
 }
 

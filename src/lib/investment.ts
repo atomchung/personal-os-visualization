@@ -255,19 +255,20 @@ export type InvestmentNarrativeEvidenceLayer = {
   link_state?: "linked" | "unlinked" | "partial" | "conflict"
   state?: InvestmentNarrativeState | "conflict"
   players?: InvestmentNarrativeLayerPlayer[]
-  evidence?: InvestmentNarrativeLayerEvidence[]
+  evidence?: Array<InvestmentNarrativeLayerEvidence | InvestmentNarrativeLayerRow>
   /** Canonical producer receipt; absence or unknown never means no opposing case. */
   opposing_coverage?: InvestmentOpposingCoverage | null
   /** AI-written one-sentence reading kept in Investment Note; absent from older producers. */
   current_reading?: InvestmentLayerReading | null
   /** Closable gaps, each with the event that closes it and an expected date. */
   gaps?: InvestmentLayerGap[]
-  supporting: Array<InvestmentNarrativeLayerEvidence | string>
-  opposing: Array<InvestmentNarrativeLayerEvidence | string>
-  unknown?: InvestmentNarrativeLayerEvidence[]
-  conflicts?: Array<Record<string, unknown>>
-  unlinked_evidence?: Array<Record<string, unknown>>
-  unlinked_players?: Array<Record<string, unknown>>
+  supporting?: InvestmentNarrativeLayerEvidenceItem[]
+  opposing?: InvestmentNarrativeLayerEvidenceItem[]
+  challenging?: InvestmentNarrativeLayerEvidenceItem[]
+  unknown?: InvestmentNarrativeLayerEvidenceItem[]
+  conflicts?: InvestmentNarrativeLayerRow[]
+  unlinked_evidence?: InvestmentNarrativeLayerRow[]
+  unlinked_players?: InvestmentNarrativeLayerRow[]
   limitations?: string[]
   unknown_reason: string | null
   source_date: string | null
@@ -1395,7 +1396,7 @@ export type InvestmentNarrativeLayerRow = {
   source?: InvestmentNarrativeSource | null
 }
 
-export type InvestmentNarrativeLayerEvidenceItem = string | InvestmentNarrativeLayerRow
+export type InvestmentNarrativeLayerEvidenceItem = string | InvestmentNarrativeLayerRow | InvestmentNarrativeLayerEvidence
 
 export type InvestmentNarrativeScorecardUpdate = {
   updated_at: string | null

@@ -198,12 +198,19 @@ export function MarketExplore({ market: selectedMarket, showHeading = true, embe
   const stale = query.isError && !!data
   const selected = data?.markets.filter(market => !selectedMarket || market.market === selectedMarket) ?? []
   const visibleMarkets = data ? orderedMarkets(selected) : []
-  const renderedMarkets = visibleMarkets.map(market => {
-    const unavailable = data?.state === "unavailable" || market.state === "unavailable"
-    const producerCachedSnapshot = data?.cached && market.state !== "unavailable" ? market : undefined
-    const previousSnapshot = lastUsableQuery.data[market.market] ?? producerCachedSnapshot
+  // A provider may omit a failed market entirely; the previous explicit market
+  // ID still owns its snapshot. Never substitute one market for another.
+  const marketKeys = new Set<"tw" | "us">([
+    ...visibleMarkets.map(item => item.market),
+    ...Object.keys(lastUsableQuery.data) as Array<"tw" | "us">,
+  ].filter(key => !selectedMarket || key === selectedMarket))
+  const renderedMarkets = [...marketKeys].sort((a, b) => a === b ? 0 : a === "tw" ? -1 : 1).map(marketKey => {
+    const market = visibleMarkets.find(item => item.market === marketKey)
+    const unavailable = !market || data?.state === "unavailable" || market.state === "unavailable"
+    const producerCachedSnapshot = data?.cached && market?.state !== "unavailable" ? market : undefined
+    const previousSnapshot = lastUsableQuery.data[marketKey] ?? producerCachedSnapshot
     return {
-      marketKey: market.market,
+      marketKey,
       unavailable,
       snapshot: unavailable ? previousSnapshot : market,
       priorSnapshot: stale || (unavailable && Boolean(previousSnapshot)),

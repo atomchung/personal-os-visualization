@@ -1,3 +1,4 @@
+import "./convergence-regressions.test.ts"
 import "./ccstoryPricing.test.ts"
 import "./checkpoint-identity-copy.test.ts"
 import "./event-news.test.ts"

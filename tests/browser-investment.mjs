@@ -34,7 +34,7 @@ await page.addInitScript(scenario => {
     if (data?.brief && scenario === 'structured-judgment') {
       data.brief.judgment = { class: 'watch', judgment: '合成判斷：先等正式結果', why_now: '尚缺公開需求證據', revisit: '2026-10-05', decision_effect: '需求確認才重新評估', provenance: { validated_story_ids: ['demo-storage-event'], source_cutoff: data.brief.source_cutoff } }
     }
-    if (data?.narratives?.[0]?.thesis_evidence?.layers && scenario === 'layer-reading') {
+    if (data?.narratives?.[0]?.thesis_evidence?.layers && scenario === 'layer-reading' || scenario === 'legacy-evidence') {
       data.narratives[0].thesis_evidence.layers[0].current_reading = { state: 'partial', text: '合成分層解讀：出貨增加但終端需求待確認', as_of: '2026-09-20', authored_by: 'AI', basis: '合成公開證據', layer_revision: 'synthetic-v1', current_layer_revision: 'synthetic-v1', limitations: ['涵蓋仍不完整'], source: null }
     }
     if (scenario === 'watch-read-error' && Object.keys(data ?? {}).length === 1 && Array.isArray(data?.items)) throw new Error('Synthetic reminder read failure')
@@ -68,6 +68,16 @@ await page.addInitScript(scenario => {
     if (Array.isArray(data?.symbols) && data.symbols.length === 1 && data.symbols[0] === 'DEMO') {
       data.symbols = ['DEMO', 'DEMO-TW-A.TW', 'DEMO-TW-B.TWO', 'DEMO-TW-C.TW']
       data.note = '合成測試持倉：DEMO 保留一般報價列，三檔虛構台股代碼只用來驗證相對強度列。'
+    }
+    if (scenario === 'quote-cached-error' && window.__cachedReadFailure && data?.items?.some(item => item.symbol === '^TWII')) throw new Error('Synthetic cached quote failure')
+    if (scenario === 'pulse-cached-error' && window.__cachedReadFailure && data?.index && data?.breadth) throw new Error('Synthetic cached pulse failure')
+    if (scenario === 'legacy-evidence' && data?.narratives?.[0]?.thesis_evidence?.layers) {
+      const layers = data.narratives[0].thesis_evidence.layers
+      delete layers[0].supporting; delete layers[0].opposing; delete layers[0].current_reading
+      layers[0].evidence = [{ evidence_id: 'synthetic-legacy-row', polarity: 'supports', player: '合成舊版公開記錄', evidence_date: '2001-02-03', source: { path: 'synthetic-legacy-row.md', line: 9 }, limitations: ['舊版數值保持未知'] }]
+      layers[1].evidence = []; delete layers[1].supporting; delete layers[1].opposing
+      layers[1].challenging = [{ evidence_id: 'synthetic-legacy-challenge', player: '合成舊版反方', source: { path: 'synthetic-legacy-row.md', line: 10 } }]
+      layers[1].unknown = [{ evidence_id: 'synthetic-legacy-unknown', player: '合成舊版未知' }]
     }
     if (data?.brief) {
       if (scenario === 'initial-error' || window.__failBrief) throw new Error('Synthetic read failure')
@@ -131,6 +141,15 @@ await page.addInitScript(scenario => {
       }
     }
     if (Array.isArray(data?.markets)) {
+      if (['market-empty-refetch', 'market-omitted-refetch'].includes(scenario)) {
+        const tw = data.markets.find(m => m.market === 'tw')
+        if (tw) { tw.as_of = '2001-02-03'; tw.source_cutoff = '2001-02-03T13:30:00+08:00' }
+        if (window.__cachedReadFailure) {
+          data.state = scenario === 'market-empty-refetch' ? 'unavailable' : 'partial'
+          data.markets = scenario === 'market-empty-refetch' ? [] : data.markets.filter(m => m.market !== 'tw')
+        }
+      }
+
       if (scenario === 'market-initial-error' || (scenario === 'market-refresh-error' && window.__failMarketExplore)) throw new Error('Synthetic market explore failure')
       if (scenario === 'market-refresh-delayed' && window.__delayMarketExplore) await new Promise(resolve => setTimeout(resolve, 600))
       if (scenario === 'market-refresh-unavailable' && window.__marketUnavailable) {
@@ -288,6 +307,11 @@ try {
         assert.match(judgmentText, /支持 0 筆・挑戰 0 筆・反方：還沒查/, 'old producer keeps its status line')
         assert.match(judgmentText, /目前認知的來源與限制/)
         assert.match(judgmentText, /合成案例示範 partial reading 仍可直接閱讀/)
+        assert.match(judgmentText, /合成買方甲/)
+        assert.match(judgmentText, /合成買方乙/)
+        assert.match(judgmentText, /未顯示在五層卡片的資料/)
+        assert.match(judgmentText, /synthetic-unmapped-evidence/)
+
         assert.match(await panel.innerText(), /訊號日期：\s*未提供/)
         assert.match(await panel.innerText(), /文件更新日：\s*2026-09-19/)
         assert.match(await panel.innerText(), /synthetic-challenge-signal.md.*15/)
@@ -312,11 +336,17 @@ try {
     await page.close()
   }
   // Preserve legacy degraded-state scenarios, now checked against the converged owner layout.
-  const scenarios = ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility', 'tw-rs-unavailable', 'tw-rs-read-error', 'structured-judgment', 'layer-reading']
+  const scenarios = ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility', 'tw-rs-unavailable', 'tw-rs-read-error', 'structured-judgment', 'layer-reading', 'quote-cached-error', 'pulse-cached-error', 'market-empty-refetch', 'market-omitted-refetch', 'legacy-evidence']
   for (const scenario of scenarios) {
     console.log(`Checking ${scenario}`)
     const { page, errors, externalRequests } = await openPage(320, scenario)
     let panel = page.locator('#investment-panel-today')
+    if (['quote-cached-error', 'pulse-cached-error', 'market-empty-refetch', 'market-omitted-refetch'].includes(scenario)) {
+      await page.getByText('島嶼設備甲', { exact: true }).first().waitFor()
+      await page.evaluate(() => { window.__cachedReadFailure = true })
+      await page.getByRole('button', { name: '刷新盤面', exact: true }).click()
+      await page.waitForTimeout(750)
+    }
     if (['refresh-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-cached-unavailable'].includes(scenario)) {
       await page.evaluate(scenario => {
         window.__failBrief = scenario === 'refresh-error'
@@ -357,7 +387,7 @@ try {
       case 'actions-partial': assert.match(text, /沒有可確認的下一步/); assert.doesNotMatch(text, /今天不用動。/); break
       case 'research-only': assert.match(text, /補研究：核對合成公開資料/); break
       case 'initial-error': assert.match(text, /簡報讀取失敗/); assert.equal(await panel.getByLabel('主要下一步').count(), 0); assert.match(text, /2026-10-05/); break
-      case 'refresh-error': assert.match(await page.locator('main').innerText(), /讀取失敗|更新失敗|本次更新失敗/); assert.match(text, /隔夜價格反應/); break
+      case 'refresh-error': assert.equal(await panel.getByLabel('主要下一步').count(), 0); assert.match(text, /下一步尚未確認/); assert.match(await page.locator('main').innerText(), /讀取失敗|更新失敗|本次更新失敗/); assert.match(text, /隔夜價格反應/); break
       case 'quote-unavailable': assert.match(text, /未取得|—/); break
       case 'narrative-stale-partial': assert.match(text, /來源較舊/); assert.match(text, /五層證據覆蓋仍不完整/); break
       case 'narrative-delayed': assert.match(text, /目前判斷/); break
@@ -387,6 +417,11 @@ try {
       case 'tw-rs-unavailable': assert.match(text, /來源不可用/); assert.doesNotMatch(await page.locator('[data-tw-rs-symbol="DEMO-TW-A.TW"]').innerText(), /\+3.25%/); break
       case 'tw-rs-read-error': assert.match(text, /讀取失敗，來源狀態未知/); break
       case 'structured-judgment': assert.match(text, /合成判斷：先等正式結果/); assert.match(text, /何時回看[\s\S]*2026-10-05/); break
+      case 'quote-cached-error': assert.match(text, /更新失敗，顯示上次數值/); break
+      case 'pulse-cached-error': assert.match(text, /台股市場脈搏更新失敗/); break
+      case 'market-empty-refetch':
+      case 'market-omitted-refetch': assert.match(text, /先前快照[\s\S]*島嶼設備甲/); assert.match(text, /2001[-/]02[-/]03/); break
+      case 'legacy-evidence': assert.match(text, /合成舊版公開記錄/); assert.match(text, /合成舊版反方/); assert.match(text, /合成舊版未知/); assert.match(text, /synthetic-legacy-row.md/); break
       case 'layer-reading': assert.match(text, /合成分層解讀：出貨增加但終端需求待確認/); assert.match(text, /AI/); break
       default: assert.fail(`Missing scenario oracle: ${scenario}`)
     }

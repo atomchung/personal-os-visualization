@@ -222,16 +222,17 @@ function ThesisAttention({ b, onOpenThesis, presentation, timelineStoryIds }: {
   </details>
 }
 
-export function TodayNextSteps({ b, today }: { b: InvestmentBrief; today?: InvestmentTodayView }) {
+export function TodayNextSteps({ b, today, readFailed = false }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed?: boolean }) {
   // A brief that is not current already hides action_items/actions inside
   // currentTodayActionPlan below; gate the judgment primary row the same way
   // so a stale/missing/invalid brief never shows an old judgment as today's.
-  const judgment = b.state === "current" ? b.judgment ?? null : null
-  const steps = currentTodayActionPlan(b, today)
+  const judgment = !readFailed && b.state === "current" ? b.judgment ?? null : null
+  const cachedSteps = currentTodayActionPlan(b, today)
+  const steps = readFailed ? [] : cachedSteps
   const catalystQuery = useQuery({
     queryKey: ["investment-narrative"],
     queryFn: ({ signal }) => getInvestmentNarrative(signal),
-    enabled: b.state === "current" && b.upcoming.length === 0,
+    enabled: !readFailed && b.state === "current" && b.upcoming.length === 0,
     retry: false,
     refetchOnWindowFocus: false,
     staleTime: 60_000,
@@ -242,9 +243,9 @@ export function TodayNextSteps({ b, today }: { b: InvestmentBrief; today?: Inves
   const primary = judgment ? undefined : steps[0]
   const secondary = judgment ? steps.slice(0, 2) : steps.slice(1, 3)
   const remaining = judgment ? steps.slice(2) : steps.slice(3)
-  const decisionSummary = b.state === "stale" ? "" : today?.decision_summary?.trim() || ""
+  const decisionSummary = readFailed || b.state === "stale" ? "" : today?.decision_summary?.trim() || ""
   const globalDecisionSummary = todayGlobalDecisionSummary(decisionSummary, steps)
-  const checkpoint = b.state === "current" ? todayCheckpoint(b, catalystQuery.data?.catalysts_30d) : null
+  const checkpoint = !readFailed && b.state === "current" ? todayCheckpoint(b, catalystQuery.data?.catalysts_30d) : null
   // Detail-only content: never rendered on the card's main level (see below).
   const checkpointNote = checkpoint
     ? <p><span className="font-medium text-ink-2">{checkpoint.source === "brief" ? "簡報另列檢查點（與上方行動的關係未標明）" : checkpoint.relationship === "unlinked" ? "下一個來源事件（尚未連到上方行動）" : "來源未提供與上方行動的關係"}：</span> {checkpoint.date} · <InlineText text={checkpoint.text} />{checkpoint.check ? <>；檢查 <InlineText text={checkpoint.check} /></> : checkpoint.source === "brief" ? "；檢查條件未提供。" : null}{checkpoint.sourceLocation ? <span> · 來源：{checkpoint.sourceLocation}</span> : null}</p>
@@ -264,7 +265,7 @@ export function TodayNextSteps({ b, today }: { b: InvestmentBrief; today?: Inves
     </div>
     {item.reason?.trim() ? <FieldList><Field label="為什麼現在"><InlineText text={item.reason.trim()} /></Field></FieldList> : null}
   </li>
-  const sourceNotes = steps.filter(item => item.date || item.source || item.id || item.sameTextRecords?.length)
+  const sourceNotes = (readFailed ? cachedSteps : steps).filter(item => item.date || item.source || item.id || item.sameTextRecords?.length)
   return <section className="flex min-w-0 flex-col gap-3" aria-label="今天怎麼做">
     <SectionHeading>今天怎麼做</SectionHeading>
     <Card className="min-w-0 p-4 sm:p-5">
@@ -272,7 +273,7 @@ export function TodayNextSteps({ b, today }: { b: InvestmentBrief; today?: Inves
       {b.state === "stale" ? <p role="status" className="text-caption text-warn">正式簡報沿用 {b.date ?? "較早日期"}；不把舊判斷當成今天的新決定。</p> : b.state === "missing" ? <p role="status" className="text-caption text-warn">尚未取得正式簡報；不將舊快取或殘留欄位當作今天已確認的工作。</p> : b.state === "invalid" ? <p role="status" className="text-caption text-warn">正式簡報無法完整辨識；其中的行動不列為今天已確認的工作。</p> : null}
       {today?.state === "partial" || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">今日更新狀態為 {today.state}；空白欄位不能確認沒有新行動。</p> : null}
       {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
-      {judgment ? <div className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
+      {readFailed ? <p role="status" className="text-body text-warn">本次簡報讀取失敗；下一步尚未確認。上次判斷與行動保留在來源明細。</p> : judgment ? <div className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Chip tone="info">{JUDGMENT_CLASS_LABEL[judgment.class]}</Chip>
             <p className="min-w-0 text-body font-medium leading-relaxed text-ink"><InlineText text={judgment.judgment} /></p>
@@ -293,13 +294,14 @@ export function TodayNextSteps({ b, today }: { b: InvestmentBrief; today?: Inves
         <summary className="cursor-pointer py-1">檢查點與來源</summary>
         <div className="mt-2 flex min-w-0 flex-col gap-3">
           <div>{checkpointNote}</div>
+          {readFailed && b.judgment ? <p>上次讀取的判斷（目前未確認）：<InlineText text={b.judgment.judgment} /></p> : null}
           {b.upcoming.length ? <div className="flex min-w-0 flex-col gap-2">
             <p className="font-medium text-ink-2">近期檢查 · {b.upcoming.length}</p>
             <p>這些事件未提供與上方行動的明確關係，分開保留。</p>
             <ul className="flex min-w-0 flex-col gap-2">{b.upcoming.map((item, index) => <li key={index}><span>{item.date_label} · </span><InlineText text={item.event} />{item.check ? <p>檢查：<InlineText text={item.check} /></p> : <p>檢查條件未提供。</p>}</li>)}</ul>
           </div> : null}
           {sourceNotes.length ? <div className="flex min-w-0 flex-col gap-2">
-            <p className="font-medium text-ink-2">這項工作的來源</p>
+            <p className="font-medium text-ink-2">{readFailed ? "上次讀取的行動（目前未確認）" : "這項工作的來源"}</p>
             <ul className="flex min-w-0 flex-col gap-2">{sourceNotes.map(item => <li key={item.key} className="flex min-w-0 flex-col gap-1"><p><TargetText text={item.text} /></p>{item.date ? <p>記錄日期：{sourceTimestamp(item.date)}</p> : null}{item.source ? <p className="break-all">來源：{item.source}</p> : null}{item.id ? <p className="break-all">ID：{item.id}</p> : null}{item.sameTextRecords?.length ? <><p>另有 {item.sameTextRecords.length} 筆來源紀錄文字完全相同；僅按原文相同收合，是否為同一件事未確認。</p><ul className="flex min-w-0 flex-col gap-1">{item.sameTextRecords.map((record, recordIndex) => <li key={`${record.origin}:${record.id ?? recordIndex}`} className="break-all">{record.origin === "brief" ? "簡報" : "盤中更新"}{record.date ? ` · ${sourceTimestamp(record.date)}` : " · 日期未提供"}{record.source ? ` · ${record.source}` : ""}{record.id ? ` · ID：${record.id}` : ""}{record.reason ? <p>該來源自己的理由：<InlineText text={record.reason} /></p> : null}</li>)}</ul></> : null}</li>)}</ul>
           </div> : null}
           {judgment ? <div className="flex min-w-0 flex-col gap-1">
@@ -321,7 +323,7 @@ export function TodayNextSteps({ b, today }: { b: InvestmentBrief; today?: Inves
   </section>
 }
 
-function TodayBrief({ b, today, newsStatus, onOpenThesis }: { b: InvestmentBrief; today?: InvestmentTodayView; newsStatus?: InvestmentRefreshStatus; onOpenThesis: () => void }) {
+function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; newsStatus?: InvestmentRefreshStatus; onOpenThesis: () => void; readFailed: boolean }) {
   const eventQuery = useQuery({ queryKey: ["investment-narrative"], queryFn: ({ signal }) => getInvestmentNarrative(signal), retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
   const news = eventQuery.isError ? null : eventQuery.data?.news_events
   const version = b.session ? BRIEF_SESSION_LABELS[b.session] : null
@@ -336,7 +338,7 @@ function TodayBrief({ b, today, newsStatus, onOpenThesis }: { b: InvestmentBrief
   const cutoffClock = taipeiClock(b.source_cutoff)
   const scanNote = newsScanNote(newsStatus, b.source_cutoff)
   return <section aria-label="今日簡報" className="flex min-w-0 flex-col gap-6 break-words">
-    <TodayNextSteps b={b} today={today} />
+    <TodayNextSteps b={b} today={today} readFailed={readFailed} />
     <section aria-label="今天發生了什麼" className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <TodayAnchor>今天發生了什麼</TodayAnchor>
@@ -448,7 +450,7 @@ export function InvestmentPage() {
     <div id="investment-panel-today" role="tabpanel" aria-labelledby="investment-tab-today" hidden={view !== "today"} className={view === "today" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
       {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次內容。" : ""}請按更新資料重試。</p> : null}
       {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
-      {b ? <TodayBrief b={b} today={query.data?.today} newsStatus={newsRefresh.data} onOpenThesis={() => openView("thesis")} /> : null}
+      {b ? <TodayBrief b={b} today={query.data?.today} readFailed={query.isError} newsStatus={newsRefresh.data} onOpenThesis={() => openView("thesis")} /> : null}
       <TodayCatalysts enabled={view === "today"} />
       <section className="flex min-w-0 flex-col gap-3" aria-label="現在盤面">
         <TodayAnchor>現在盤面</TodayAnchor>

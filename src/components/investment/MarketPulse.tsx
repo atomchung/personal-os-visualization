@@ -130,7 +130,7 @@ function TaiwanIndexIntraday({ twii, isError }: { twii?: InvestmentMarket["items
     <p className="text-caption text-ink-3">台股大盤（加權指數）</p>
     <p className="text-display font-semibold tabular-nums text-ink">{number(twii?.value ?? null)}</p>
     <p className={`text-body tabular-nums ${tone(change)}`}>{number(change)} 點 · {pct(twii?.change_percent ?? null)}</p>
-    {!twii || twii.state !== "available" ? <p className="text-caption text-warn">{isError ? (twii ? "更新失敗，顯示上次數值" : "讀取失敗") : twii ? "報價未取得" : "讀取中…"}</p> : null}
+    {isError || !twii || twii.state !== "available" ? <p className="text-caption text-warn">{isError ? (twii ? "更新失敗，顯示上次數值" : "讀取失敗") : twii ? "報價未取得" : "讀取中…"}</p> : null}
     <p className="text-micro text-ink-3">Yahoo Finance，報價可能延遲。</p>
   </div>
 }
@@ -247,6 +247,7 @@ function TaiwanOverview({ pulseQuery }: {
       </div>
       <span className="text-caption text-ink-3">{sessionLabel}</span>
     </div>
+    {pulseQuery.isError ? <p role="status" className="text-caption text-warn">台股市場脈搏更新失敗；以下保留上次快照與原始日期，不是本次更新。</p> : null}
     {showIntradayPrimary ? intradayBlock : dailyBlock}
     <details className="border-t border-line-soft pt-3">
       <summary className="cursor-pointer py-1 text-caption text-ink-3">{showIntradayPrimary ? `上次收盤資料（${pulse.as_of ?? "未取得"}）` : "盤中即時指數"}</summary>

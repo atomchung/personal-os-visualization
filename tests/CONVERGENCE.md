@@ -52,3 +52,12 @@ gaps, synthetic fixture, and regression test are retained. Both helper call form
 remain accepted; existing private missing-date copy `日期未提供` is kept. Reading
 state, author, limitations, source and gap sources remain inspectable in layer
 details. Unknown expected dates are displayed as missing.
+
+## Independent review repairs
+
+The cold Codex review reproduced five gaps beyond the existing oracles: cached
+brief actions after a read failure, optional legacy evidence arrays, cached quote
+and pulse failure warnings, entirely omitted market results, and lost conflict/
+unlinked provenance details. These are fixed without changing producer judgments
+or inferring relationships. New contract tests and browser success-then-failure,
+omitted-market, legacy-payload and expanded-provenance assertions cover them.

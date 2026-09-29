@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardSection, Field, FieldList, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { DEMO_MODE } from "@/lib/transport"
-import { layerEvidenceGroups, layerGapLine, layerReadingCaption, layerReadingText, layerStatusLineFor, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeDisplayState, narrativeSignalSections, narrativeSummaryLines, sourceTimestamp } from "@/lib/investmentFormat"
+import { layerEvidenceGroups, layerGapLine, layerReadingCaption, layerReadingText, layerStatusLineFor, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeDisplayState, narrativeSignalSections, narrativeSummaryLines, sourceTimestamp, unlinkedRowsWithoutLayerCard } from "@/lib/investmentFormat"
 import { catalystDateGroups, foldBReason, isEventIdentityLimitation, nonExactDateReason, splitNonExactByDateInfo, translateLegacyLimitation, withoutExpiredCatalystGaps } from "@/lib/investmentToday"
 import {
   getInvestmentNarrative,
@@ -14,6 +14,7 @@ import {
   type InvestmentNarrativeDirectionalSignal,
   type InvestmentNarrativeEvidenceLayer,
   type InvestmentNarrativeLayerEvidence,
+  type InvestmentNarrativeLayerRow,
   type InvestmentNarrativeRecordedChange,
   type InvestmentNarrativeSource,
   type InvestmentNarrativeState,
@@ -147,6 +148,25 @@ function uniqueSources(sources: Array<InvestmentNarrativeSource | null | undefin
   return [...byLocation.values()]
 }
 
+function IntegrityRows({ title, rows }: { title: string; rows: InvestmentNarrativeLayerRow[] }) {
+  if (!rows.length) return null
+  return <details className="text-caption text-ink-3">
+    <summary className="cursor-pointer py-1">{title} · {rows.length} 筆</summary>
+    <ul className="flex min-w-0 flex-col gap-2 pt-2">{rows.map((row, index) => <li key={`${row.evidence_id || row.entity_id || title}:${index}`} className="flex min-w-0 flex-col gap-1 border-t border-line-soft pt-2 first:border-0 first:pt-0">
+      <p className="text-body text-ink-2">{row.player || row.explanation || row.evidence_id || "未命名資料列"}</p>
+      {row.player && row.explanation ? <p>{row.explanation}</p> : null}
+      {row.evidence_id ? <p>證據資料 ID：{row.evidence_id}</p> : null}
+      {row.pillar_id ? <p>層級代碼：{row.pillar_id}</p> : null}
+      <p>玩家 ID：{row.entity_id || "未提供"}{row.recorded_at ? ` · 列入日期 ${sourceTimestamp(row.recorded_at)}` : ""}</p>
+      {row.evidence_date ? <p>證據日期：{sourceTimestamp(row.evidence_date)}</p> : null}
+      {row.source_url ? <p className="break-all">公開連結：{row.source_url}</p> : null}
+      {row.limitations?.length ? <ul className="list-disc pl-4 text-warn">{row.limitations.map((limitation, limitationIndex) => <li key={limitationIndex}>{limitation}</li>)}</ul> : null}
+      <ul className="flex flex-col gap-1"><SourceReference source={row.source} /></ul>
+    </li>)}</ul>
+  </details>
+}
+
+
 function LayerEvidenceCard({ layer }: { layer: InvestmentNarrativeEvidenceLayer }) {
   const { evidence, supporting, challenging, unknown: unknownEvidence, legacySupporting, legacyOpposing } = layerEvidenceGroups(layer)
   const players = layer.players ?? []
@@ -191,6 +211,9 @@ function LayerEvidenceCard({ layer }: { layer: InvestmentNarrativeEvidenceLayer 
     <details className="text-caption text-ink-3">
       <summary className="cursor-pointer py-1">這層的背景與來源</summary>
       <div className="flex flex-col gap-2 pt-2">
+        <IntegrityRows title="來源標示為衝突的資料" rows={layer.conflicts ?? []} />
+        <IntegrityRows title="無法安全連結的證據資料" rows={layer.unlinked_evidence ?? []} />
+        <IntegrityRows title="無法安全連結的玩家關係" rows={layer.unlinked_players ?? []} />
         <p>方向性資料狀態：{DIRECTION_COPY[layer.direction_state]}{layer.unknown_reason ? ` · ${layer.unknown_reason}` : ""}</p>
         <p>反方證據連結：{challenging.length ? `明確連結 ${challenging.length} 項` : "目前沒有明確連結的反方證據"}{layer.link_state === "unlinked" ? "；此層證據關係未連結" : ""}。</p>
         <p>反方涵蓋：{coverage?.state === "sufficient" ? "檢查記錄標示涵蓋充分" : coverage?.state === "insufficient" ? "檢查涵蓋不足" : coverage?.state === "unavailable" ? "檢查來源不可用" : coverage?.state === "unknown" ? "涵蓋狀態未知" : "未提供檢查記錄，涵蓋狀態未知"}。</p>
@@ -399,9 +422,13 @@ export function TodayCatalysts({ enabled, heading = "接下來會改變判斷的
 function NarrativeContent({ data, narrative, readable }: { data: InvestmentNarrative; narrative: InvestmentNarrative["narratives"][number]; readable: boolean }) {
   const evidence = narrative.thesis_evidence
   const { challengeSignals, supportSignals, explicitFalsifiers } = narrativeSignalSections(evidence.directional_signals)
+  const unlinkedEvidence = unlinkedRowsWithoutLayerCard(evidence.unlinked_evidence, evidence.layers)
+  const unlinkedPlayers = unlinkedRowsWithoutLayerCard(evidence.unlinked_players, evidence.layers)
   const sources = uniqueSources([
     ...narrative.references,
-    ...evidence.layers.flatMap(layer => [layer.source, layer.opposing_coverage?.source, ...(layer.players ?? []).map(player => player.source), ...(layer.evidence ?? []).map(item => item.source)]),
+    ...evidence.layers.flatMap(layer => [layer.source, layer.opposing_coverage?.source, ...(layer.players ?? []).map(player => player.source), ...layerEvidenceGroups(layer).evidence.map(item => item.source), ...(layer.conflicts ?? []).map(item => item.source), ...(layer.unlinked_evidence ?? []).map(item => item.source), ...(layer.unlinked_players ?? []).map(item => item.source), layer.current_reading?.source, ...(layer.gaps ?? []).map(gap => gap.source)]),
+    ...(evidence.unlinked_evidence ?? []).map(item => item.source),
+    ...(evidence.unlinked_players ?? []).map(item => item.source),
     ...evidence.directional_signals.map(signal => signal.source),
     evidence.latest_recorded_change.source,
   ])
@@ -464,6 +491,14 @@ function NarrativeContent({ data, narrative, readable }: { data: InvestmentNarra
       <div className="flex min-w-0 flex-col gap-1" aria-label="五層證據覆蓋狀態"><p className="text-caption font-medium text-ink-2">證據覆蓋：{STATE_COPY[evidence.state].label}</p><StateReasonDetails reason={evidence.reason} /></div>
       {evidence.scorecard_update?.status === "evidence_pending_review" ? <p role="status" className="text-caption leading-relaxed text-warn">新證據尚待論點覆核；最近一次明確覆核日為 {sourceTimestamp(evidence.scorecard_update.updated_at)}。新增資料不代表論點已確認或改變。</p> : null}
       {evidence.layers.length ? <ol className="flex min-w-0 flex-col">{evidence.layers.map(layer => <LayerEvidenceCard key={layer.layer_id} layer={layer} />)}</ol> : <p className="text-body text-ink-3">來源尚未提供可辨識的五層結構。</p>}
+      {unlinkedEvidence.length || unlinkedPlayers.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
+        <summary className="cursor-pointer py-1">未顯示在五層卡片的資料</summary>
+        <div className="flex min-w-0 flex-col gap-2 pt-2">
+          <p>保留來源的層級代碼與限制；無法安全連結的資料維持未連結。</p>
+          <IntegrityRows title="未連結的證據資料" rows={unlinkedEvidence} />
+          <IntegrityRows title="未連結的玩家關係" rows={unlinkedPlayers} />
+        </div>
+      </details> : null}
     </CardSection>
 
     <details className="p-4 text-caption text-ink-3 sm:p-5">
