@@ -78,7 +78,7 @@
     "src/main.tsx": "1be5502ca48eaa0764ef6fb0a1def9f38f51854011d8ea4d1c7178c81c9de766",
     "src/tokens.css": "3b45527f03104b5b71312c6e3d6b43c7b15304aa31e5b8e3b16f35e9f059dbc4",
     "tests/CONVERGENCE.md": "384a9b00941880c3a9896af1b2bc072c8ddfaea50db3b513b4e5af935824cc0a",
-    "tests/browser-investment.mjs": "15d779883628b630dec3e2e870232056f48ec52c9e2f0551399e13bb46e0899b",
+    "tests/browser-investment.mjs": "d7176d0e7af908bc7b5762153d7746804e594a3fbe62222462f46788b11bd7fe",
     "tests/ccstoryPricing.test.ts": "8ab89f457497cc3f6c93fc95d664bf6bbc8dce336ee62dd8293fc5c86cd44342",
     "tests/checkpoint-identity-copy.test.ts": "9a92c9f1d5f4c0cfe5e0334c2bda5975178cc92e623e2ee08bebd0387243140f",
     "tests/convergence-regressions.test.ts": "f824d40466c546459b2ccdf35bc0d81d1d9ef642d7186c358fc80be8004689a1",

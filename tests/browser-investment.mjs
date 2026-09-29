@@ -69,7 +69,11 @@ await page.addInitScript(scenario => {
       data.symbols = ['DEMO', 'DEMO-TW-A.TW', 'DEMO-TW-B.TWO', 'DEMO-TW-C.TW']
       data.note = '合成測試持倉：DEMO 保留一般報價列，三檔虛構台股代碼只用來驗證相對強度列。'
     }
-    if (scenario === 'quote-cached-error' && window.__cachedReadFailure && data?.items?.some(item => item.symbol === '^TWII')) throw new Error('Synthetic cached quote failure')
+    if (scenario === 'quote-cached-error' && data?.items?.some(item => 'quoted_at' in item)) {
+      if (window.__cachedReadFailure) throw new Error('Synthetic cached quote failure')
+      const tw = data.items.find(item => item.market === 'tw')
+      if (tw) data.items.push({ ...tw, symbol: '^TWII', code: '^TWII', label: '合成盤中加權指數' })
+    }
     if (scenario === 'pulse-cached-error' && window.__cachedReadFailure && data?.index && data?.breadth) throw new Error('Synthetic cached pulse failure')
     if (scenario === 'legacy-evidence' && data?.narratives?.[0]?.thesis_evidence?.layers) {
       const layers = data.narratives[0].thesis_evidence.layers
