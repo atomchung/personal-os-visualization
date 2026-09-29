@@ -34,7 +34,7 @@ await page.addInitScript(scenario => {
     if (data?.brief && scenario === 'structured-judgment') {
       data.brief.judgment = { class: 'watch', judgment: '合成判斷：先等正式結果', why_now: '尚缺公開需求證據', revisit: '2026-10-05', decision_effect: '需求確認才重新評估', provenance: { validated_story_ids: ['demo-storage-event'], source_cutoff: data.brief.source_cutoff } }
     }
-    if (data?.narratives?.[0]?.thesis_evidence?.layers && scenario === 'layer-reading' || scenario === 'legacy-evidence') {
+    if (data?.narratives?.[0]?.thesis_evidence?.layers && scenario === 'layer-reading') {
       data.narratives[0].thesis_evidence.layers[0].current_reading = { state: 'partial', text: '合成分層解讀：出貨增加但終端需求待確認', as_of: '2026-09-20', authored_by: 'AI', basis: '合成公開證據', layer_revision: 'synthetic-v1', current_layer_revision: 'synthetic-v1', limitations: ['涵蓋仍不完整'], source: null }
     }
     if (scenario === 'watch-read-error' && Object.keys(data ?? {}).length === 1 && Array.isArray(data?.items)) throw new Error('Synthetic reminder read failure')
@@ -362,7 +362,7 @@ try {
       await page.getByRole('button', { name: scenario === 'refresh-error' ? '台股消息快掃' : '刷新盤面', exact: true }).click()
       await page.waitForTimeout(750)
     }
-    if (scenario.startsWith('narrative-') || scenario === 'layer-reading') {
+    if (scenario.startsWith('narrative-') || scenario === 'layer-reading' || scenario === 'legacy-evidence') {
       await page.getByRole('tab', { name: '我的判斷', exact: true }).click()
       panel = page.locator('#investment-panel-thesis')
       await panel.getByRole('heading', { name: '目前判斷', exact: true }).waitFor()
