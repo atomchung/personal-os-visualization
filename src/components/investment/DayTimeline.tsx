@@ -4,7 +4,9 @@ import { Chip } from "@/components/ui/chip"
 import { InlineText } from "./ReadingText"
 import { sourceTimestamp } from "@/lib/investmentFormat"
 import { BRIEF_SESSION_LABELS, BRIEF_SESSION_SCHEDULES, type InvestmentBrief, type InvestmentMarketObservation, type InvestmentTimelineNode } from "@/lib/investment"
-import { MarketObservations } from "./MarketObservations"
+import { marketObservationKey, MarketObservations } from "./MarketObservations"
+
+const EMPTY_MARKET_OBSERVATION_KEYS: ReadonlySet<string> = new Set()
 
 const CLOCK = new Intl.DateTimeFormat("zh-TW", {
   hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei",
@@ -97,8 +99,20 @@ function EventRows({ events, linkedRows }: {
   </ul>
 }
 
-function NodeBody({ node, linkedRows, showMarketObservations }: { node: InvestmentTimelineNode; linkedRows: Map<string, LinkedBriefRows>; showMarketObservations: boolean }) {
-  if (node.kind === "update" && node.information_kind === "market_observation") return showMarketObservations ? <MarketObservations observations={[node as InvestmentMarketObservation]} /> : null
+function NodeBody({ node, linkedRows, showBriefMarketObservations, showUpdateMarketObservations, hiddenMarketObservationKeys }: {
+  node: InvestmentTimelineNode
+  linkedRows: Map<string, LinkedBriefRows>
+  showBriefMarketObservations: boolean
+  showUpdateMarketObservations: boolean
+  hiddenMarketObservationKeys: ReadonlySet<string>
+}) {
+  if (node.kind === "update" && node.information_kind === "market_observation") {
+    const observation = node as InvestmentMarketObservation
+    return showUpdateMarketObservations && !hiddenMarketObservationKeys.has(marketObservationKey(observation))
+      ? <MarketObservations observations={[observation]} /> : null
+  }
+  const visibleBriefObservations = node.kind === "brief"
+    ? (node.market_observations ?? []).filter(row => !hiddenMarketObservationKeys.has(marketObservationKey(row))) : []
   if (node.kind === "update") return <div className="flex min-w-0 flex-col gap-2">
     <p className="text-body leading-relaxed text-ink-2"><InlineText text={node.summary} /></p>
     {node.portfolio_impact && node.portfolio_impact.trim() !== node.summary.trim() ? <div className="text-body leading-relaxed text-ink-2"><span className="text-ink-3">對持倉 · </span><TargetText text={node.portfolio_impact} /></div> : null}
@@ -109,16 +123,18 @@ function NodeBody({ node, linkedRows, showMarketObservations }: { node: Investme
   return <div className="flex min-w-0 flex-col gap-3">
     {node.headline ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={node.headline} /></p> : null}
     {node.events.length ? <EventRows events={node.events} linkedRows={linkedRows} /> : null}
-    {showMarketObservations && node.market_observations?.length ? <MarketObservations observations={node.market_observations} /> : null}
+    {showBriefMarketObservations && visibleBriefObservations.length ? <MarketObservations observations={visibleBriefObservations} /> : null}
   </div>
 }
 
-function TimelineRow({ node, latest, open, showDay, showMarketObservations, onToggle, linkedRows }: {
+function TimelineRow({ node, latest, open, showDay, showBriefMarketObservations, showUpdateMarketObservations, hiddenMarketObservationKeys, onToggle, linkedRows }: {
   node: InvestmentTimelineNode
   latest: boolean
   open: boolean
   showDay: boolean
-  showMarketObservations: boolean
+  showBriefMarketObservations: boolean
+  showUpdateMarketObservations: boolean
+  hiddenMarketObservationKeys: ReadonlySet<string>
   onToggle: () => void
   linkedRows: Map<string, LinkedBriefRows>
 }) {
@@ -137,15 +153,15 @@ function TimelineRow({ node, latest, open, showDay, showMarketObservations, onTo
         {node.kind === "update" && node.scan_mode === "quick" && node.coverage_state === "partial" ? <Chip tone="warn">部分核對</Chip> : null}
         {node.kind === "update" && node.scan_mode === "quick" && node.market_date === "unknown" ? <Chip tone="warn">市場日期待核對</Chip> : null}
         {node.kind === "brief" && node.events.length ? <Chip tone="info">{node.events.length} 則事件</Chip> : null}
-        {node.kind === "brief" && node.market_observations?.length ? <Chip tone="mute">{node.market_observations.length} 則市場讀數</Chip> : null}
-        {node.kind === "update" && node.information_kind === "market_observation" ? <Chip tone="mute">市場讀數</Chip> : null}
+        {node.kind === "brief" && showBriefMarketObservations && (node.market_observations ?? []).some(row => !hiddenMarketObservationKeys.has(marketObservationKey(row))) ? <Chip tone="mute">{(node.market_observations ?? []).filter(row => !hiddenMarketObservationKeys.has(marketObservationKey(row))).length} 則市場讀數</Chip> : null}
+        {node.kind === "update" && node.information_kind === "market_observation" && showUpdateMarketObservations && !hiddenMarketObservationKeys.has(marketObservationKey(node as InvestmentMarketObservation)) ? <Chip tone="mute">市場讀數</Chip> : null}
         {latest ? <Chip tone="ok">最新</Chip> : null}
         <span className="shrink-0 text-caption text-ink-3">{open ? "收合" : "展開"}</span>
       </button>
       <p className="text-caption text-ink-3">{node.source_cutoff ? `資訊截至 ${sourceTimestamp(node.source_cutoff)}` : "資訊截止未記錄"}</p>
       {receipt ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">版本與來源時間</summary><p className="pt-1">{receipt}</p></details> : null}
       {open
-        ? <div className="min-w-0"><NodeBody node={node} linkedRows={linkedRows} showMarketObservations={showMarketObservations} /></div>
+        ? <div className="min-w-0"><NodeBody node={node} linkedRows={linkedRows} showBriefMarketObservations={showBriefMarketObservations} showUpdateMarketObservations={showUpdateMarketObservations} hiddenMarketObservationKeys={hiddenMarketObservationKeys} /></div>
         : lede ? <p className="min-w-0 truncate text-body text-ink-3"><InlineText text={lede} /></p> : null}
     </div>
   </li>
@@ -164,7 +180,13 @@ function TimelineRow({ node, latest, open, showDay, showMarketObservations, onTo
  * click away instead of repeating a full morning brief below the latest scan.
  * Defaults are recomputed when a new point arrives; user toggles are retained.
  */
-export function DayTimeline({ nodes, brief, showMarketObservations = true }: { nodes: InvestmentTimelineNode[]; brief?: InvestmentBrief; showMarketObservations?: boolean }) {
+export function DayTimeline({ nodes, brief, showBriefMarketObservations = true, showUpdateMarketObservations = true, hiddenMarketObservationKeys = EMPTY_MARKET_OBSERVATION_KEYS }: {
+  nodes: InvestmentTimelineNode[]
+  brief?: InvestmentBrief
+  showBriefMarketObservations?: boolean
+  showUpdateMarketObservations?: boolean
+  hiddenMarketObservationKeys?: ReadonlySet<string>
+}) {
   const [toggled, setToggled] = useState<ReadonlySet<string>>(() => new Set())
   if (!nodes.length) return null
   const newestFirst = [...nodes].reverse()
@@ -202,7 +224,9 @@ export function DayTimeline({ nodes, brief, showMarketObservations = true }: { n
           node={node}
           latest={index === 0}
           showDay={spansDays}
-          showMarketObservations={showMarketObservations}
+          showBriefMarketObservations={showBriefMarketObservations}
+          showUpdateMarketObservations={showUpdateMarketObservations}
+          hiddenMarketObservationKeys={hiddenMarketObservationKeys}
           linkedRows={node === latestBrief ? linkedRows : new Map()}
           open={toggled.has(key) ? !openByDefault : openByDefault}
           onToggle={() => setToggled(prev => {

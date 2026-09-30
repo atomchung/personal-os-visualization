@@ -3,6 +3,27 @@ import { InlineText } from "./ReadingText"
 import { sourceTimestamp } from "@/lib/investmentFormat"
 import type { InvestmentMarketObservation } from "@/lib/investment"
 
+const OBSERVATION_FIELDS = [
+  "information_kind", "event", "title", "market_reaction", "interpretation", "impact", "today", "summary",
+  "observation_value", "observation_as_of", "observation_relation", "source_url", "source_published_at",
+  "source_category", "is_price_or_proxy_observation", "declared_decision_transition", "transition_reason",
+  "market", "at", "observed_at", "source_cutoff", "source_path", "source",
+] as const
+
+function canonicalValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalValue)
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)).map(([key, nested]) => [key, canonicalValue(nested)]))
+  }
+  return value
+}
+
+/** Exact full-record identity only; the consumer never joins readings by title, ticker, or date. */
+export function marketObservationKey(row: InvestmentMarketObservation): string {
+  const observation = Object.fromEntries(OBSERVATION_FIELDS.filter(key => key in row).map(key => [key, row[key]]))
+  return JSON.stringify(canonicalValue(observation))
+}
+
 function observationTitle(row: InvestmentMarketObservation): string {
   return row.event?.trim() || row.title?.trim() || row.summary?.trim() || row.observation_value?.trim() || "市場讀數"
 }

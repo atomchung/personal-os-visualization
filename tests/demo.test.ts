@@ -24,7 +24,7 @@ import { investmentScenario } from "../src/demo/generated/investment-scenario.ts
 configureDemoProvider(demoInvestmentProvider)
 import { buildTimeline, researchForToday, splitCatalyst, watchDateWindow } from "../src/lib/investmentDates.ts"
 import { NAV_GROUPS, PAGE_COPY, isTabKey } from "../src/lib/informationArchitecture.ts"
-import type { InvestmentActionItem } from "../src/lib/investment.ts"
+import type { InvestmentActionItem, InvestmentCatalysts30d } from "../src/lib/investment.ts"
 import { anchorRelativeDay, catalystDateGroups, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
 import { currentTodayActionPlan, structuredBriefJudgmentReplacement, layerGapLine, layerReadingCaption, layerReadingText, researchDirectionView, actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyChainDetailLinked, historyChainLinked, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayNextSteps, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
@@ -1017,6 +1017,22 @@ test("30-day catalyst projection keeps explicit dated events without fabricating
   assert.deepEqual(catalystDateGroups(undefined), { exact: [], uncertain: [], state: "unknown" })
   assert.equal(narrative.narratives[0].thesis_evidence.layers[0].opposing_coverage.state, "insufficient")
   assert.equal(narrative.narratives[0].thesis_evidence.layers[1].opposing_coverage, undefined, "no receipt remains absent rather than sufficient")
+})
+
+test("30-day catalyst consumer preserves explicitly partial and uncertain producer coverage", () => {
+  const possible = {
+    ticker: "SYNTH", type: "earnings", raw: "Synthetic month-only event", date_precision: "month" as const,
+    date: null, date_label: "2026-11", source_qualifiers: [], source: null, window_membership: "possible" as const,
+  }
+  const unknown = { ...possible, type: "other", raw: "Synthetic event with unknown window", date_label: null, window_membership: "unknown" as const }
+  const partial: InvestmentCatalysts30d = {
+    state: "partial", window_start: "2026-10-01", window_end: "2026-10-30", items: [],
+    uncertain_items: [possible, unknown], coverage_gaps: [{ ticker: "SYNTH", reason: "producer-declared partial coverage" }], limitations: [],
+  }
+  const view = catalystDateGroups(partial)
+  assert.equal(view.state, "partial")
+  assert.deepEqual(view.uncertain.map(item => item.window_membership), ["possible", "unknown"])
+  assert.equal(partial.coverage_gaps[0]?.reason, "producer-declared partial coverage")
 })
 
 

@@ -17,7 +17,7 @@ import { ReadingText, InlineText } from "./ReadingText"
 import { buildTodayStories, todayCheckpoint, todayStoryHeadline, type TodayStory } from "@/lib/investmentToday"
 import { DayTimeline, TargetText } from "./DayTimeline"
 import { EventNews } from "./EventNews"
-import { MarketObservations } from "./MarketObservations"
+import { marketObservationKey, MarketObservations } from "./MarketObservations"
 import { InvestmentReminderPanel, InvestmentWorkPanel } from "./InvestmentWork"
 import { PendingBoard } from "./InvestmentPending"
 import { InvestmentHistory } from "./InvestmentHistory"
@@ -384,7 +384,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
       {today?.state === "partial" || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">今日更新狀態為 {today.state}；空白欄位不能確認沒有新行動。</p> : null}
       {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
       {readFailed ? <p role="status" className="text-body text-warn">本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動，是否已有新版本尚未確認。</p> : null}
-      {judgment ? <div className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
+      {judgment ? <div aria-label="主要下一步" className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Chip tone="info">{JUDGMENT_CLASS_LABEL[judgment.class]}</Chip>
             <p className="min-w-0 text-body font-medium leading-relaxed text-ink"><InlineText text={judgment.judgment} /></p>
@@ -444,13 +444,12 @@ function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: { b: Inv
   // The producer's own cycle line. Empty from a producer too old to send it, in
   // which case the day still renders through the per-story cards below.
   const timeline = today?.timeline ?? []
-  const timelineHasMarketObservations = timeline.some(node => node.kind === "brief"
-    ? Boolean(node.market_observations?.length)
-    : node.information_kind === "market_observation")
+  const timelineHasMarketObservations = timeline.some(node => node.kind === "brief" && Boolean(node.market_observations?.length))
   const formalMarketObservations = news?.market_observations?.length ? news.market_observations
     : !timelineHasMarketObservations ? (b.market_observations?.length ? b.market_observations
       : today?.market_observations ?? []) : []
   const intradayMarketObservations = today?.intraday_refresh?.market_observations ?? []
+  const intradayMarketObservationKeys = new Set(intradayMarketObservations.map(marketObservationKey))
   const stories = buildTodayStories(b.date, b.events, updates)
   const envelopeIncomplete = b.envelope && b.envelope.completeness !== "ready"
   const headline = b.headline.trim()
@@ -474,12 +473,13 @@ function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: { b: Inv
       {news ? <EventNews projection={news} /> : null}
       {formalMarketObservations.length ? <MarketObservations title="正式簡報與事件讀回的市場讀數" observations={formalMarketObservations} /> : null}
       {intradayMarketObservations.length ? <MarketObservations title="盤中增量市場讀數" observations={intradayMarketObservations} /> : null}
-      {news ? (timeline.length ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">簡報版次與掃描時間軸</summary><DayTimeline nodes={timeline} brief={b} showMarketObservations={!formalMarketObservations.length} /></details> : null) : timeline.length
+      {timeline.length ? news
+        ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">簡報版次與掃描時間軸</summary><DayTimeline nodes={timeline} brief={b} showBriefMarketObservations={!formalMarketObservations.length} hiddenMarketObservationKeys={intradayMarketObservationKeys} /></details>
         // One line for the whole cycle. The headline is not repeated above it:
         // it is the newest brief's own first line and already sits on that node,
         // and printing it separately is what made 今日基線 read as contradicting
         // the card underneath whenever an intraday update had moved on.
-        ? <DayTimeline nodes={timeline} brief={b} />
+        : <DayTimeline nodes={timeline} brief={b} hiddenMarketObservationKeys={intradayMarketObservationKeys} />
         : stories.length || formalMarketObservations.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
         {headline && headline !== decisionSummary ? <p className="p-4 text-body leading-relaxed text-ink-2 sm:p-5"><span className="font-medium text-ink">今日基線：</span><ReadingText text={headline} /></p> : null}
         {stories.map(story => <StoryCard key={story.key} story={story} b={b} />)}
@@ -566,7 +566,7 @@ export function InvestmentPage() {
       </div>
     </div> : null}
     {refreshError ? <p role="alert" aria-live="polite" className="text-caption text-warn">{refreshError}</p> : null}
-    {view === "today" ? <TodayIntradayReceipts refresh={query.data?.today?.intraday_refresh} /> : null}
+    {view === "today" && query.data?.today ? <TodayIntradayReceipts refresh={query.data.today.intraday_refresh} /> : null}
     <nav aria-label="投資內容" className="flex min-w-0 gap-4 overflow-x-auto border-b border-line-soft sm:gap-5" role="tablist">{VIEWS.map(([key, label], index) => <Button key={key} id={`investment-tab-${key}`} role="tab" aria-controls={`investment-panel-${key}`} aria-selected={view === key} tabIndex={view === key ? 0 : -1} variant="link" className={`shrink-0 rounded-none border-b-2 px-0 py-3 ${view === key ? "border-accent text-ink" : "border-transparent text-ink-3"}`} onClick={() => setView(key)} onKeyDown={event => {
       const next = event.key === "ArrowRight" ? (index + 1) % VIEWS.length : event.key === "ArrowLeft" ? (index + VIEWS.length - 1) % VIEWS.length : event.key === "Home" ? 0 : event.key === "End" ? VIEWS.length - 1 : null
       if (next !== null) { event.preventDefault(); openView(VIEWS[next][0]) }
