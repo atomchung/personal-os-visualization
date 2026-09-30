@@ -468,6 +468,59 @@ export function sourceTimestamp(value: string | null | undefined): string {
   return `${parts.year}/${parts.month}/${parts.day} ${parts.hour}:${parts.minute} 台北`
 }
 
+export type TodayJudgmentTimeMetadata = {
+  judgmentLine: string
+  sourceCutoffLine: string | null
+  laterScanLine: string | null
+}
+
+/** Keep formal production time, accepted source cutoff, and a later incremental
+ * scan receipt as three separate facts. A scan is associated with this brief
+ * only when the producer explicitly binds it to the same generated_at instant. */
+export function todayJudgmentTimeMetadata(
+  brief: Pick<InvestmentBrief, "state" | "date" | "generated_at" | "source_cutoff" | "session">,
+  today?: InvestmentTodayView,
+): TodayJudgmentTimeMetadata {
+  const sessionLabels: Record<string, string> = {
+    "tw-open-prep": "台股開盤前判斷",
+    "us-open-prep": "美股開盤前判斷",
+  }
+  const sessionLabel = (brief.session && sessionLabels[brief.session]) || "正式簡報判斷"
+  const productionTime = taipeiClock(brief.generated_at)
+  const productionLabel = productionTime ?? (brief.generated_at ? "時間未能辨識" : "時間未提供")
+  const month = brief.date?.match(/^\d{4}-(\d{2})-(\d{2})$/)
+  const shortDate = month ? `${Number(month[1])}/${Number(month[2])}` : brief.date
+  const carried = brief.state === "stale" && shortDate ? `沿用 ${shortDate} ` : ""
+  const judgmentLine = `${carried}${sessionLabel} · 更新 ${productionLabel}`
+  const sourceCutoffLine = brief.source_cutoff ? `資料截至 ${sourceTimestamp(brief.source_cutoff)}` : null
+
+  const marketKey = brief.session === "tw-open-prep" ? "tw" : brief.session === "us-open-prep" ? "us" : null
+  const marketProjection = marketKey ? today?.intraday_refresh?.markets[marketKey] : undefined
+  const receipt = marketProjection?.latest_receipt
+  const producedAt = parseTimezoneQualifiedInstant(brief.generated_at)
+  const receiptBaselineAt = parseTimezoneQualifiedInstant(receipt?.baseline_generated_at)
+  const receiptFinishedAt = parseTimezoneQualifiedInstant(receipt?.finished_at)
+  let laterScanLine: string | null = null
+  if (receipt && producedAt !== null && receiptBaselineAt === producedAt && receiptFinishedAt !== null && receiptFinishedAt > producedAt) {
+    const scanTime = taipeiClock(receipt.finished_at) ?? "時間未能辨識"
+    const marketName = marketKey === "tw" ? "台股" : "美股"
+    const resultCode = receipt.result ?? marketProjection?.state
+    const failed = resultCode === "failed" || receipt.coverage_state === "failed"
+    const partial = !failed && (resultCode === "partial" || receipt.coverage_state === "partial")
+    const result = resultCode === "no_material_update" ? "完成，沒有重大更新"
+      : resultCode === "updated" ? "有新增事件"
+      : resultCode === "needs_deeper_analysis" ? "仍有候選待深入分析"
+      : resultCode === "unavailable" ? "來源不可用"
+      : resultCode ? `結果：${resultCode}` : "結果未提供"
+    const outcome = failed ? `失敗；保留 ${productionLabel} 最新成功判斷`
+      : partial ? `僅部分完成；保留 ${productionLabel} 最新成功判斷`
+      : `${result}；正式判斷仍更新於 ${productionLabel}`
+    laterScanLine = `後續${marketName}快掃 ${scanTime} ${outcome}`
+  }
+
+  return { judgmentLine, sourceCutoffLine, laterScanLine }
+}
+
 const ACTION_STATUS_LABEL: Record<ActionItemStatus, string> = {
   open: "尚未結案",
   "has-canonical-home": "已有判斷頁可承接",

@@ -400,15 +400,15 @@ test("今天怎麼做 renders the judgment as a headline plus label-over-body fi
   brief.actions = [serializedLegacy]
   brief.action_items = [{ ...brief.action_items![0], kind: "unknown", text: serializedLegacy }]
   const html = withQueryData(createElement(TodayNextSteps, { b: brief, today: structuredClone(investment.today) }))
-  assert.doesNotMatch(html, /為什麼現在：|何時回看：|什麼會改變判斷：/, "no inline 標籤： prefixes remain")
+  assert.doesNotMatch(html, /這次新資訊與判斷：|接下來看什麼：|什麼結果會改變判斷：/, "no inline 標籤： prefixes remain")
   assert.doesNotMatch(html, /<span class="font-medium text-ink">/, "no bold inline label spans remain in the card")
   const field = (label: string) => new RegExp(`<dt class="text-caption text-ink-3">${label}</dt><dd class="text-body leading-relaxed text-ink-2">`)
-  assert.match(html, field("為什麼現在"))
-  assert.match(html, field("何時回看"))
-  assert.match(html, field("什麼會改變判斷"))
+  assert.match(html, field("這次新資訊與判斷"))
+  assert.match(html, field("接下來看什麼"))
+  assert.match(html, field("什麼結果會改變判斷"))
   const headline = html.indexOf(judgment.judgment)
-  assert.ok(headline > 0 && headline < html.indexOf(">為什麼現在</dt>"), "chip + judgment sentence stay the row headline")
-  assert.ok(html.indexOf(">為什麼現在</dt>") < html.indexOf(">何時回看</dt>") && html.indexOf(">何時回看</dt>") < html.indexOf(">什麼會改變判斷</dt>"))
+  assert.ok(headline > 0 && headline < html.indexOf(">這次新資訊與判斷</dt>"), "chip + judgment sentence stay the row headline")
+  assert.ok(html.indexOf(">這次新資訊與判斷</dt>") < html.indexOf(">接下來看什麼</dt>") && html.indexOf(">接下來看什麼</dt>") < html.indexOf(">什麼結果會改變判斷</dt>"))
   assert.match(html, /<dt class="text-caption text-ink-3">整體判斷<\/dt><dd class="text-body leading-relaxed font-medium text-ink">/, "the overall summary keeps its emphasis under its own label")
   assert.match(html, /<summary class="cursor-pointer py-1">檢查點與來源<\/summary>/, "the bottom details stays")
   assert.match(html, /已核對的事件 story_id：demo-storage-event/)
@@ -430,7 +430,7 @@ test("今天怎麼做 action rows use the same field layout and left edge as the
   ]
   const html = withQueryData(createElement(TodayNextSteps, { b: brief, today: { ...structuredClone(investment.today), updates: [] } }))
   assert.doesNotMatch(html, /為什麼現在：/)
-  assert.equal((html.match(/<dt class="text-caption text-ink-3">為什麼現在<\/dt>/g) ?? []).length, 2, "each row's reason is a labelled field")
+  assert.equal((html.match(/<dt class="text-caption text-ink-3">行動原因<\/dt>/g) ?? []).length, 2, "each row's reason is a labelled field")
   const rows = html.match(/<li class="flex min-w-0 flex-col gap-3 border-l-2 pl-3 border-[a-z-]+">/g) ?? []
   assert.equal(rows.length, 2, "primary and secondary rows share one left-edge rule")
 })
