@@ -36,6 +36,12 @@ function observationSource(row: InvestmentMarketObservation): string | null {
   return row.source?.path || row.source_path || row.source_url || null
 }
 
+function observationMarketLabel(market: string | null | undefined): string | null {
+  if (market === "tw") return "台股"
+  if (market === "us") return "美股"
+  return market ? `市場 ${market}` : null
+}
+
 export function MarketObservations({ observations, title = "市場讀數" }: { observations: InvestmentMarketObservation[]; title?: string }) {
   if (!observations.length) return null
   return <section aria-label="市場讀數" className="flex min-w-0 flex-col gap-3">
@@ -51,7 +57,7 @@ export function MarketObservations({ observations, title = "市場讀數" }: { o
         return <li key={`${row.source?.path ?? row.source_path ?? row.source_url ?? "observation"}:${index}`} className="flex min-w-0 flex-col gap-2 border-l-2 border-line-soft pl-3">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
             <p className="min-w-0 text-body font-medium leading-relaxed text-ink"><InlineText text={observationTitle(row)} /></p>
-            {row.market ? <span className="text-caption text-ink-3">{row.market === "tw" ? "台股" : "美股"}</span> : null}
+            {observationMarketLabel(row.market) ? <span className="text-caption text-ink-3">{observationMarketLabel(row.market)}</span> : null}
             {timestamp ? <span className="text-caption text-ink-3">{sourceTimestamp(timestamp)}</span> : null}
           </div>
           {value && value !== observationTitle(row) ? <p className="text-body leading-relaxed text-ink-2"><span className="text-ink-3">讀數 · </span><InlineText text={value} /></p> : null}

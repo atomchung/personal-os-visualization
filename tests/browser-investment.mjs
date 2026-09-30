@@ -30,15 +30,23 @@ await page.addInitScript(scenario => {
   window.__investmentReadHook = async data => {
     if (scenario === 'market-observation-legacy-timeline' && data?.brief && data?.today) {
       const formal = { information_kind: 'market_observation', market: 'us', event: '合成舊版簡報市場讀數', observation_value: '虛構正式讀數 0.4%', source_path: 'synthetic/formal-market.md' }
-      const incremental = { information_kind: 'market_observation', market: 'us', event: '合成盤中回執與時間軸同一讀數', observation_value: '虛構盤中讀數 1.1%', at: '2026-09-30T09:10:00+08:00', observed_at: '2026-09-30T09:10:00+08:00', summary: '', source_path: 'synthetic/intraday-market.md' }
-      data.brief.market_observations = [formal]
+      const unknownMarket = { ...formal, market: 'unknown', event: '合成未識別市場讀數', source_path: 'synthetic/unknown-market.md' }
+      const incremental = { information_kind: 'market_observation', market: 'us', event: '合成盤中回執與時間軸同一讀數', observation_value: '虛構盤中讀數 1.1%', at: '2026-09-30T09:10:00+08:00', observed_at: '2026-09-30T09:10:00+08:00', summary: '合成摘要也隨精確同一觀察重複。', source_path: 'synthetic/intraday-market.md' }
+      data.brief.market_observations = [formal, unknownMarket]
       data.today.timeline = [
         { kind: 'brief', at: '2026-09-29T21:15:00+08:00', timeline_at: '2026-09-29T21:30:00+08:00', date: '2026-09-29', session: 'us-open-prep', generated_at: '2026-09-29T21:30:00+08:00', source_cutoff: '2026-09-29T21:15:00+08:00', path: 'synthetic/formal-brief.md', headline: '合成正式基準', events: [], market_observations: [] },
-        { ...incremental, kind: 'update', at: incremental.observed_at, timeline_at: incremental.observed_at, id: 'synthetic-market-observation-update', story_id: null, summary: '', portfolio_impact: '', action: '', relevance: [] },
+        { ...incremental, kind: 'update', at: incremental.observed_at, timeline_at: incremental.observed_at, id: 'synthetic-market-observation-update', story_id: null, portfolio_impact: '', action: '', relevance: [] },
       ]
       data.today.intraday_refresh.market_observations = [incremental]
     }
     if (scenario === 'market-observation-legacy-timeline' && data?.news_events) throw new Error('Synthetic event projection unavailable')
+    if (scenario === 'market-observation-event-projection' && data?.brief && data?.today) {
+      const earlier = { information_kind: 'market_observation', market: 'tw', event: '更早版次專屬市場讀數', observation_value: '虛構早期讀數 0.2%', observed_at: '2026-09-28T08:00:00+08:00', source_path: 'synthetic/earlier-brief-market.md' }
+      data.today.timeline = [
+        { kind: 'brief', at: '2026-09-28T08:00:00+08:00', timeline_at: '2026-09-28T08:15:00+08:00', date: '2026-09-28', session: 'us-open-prep', generated_at: '2026-09-28T08:15:00+08:00', source_cutoff: '2026-09-28T08:00:00+08:00', path: 'synthetic/earlier-brief.md', headline: '合成較早版次', events: [], market_observations: [earlier] },
+        { kind: 'brief', at: '2026-09-29T21:15:00+08:00', timeline_at: '2026-09-29T21:30:00+08:00', date: '2026-09-29', session: 'us-open-prep', generated_at: '2026-09-29T21:30:00+08:00', source_cutoff: '2026-09-29T21:15:00+08:00', path: 'synthetic/current-brief.md', headline: '合成目前版次', events: [], market_observations: [] },
+      ]
+    }
     if (Array.isArray(data?.rows) && typeof data?.coverage?.candidate_count === 'number') {
       data.rows = [...data.rows, ...['DEMO-TW-A.TW', 'DEMO-TW-B.TWO', 'DEMO-TW-C.TW'].map(symbol => ({ ...data.rows[0], symbol, holding: true }))]
     }
@@ -380,7 +388,7 @@ try {
     await page.close()
   }
   // Preserve legacy degraded-state scenarios, now checked against the converged owner layout.
-  const scenarios = ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'market-observation-legacy-timeline', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility', 'tw-rs-unavailable', 'tw-rs-read-error', 'structured-judgment', 'structured-judgment-generic-action', 'structured-judgment-multiple-primary', 'structured-judgment-invalid-watch', 'structured-judgment-invalid-provenance', 'layer-reading', 'quote-cached-error', 'pulse-cached-error', 'market-empty-refetch', 'market-omitted-refetch', 'legacy-evidence']
+  const scenarios = ['unlinked-long', 'blank-summary', 'missing', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'market-observation-legacy-timeline', 'market-observation-event-projection', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility', 'tw-rs-unavailable', 'tw-rs-read-error', 'structured-judgment', 'structured-judgment-generic-action', 'structured-judgment-multiple-primary', 'structured-judgment-invalid-watch', 'structured-judgment-invalid-provenance', 'layer-reading', 'quote-cached-error', 'pulse-cached-error', 'market-empty-refetch', 'market-omitted-refetch', 'legacy-evidence']
   for (const scenario of scenarios) {
     console.log(`Checking ${scenario}`)
     const { page, errors, externalRequests } = await openPage(320, scenario)
@@ -438,7 +446,15 @@ try {
       case 'actions-partial': assert.match(text, /沒有可確認的下一步/); assert.doesNotMatch(text, /今天不用動。/); break
       case 'research-only': assert.match(text, /補研究：核對合成公開資料/); break
       case 'initial-error': assert.match(text, /簡報讀取失敗/); assert.equal(await panel.getByLabel('主要下一步').count(), 0); assert.doesNotMatch(text, /Today 讀回未提供台美分市場增量回執/); assert.match(text, /2026-10-05/); break
-      case 'refresh-error': assert.equal(await panel.getByLabel('主要下一步').count(), 1); assert.match(text, /本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動/); assert.match(await page.locator('main').innerText(), /讀取失敗|更新失敗|本次更新失敗/); assert.match(text, /隔夜價格反應/); break
+      case 'refresh-error': {
+        assert.equal(await panel.getByLabel('主要下一步').count(), 1)
+        assert.match(text, /本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動/)
+        const receipts = page.getByRole('region', { name: '台美盤中刷新回執', exact: true })
+        assert.match(await receipts.innerText(), /本次簡報重讀失敗；以下保留上次成功讀到的回執，不代表目前狀態/)
+        assert.match(await page.locator('main').innerText(), /讀取失敗|更新失敗|本次更新失敗/)
+        assert.match(text, /隔夜價格反應/)
+        break
+      }
       case 'quote-unavailable': assert.match(text, /未取得|—/); break
       case 'narrative-stale-partial': assert.match(text, /來源較舊/); assert.match(text, /五層證據覆蓋仍不完整/); break
       case 'narrative-delayed': assert.match(text, /目前判斷/); break
@@ -457,8 +473,17 @@ try {
       case 'market-known-breadth-no-ratio': assert.match(text, /漲方比例\s*—/); assert.match(text, /合計\s*7\s*5\s*2/); break
       case 'market-observation-legacy-timeline':
         assert.match(text, /合成舊版簡報市場讀數/)
+        assert.match(text, /合成未識別市場讀數[\s\S]*市場 unknown/)
         assert.match(text, /合成盤中回執與時間軸同一讀數/)
         assert.equal(text.split('合成盤中回執與時間軸同一讀數').length - 1, 1, 'the exact same observation is rendered once across receipt and timeline projections')
+        assert.doesNotMatch(text, /合成摘要也隨精確同一觀察重複/)
+        break
+      case 'market-observation-event-projection':
+        assert.match(text, /正式簡報與事件讀回的市場讀數/)
+        const earlierBrief = panel.locator('li').filter({ hasText: '合成較早版次' }).getByRole('button')
+        assert.match(await earlierBrief.innerText(), /1 則市場讀數/)
+        await earlierBrief.click()
+        assert.match(await panel.innerText(), /更早版次專屬市場讀數/)
         break
       case 'session-tw': assert.match(text, /台股盤前注意/); assert.match(text, /08:00/); break
       case 'session-stale-us': assert.match(text, /目前最新可用簡報，不代表今天新產生的決定/); assert.match(text, /跨日後仍保留最新簡報中的行動/); assert.match(text, /2026-09-29/); assert.match(text, /21:20/); assert.equal(await panel.getByLabel('主要下一步').count(), 1); break

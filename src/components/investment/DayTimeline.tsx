@@ -188,8 +188,10 @@ export function DayTimeline({ nodes, brief, showBriefMarketObservations = true, 
   hiddenMarketObservationKeys?: ReadonlySet<string>
 }) {
   const [toggled, setToggled] = useState<ReadonlySet<string>>(() => new Set())
-  if (!nodes.length) return null
-  const newestFirst = [...nodes].reverse()
+  const visibleNodes = nodes.filter(node => !(node.kind === "update" && node.information_kind === "market_observation"
+    && hiddenMarketObservationKeys.has(marketObservationKey(node as InvestmentMarketObservation))))
+  if (!visibleNodes.length) return null
+  const newestFirst = [...visibleNodes].reverse()
   const latestBrief = newestFirst.find((node): node is Extract<InvestmentTimelineNode, { kind: "brief" }> => node.kind === "brief")
   const linkedRows = new Map<string, LinkedBriefRows>()
   if (brief) {
@@ -208,12 +210,12 @@ export function DayTimeline({ nodes, brief, showBriefMarketObservations = true, 
       linkedRows.set(storyId, entry)
     }
   }
-  const days = new Set(nodes.map(node => dayLabel(timelineAt(node))).filter(Boolean))
+  const days = new Set(visibleNodes.map(node => dayLabel(timelineAt(node))).filter(Boolean))
   const spansDays = days.size > 1
   return <Card className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
       <h3 className="text-body font-medium text-ink">{spansDays ? "這一輪" : "這一天"}</h3>
-      <p className="text-caption text-ink-3">{nodes.length} 個時點{spansDays ? `，橫跨 ${days.size} 個日期` : ""}，由新到舊</p>
+      <p className="text-caption text-ink-3">{visibleNodes.length} 個時點{spansDays ? `，橫跨 ${days.size} 個日期` : ""}，由新到舊</p>
     </div>
     <ul className="flex min-w-0 flex-col">
       {newestFirst.map((node, index) => {
