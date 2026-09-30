@@ -578,7 +578,7 @@ export function structuredBriefJudgmentReplacement(brief: InvestmentBrief): Stru
       .filter(({ item }) => isRecord(item) && item.id === linkedId)
     if (matches.length === 1) {
       const { item, index } = matches[0]
-      if (isContractActionItem(item) && item.kind === judgment.class && item.status !== "closed") {
+      if (isContractActionItem(item) && item.kind === judgment.class && ["open", "has-canonical-home"].includes(item.status)) {
         return { judgment, source: "action_items", index }
       }
     }

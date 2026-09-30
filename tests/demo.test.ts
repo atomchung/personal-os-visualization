@@ -721,6 +721,10 @@ test("Today only folds the unique action explicitly linked by the source judgmen
     assert.deepEqual(currentTodayActionPlan(unlinked, { state: "ready", decision_summary: null, updates: [], limitations: [] }).map(item => item.id), [action.id, other.id])
   }
 
+  const unknownStatus = { ...base, action_items: [{ ...action, status: "unknown" as const }] }
+  assert.equal(structuredBriefJudgmentReplacement(unknownStatus), null)
+  assert.deepEqual(currentTodayActionPlan(unknownStatus, { state: "ready", decision_summary: null, updates: [], limitations: [] }).map(item => item.id), [action.id])
+
   const duplicate = { ...base, action_items: [action, { ...action, text: "相同 ID 的第二個合成來源列。" }] }
   assert.equal(structuredBriefJudgmentReplacement(duplicate), null)
   const duplicatePlan = currentTodayActionPlan(duplicate, { state: "ready", decision_summary: null, updates: [], limitations: [] })

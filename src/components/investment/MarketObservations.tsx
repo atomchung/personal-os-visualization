@@ -4,10 +4,10 @@ import { sourceTimestamp } from "@/lib/investmentFormat"
 import type { InvestmentMarketObservation } from "@/lib/investment"
 
 const OBSERVATION_FIELDS = [
-  "information_kind", "event", "title", "market_reaction", "interpretation", "impact", "today",
+  "information_kind", "event", "title", "summary", "market_reaction", "interpretation", "impact", "today",
   "observation_value", "observation_as_of", "observation_relation", "source_url", "source_published_at",
   "source_category", "is_price_or_proxy_observation", "declared_decision_transition", "transition_reason",
-  "market", "observed_at", "source_cutoff", "source_path", "source",
+  "market", "at", "observed_at", "source_cutoff", "source_revision", "source_path", "source",
 ] as const
 
 function canonicalValue(value: unknown): unknown {
@@ -20,8 +20,9 @@ function canonicalValue(value: unknown): unknown {
 
 /**
  * Deduplicate only a complete structured observation identity. Timeline nodes
- * add display-only `at` and `summary` fields, so those are normalized away when
- * market, source, time, event and value agree exactly. Sparse records fall back
+ * add display-only `at` and `summary` fields, so identical title summaries are
+ * normalized away. Authored interpretations, cutoffs and revisions stay distinct.
+ * Sparse records fall back
  * to full-record equality and never join on a title or date alone.
  */
 export function marketObservationKey(row: InvestmentMarketObservation): string {
@@ -30,7 +31,13 @@ export function marketObservationKey(row: InvestmentMarketObservation): string {
   const observedAt = observationTime(row)
   const source = observationSource(row)
   if (row.information_kind === "market_observation" && row.market?.trim() && event && value && observedAt && source) {
-    return JSON.stringify({ information_kind: row.information_kind, market: row.market, source, observed_at: observedAt, event, value })
+    const authored = Object.fromEntries(OBSERVATION_FIELDS
+      .filter(key => key in row && key !== "at" && key !== "source" && key !== "source_path" && key !== "observed_at"
+        && !(key === "summary" && row.summary?.trim() === event))
+      .map(key => [key, row[key]]))
+    return JSON.stringify(canonicalValue({ ...authored, source, observed_at: observedAt,
+      source_revision: row.source_revision ?? row.source?.source_revision ?? null,
+      source_cutoff: row.source_cutoff ?? row.source?.source_cutoff ?? null }))
   }
   const observation = Object.fromEntries(OBSERVATION_FIELDS.filter(key => key in row).map(key => [key, row[key]]))
   return `full:${JSON.stringify(canonicalValue(observation))}`

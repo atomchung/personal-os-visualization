@@ -27,5 +27,27 @@ test("event cards preserve ticker effects, candidate status, checks and degraded
     assert.match(future, /共享供需檢查/)
     assert.match(future, /日期未定/)
     assert.doesNotMatch(future, /已過事件/)
+    const overdue = renderToStaticMarkup(createElement(EventNews, { projection: {
+      state: "partial", items: [], limitations: [], overdue_checkpoints: [{
+        story_id: "synthetic-due", title: "合成到期事件", state: "result_pending", result_state: "pending",
+        due_date: "2026-09-29", affected_tickers: [], affected_scopes: [], checks: [], sources: [],
+        limitations: ["合成來源限制"],
+      }],
+    } }))
+    assert.match(overdue, /synthetic-due/)
+    assert.match(overdue, /合成來源限制/)
+    const { uniqueMarketObservations } = await server.ssrLoadModule("/src/components/investment/MarketObservations.tsx")
+    const first = { information_kind: "market_observation", market: "tw", event: "Synthetic index reading",
+      observation_value: "0.6%", observation_as_of: "2026-09-30T09:00:00+08:00", source_path: "synthetic/reading.md",
+      source_revision: "r1", interpretation: "First authored reading", source_cutoff: "2026-09-30T09:00:00+08:00" }
+    assert.equal(uniqueMarketObservations([first, { ...first }]).length, 1)
+    for (const difference of [{ interpretation: "Revised reading" }, { source_revision: "r2" }, { source_cutoff: "2026-09-30T09:10:00+08:00" }]) {
+      assert.equal(uniqueMarketObservations([first, { ...first, ...difference }]).length, 2)
+    }
+    assert.equal(uniqueMarketObservations([
+      { information_kind: "market_observation", summary: "A", source_revision: "r1" },
+      { information_kind: "market_observation", summary: "B", source_revision: "r2" },
+    ]).length, 2)
+
   } finally { await server.close(); if (previousLocation) Object.defineProperty(globalThis, "location", previousLocation); else Reflect.deleteProperty(globalThis, "location") }
 })
