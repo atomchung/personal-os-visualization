@@ -573,8 +573,8 @@ try {
       case 'structured-judgment':
         assert.equal(await page.locator('#investment-panel-today [role="group"][aria-label="主要下一步"]').count(), 1)
         assert.match(todaySteps, /合成判斷：先等正式結果/)
-        assert.match(todaySteps, /何時回看[\s\S]*2026-10-05/)
-        assert.match(todaySteps, /什麼會改變判斷[\s\S]*需求確認才重新評估/)
+        assert.match(todaySteps, /接下來看什麼[\s\S]*2026-10-05/)
+        assert.match(todaySteps, /什麼結果會改變判斷[\s\S]*需求確認才重新評估/)
         assert.match(todaySteps, /wiki\/morning\/synthetic-brief\.md/)
         assert.match(todaySteps, /sha256:synthetic-judgment-r1/)
         assert.match(todaySteps, /demo-storage-event/)
@@ -582,17 +582,17 @@ try {
         assert.doesNotMatch(todaySteps, /why_now: 尚缺公開需求證據/)
         break
       case 'structured-judgment-generic-action':
-        assert.match(todaySteps, /什麼會改變判斷[\s\S]*需求確認才重新評估/)
+        assert.match(todaySteps, /什麼結果會改變判斷[\s\S]*需求確認才重新評估/)
         assert.match(todaySteps, /行動：合成判斷：先等正式結果； why_now:/)
         break
       case 'structured-judgment-multiple-primary':
-        assert.match(todaySteps, /什麼會改變判斷[\s\S]*需求確認才重新評估/)
+        assert.match(todaySteps, /什麼結果會改變判斷[\s\S]*需求確認才重新評估/)
         assert.match(todaySteps, /合成判斷：先等正式結果； why_now:/)
         assert.match(todaySteps, /第二筆正式行動，需保留。/)
         break
       case 'structured-judgment-invalid-watch':
       case 'structured-judgment-invalid-provenance':
-        assert.doesNotMatch(todaySteps, /什麼會改變判斷/)
+        assert.doesNotMatch(todaySteps, /什麼結果會改變判斷/)
         assert.match(todaySteps, /合成判斷：先等正式結果； why_now:/)
         break
       case 'quote-cached-error': assert.match(text, /更新失敗，顯示上次數值/); break

@@ -10,7 +10,7 @@ import { StockMomentum } from "./StockMomentum"
 import {
   actionStatusLabel, actionStatusNote, currentOpenActionItems, groupBriefRows,
   JUDGMENT_CLASS_LABEL, newsScanNote, pendingActionsCountLine, providerCompletionNote, providerDetailTitle, taipeiClock,
-  sourceTimestamp, structuredBriefJudgmentReplacement, validatedBriefJudgment, todayActionKindLabel, currentTodayActionPlan, todayActionSection, todayGlobalDecisionSummary,
+  sourceTimestamp, structuredBriefJudgmentReplacement, validatedBriefJudgment, todayActionKindLabel, currentTodayActionPlan, todayActionSection, todayGlobalDecisionSummary, todayJudgmentTimeMetadata,
 } from "@/lib/investmentFormat"
 import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
 import { ReadingText, InlineText } from "./ReadingText"
@@ -358,6 +358,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
   const decisionSummary = readFailed || b.state === "stale" ? "" : today?.decision_summary?.trim() || ""
   const globalDecisionSummary = todayGlobalDecisionSummary(decisionSummary, steps)
   const actionSection = todayActionSection(b)
+  const judgmentTime = todayJudgmentTimeMetadata(b, today)
   const checkpoint = !readFailed && b.state === "current" ? todayCheckpoint(b, catalystQuery.data?.catalysts_30d) : null
   // Detail-only content: never rendered on the card's main level (see below).
   const checkpointNote = checkpoint
@@ -376,7 +377,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
       <Chip tone={item.status ? statusTone(item.status) : "mute"}>{status(item.status)}</Chip>
       <p className="min-w-0 text-body font-medium leading-relaxed text-ink"><TargetText text={item.text} /></p>
     </div>
-    {item.reason?.trim() ? <FieldList><Field label="為什麼現在"><InlineText text={item.reason.trim()} /></Field></FieldList> : null}
+    {item.reason?.trim() ? <FieldList><Field label="行動原因"><InlineText text={item.reason.trim()} /></Field></FieldList> : null}
   </li>
   const sourceNotes = (readFailed ? cachedSteps : steps).filter(item => item.date || item.source || item.id || item.sameTextRecords?.length)
   return <section className="flex min-w-0 flex-col gap-3" aria-label={actionSection.heading}>
@@ -384,6 +385,11 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
     <Card className="min-w-0 p-4 sm:p-5">
       <div className="flex min-w-0 flex-col gap-3">
       {actionSection.context ? <p role="status" className="text-caption text-warn">{actionSection.context}</p> : b.state === "missing" ? <p role="status" className="text-caption text-warn">尚未取得正式簡報；不將舊快取或殘留欄位當作今天已確認的工作。</p> : b.state === "invalid" ? <p role="status" className="text-caption text-warn">正式簡報無法完整辨識；其中的行動不列為今天已確認的工作。</p> : null}
+      {b.state === "current" || b.state === "stale" ? <div role="note" aria-label="正式判斷時間與後續快掃" className="flex min-w-0 flex-col gap-1 text-caption text-ink-3">
+        <p>{judgmentTime.judgmentLine}</p>
+        {judgmentTime.sourceCutoffLine ? <p>{judgmentTime.sourceCutoffLine}</p> : null}
+        {judgmentTime.laterScanLine ? <p>{judgmentTime.laterScanLine}</p> : null}
+      </div> : null}
       {today?.state === "partial" || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">今日更新狀態為 {today.state}；空白欄位不能確認沒有新行動。</p> : null}
       {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
       {readFailed ? <p role="status" className="text-body text-warn">本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動，是否已有新版本尚未確認。</p> : null}
@@ -393,9 +399,9 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
             <p className="min-w-0 text-body font-medium leading-relaxed text-ink"><InlineText text={judgment.judgment} /></p>
           </div>
           <FieldList>
-            <Field label="為什麼現在"><InlineText text={judgment.why_now} /></Field>
-            {judgment.revisit ? <Field label="何時回看"><InlineText text={judgment.revisit} /></Field> : null}
-            {judgment.decision_effect ? <Field label="什麼會改變判斷"><InlineText text={judgment.decision_effect} /></Field> : null}
+            <Field label="這次新資訊與判斷"><InlineText text={judgment.why_now} /></Field>
+            {judgment.revisit ? <Field label="接下來看什麼"><InlineText text={judgment.revisit} /></Field> : null}
+            {judgment.decision_effect ? <Field label="什麼結果會改變判斷"><InlineText text={judgment.decision_effect} /></Field> : null}
           </FieldList>
         </div>
         : primary ? <ol className="flex min-w-0 flex-col gap-3" aria-label="主要下一步">{row(primary, true)}</ol>
