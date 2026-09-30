@@ -733,7 +733,7 @@ test("Today only folds the unique action explicitly linked by the source judgmen
 
   const legacyLine = "等待資料公布；why_now: 來源尚未確認；revisit: 資料公布後；decision_effect: 依正式結果重看。"
   const legacyAction = { ...action, kind: undefined, text: legacyLine }
-  const legacyJudgment = { ...judgment, judgment: "等待資料公布。" }
+  const legacyJudgment: Omit<typeof judgment, "same_action_id"> & { same_action_id?: string } = { ...judgment, judgment: "等待資料公布。" }
   delete legacyJudgment.same_action_id
   assert.equal(structuredBriefJudgmentReplacement({ ...base, actions: [legacyLine], action_items: [legacyAction], judgment: legacyJudgment })?.source, "action_items")
   assert.equal(structuredBriefJudgmentReplacement({ ...base, actions: [legacyLine], action_items: [legacyAction], judgment: { ...legacyJudgment, same_action_id: null } }), null,

@@ -491,10 +491,10 @@ function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: { b: Inv
         // and printing it separately is what made 今日基線 read as contradicting
         // the card underneath whenever an intraday update had moved on.
         : <DayTimeline nodes={timeline} brief={b} hiddenMarketObservationKeys={hiddenMarketObservationKeys} />
-        : stories.length || formalMarketObservations.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
+        : !news && stories.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
         {headline && headline !== decisionSummary ? <p className="p-4 text-body leading-relaxed text-ink-2 sm:p-5"><span className="font-medium text-ink">今日基線：</span><ReadingText text={headline} /></p> : null}
         {stories.map(story => <StoryCard key={story.key} story={story} b={b} />)}
-      </Card> : headline ? <Card className="min-w-0 p-4 sm:p-5"><span className="font-medium text-ink">今日基線：</span><ReadingText text={headline} /></Card> : <p className="text-body text-ink-3">尚未取得可讀的今日變化。</p>}
+      </Card> : !news && headline ? <Card className="min-w-0 p-4 sm:p-5"><span className="font-medium text-ink">今日基線：</span><ReadingText text={headline} /></Card> : !news && !formalMarketObservations.length ? <p className="text-body text-ink-3">尚未取得可讀的今日變化。</p> : null}
       {b.event_notes.length ? <ReadingText text={b.event_notes.join("\n\n")} /> : null}
       <ThesisAttention
         b={b}

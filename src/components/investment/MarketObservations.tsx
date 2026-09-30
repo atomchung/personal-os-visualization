@@ -18,10 +18,22 @@ function canonicalValue(value: unknown): unknown {
   return value
 }
 
-/** Exact full-record identity only; the consumer never joins readings by title, ticker, or date. */
+/**
+ * Deduplicate only a complete structured observation identity. Timeline nodes
+ * add display-only `at` and `summary` fields, so those are normalized away when
+ * market, source, time, event and value agree exactly. Sparse records fall back
+ * to full-record equality and never join on a title or date alone.
+ */
 export function marketObservationKey(row: InvestmentMarketObservation): string {
+  const event = row.event?.trim() || row.title?.trim()
+  const value = row.observation_value?.trim() || row.market_reaction?.trim()
+  const observedAt = observationTime(row)
+  const source = observationSource(row)
+  if (row.information_kind === "market_observation" && row.market?.trim() && event && value && observedAt && source) {
+    return JSON.stringify({ information_kind: row.information_kind, market: row.market, source, observed_at: observedAt, event, value })
+  }
   const observation = Object.fromEntries(OBSERVATION_FIELDS.filter(key => key in row).map(key => [key, row[key]]))
-  return JSON.stringify(canonicalValue(observation))
+  return `full:${JSON.stringify(canonicalValue(observation))}`
 }
 
 function observationTitle(row: InvestmentMarketObservation): string {
@@ -44,7 +56,7 @@ function observationMarketLabel(market: string | null | undefined): string | nul
 
 export function MarketObservations({ observations, title = "市場讀數" }: { observations: InvestmentMarketObservation[]; title?: string }) {
   if (!observations.length) return null
-  return <section aria-label="市場讀數" className="flex min-w-0 flex-col gap-3">
+  return <section aria-label={title} className="flex min-w-0 flex-col gap-3">
     <div className="flex min-w-0 flex-col gap-1">
       <SectionHeading>{title} · {observations.length}</SectionHeading>
       <p className="text-caption text-ink-3">來源分類為市場觀察；與事件及其 story ID 分開呈現。</p>
