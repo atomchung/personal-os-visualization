@@ -33,7 +33,7 @@ const formalBrief = (overrides: Partial<InvestmentBrief> = {}): InvestmentBrief 
   ...overrides,
 })
 
-const failedLaterScan = (generatedAt: string) => ({
+const failedLaterScan = (generatedAt: string, receiptOverrides: Record<string, unknown> = {}) => ({
   ...structuredClone(investment.today),
   intraday_refresh: {
     ...structuredClone(investment.today.intraday_refresh!),
@@ -52,6 +52,7 @@ const failedLaterScan = (generatedAt: string) => ({
           finished_at: "2026-10-01T21:36:00+08:00",
           result: "failed",
           coverage_state: "failed",
+          ...receiptOverrides,
         },
         story_states: [],
         limitations: [],
@@ -94,6 +95,15 @@ test("formal time, source cutoff, and a later failed quick scan remain separate"
   assert.match(html, /美股開盤前判斷 · 更新 21:12/)
   assert.match(html, /資料截至 2026\/10\/01 21:09 台北/)
   assert.match(html, /後續美股快掃 21:36 失敗；保留 21:12 最新成功判斷/)
+})
+
+test("a failed projection state still preserves the formal judgment when receipt outcome fields are absent", () => {
+  const brief = formalBrief()
+  const today = failedLaterScan(brief.generated_at!, { result: undefined, coverage_state: undefined })
+  assert.equal(
+    todayJudgmentTimeMetadata(brief, today).laterScanLine,
+    "後續美股快掃 21:36 失敗；保留 21:12 最新成功判斷",
+  )
 })
 
 test("a cross-day stale brief is identified as the carried latest snapshot", async () => {
