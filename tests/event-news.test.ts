@@ -41,6 +41,9 @@ test("event cards preserve ticker effects, candidate status, checks and degraded
       observation_value: "0.6%", observation_as_of: "2026-09-30T09:00:00+08:00", source_path: "synthetic/reading.md",
       source_revision: "r1", interpretation: "First authored reading", source_cutoff: "2026-09-30T09:00:00+08:00" }
     assert.equal(uniqueMarketObservations([first, { ...first }]).length, 1)
+    assert.equal(uniqueMarketObservations([first, { ...first, kind: "update", at: first.observation_as_of, summary: "Timeline wrapper" }]).length, 1)
+    assert.equal(uniqueMarketObservations([{ ...first, source: { path: first.source_path, line: 1 } },
+      { ...first, source: { path: first.source_path, line: 2 } }]).length, 2)
     for (const difference of [{ interpretation: "Revised reading" }, { source_revision: "r2" }, { source_cutoff: "2026-09-30T09:10:00+08:00" }]) {
       assert.equal(uniqueMarketObservations([first, { ...first, ...difference }]).length, 2)
     }

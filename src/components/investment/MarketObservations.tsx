@@ -33,9 +33,10 @@ export function marketObservationKey(row: InvestmentMarketObservation): string {
   if (row.information_kind === "market_observation" && row.market?.trim() && event && value && observedAt && source) {
     const authored = Object.fromEntries(OBSERVATION_FIELDS
       .filter(key => key in row && key !== "at" && key !== "source" && key !== "source_path" && key !== "observed_at"
-        && !(key === "summary" && row.summary?.trim() === event))
+        && !(key === "summary" && (row.summary?.trim() === event || ("kind" in row && row.kind === "update"))))
       .map(key => [key, row[key]]))
-    return JSON.stringify(canonicalValue({ ...authored, source, observed_at: observedAt,
+    return JSON.stringify(canonicalValue({ ...authored, source,
+      source_location: { line: row.source?.line ?? null, raw: row.source?.raw ?? null }, observed_at: observedAt,
       source_revision: row.source_revision ?? row.source?.source_revision ?? null,
       source_cutoff: row.source_cutoff ?? row.source?.source_cutoff ?? null }))
   }
