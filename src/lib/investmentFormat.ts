@@ -789,15 +789,19 @@ export function currentTodayActionEntries(brief: InvestmentBrief, today?: Invest
   return entries
 }
 
-/** Only surface action rows whose owning producer state is current and readable. */
+/** Keep the last usable brief snapshot visible while it is date-stale. */
 export function currentTodayActionPlan(brief: InvestmentBrief, today?: InvestmentTodayView, allowJudgmentReplacement = true): TodayNextStep[] {
-  const currentBrief = brief.state === "current"
+  const availableBrief = brief.state === "current" || brief.state === "stale"
     ? brief
     : { ...brief, action_items: [], actions: [] }
   const currentToday = today?.state === "ready"
     ? today
     : today ? { ...today, updates: [] } : undefined
-  return currentTodayActionEntries(currentBrief, currentToday, allowJudgmentReplacement)
+  // A stale snapshot's source action is the content to preserve. Replacing it
+  // with a derived current-day judgment would hide that source row because the
+  // judgment itself is only eligible for a current brief.
+  const mayReplaceWithJudgment = brief.state === "current" && allowJudgmentReplacement
+  return currentTodayActionEntries(availableBrief, currentToday, mayReplaceWithJudgment)
 }
 
 /** Show the overall summary once, unless a step already carries the exact same text. */
@@ -1001,13 +1005,13 @@ export type BriefSessionRow = {
 
 export type TodayActionSection = { heading: string; context: string | null }
 
-/** Do not headline an older formal brief as today's action. */
+/** Label the latest available older brief without presenting it as today's new decision. */
 export function todayActionSection(brief: Pick<InvestmentBrief, "state" | "date" | "session">): TodayActionSection {
   if (brief.state !== "stale") return { heading: "今天怎麼做", context: null }
   const session = brief.session ? BRIEF_SESSION_LABELS[brief.session] ?? "版次未標示" : "版次未標示"
   return {
     heading: "目前可用行動",
-    context: `沿用 ${brief.date ?? "日期未提供"} · ${session}；今日正式版尚未產出。`,
+    context: `沿用 ${brief.date ?? "日期未提供"} · ${session}；這是目前最新可用簡報，不代表今天新產生的決定。`,
   }
 }
 

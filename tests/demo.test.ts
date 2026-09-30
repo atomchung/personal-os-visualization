@@ -359,7 +359,7 @@ test("stale Today action heading names the inherited report, while a current bri
   const brief = syntheticInvestment.brief
   assert.deepEqual(todayActionSection({ ...brief, state: "stale" }), {
     heading: "目前可用行動",
-    context: "沿用 2026-09-20 · 美股盤前注意 · 正式版；今日正式版尚未產出。",
+    context: "沿用 2026-09-20 · 美股盤前注意 · 正式版；這是目前最新可用簡報，不代表今天新產生的決定。",
   })
   assert.deepEqual(todayActionSection({ ...brief, state: "current" }), {
     heading: "今天怎麼做",
@@ -367,7 +367,7 @@ test("stale Today action heading names the inherited report, while a current bri
   })
   assert.deepEqual(todayActionSection({ ...brief, state: "stale", date: null, session: null }), {
     heading: "目前可用行動",
-    context: "沿用 日期未提供 · 版次未標示；今日正式版尚未產出。",
+    context: "沿用 日期未提供 · 版次未標示；這是目前最新可用簡報，不代表今天新產生的決定。",
   })
 })
 

@@ -151,6 +151,18 @@ await page.addInitScript(scenario => {
       if (scenario === 'session-stale-us') {
         data.brief.state = 'stale'
         data.brief.source.state = 'stale'
+        data.brief.date = '2026-09-29'
+        data.brief.generated_at = '2026-09-29T21:40:00+08:00'
+        data.brief.source_cutoff = '2026-09-29T21:20:00+08:00'
+        data.brief.source.date = data.brief.date
+        data.brief.source.generated_at = data.brief.generated_at
+        data.brief.source.source_cutoff = data.brief.source_cutoff
+        data.brief.envelope.generated_at = data.brief.generated_at
+        data.brief.envelope.source_cutoff = data.brief.source_cutoff
+        data.brief.actions = ['觀察：跨日後仍保留最新簡報中的行動。']
+        data.brief.action_items = []
+        data.brief.judgment = null
+        data.today = { ...data.today, state: 'ready', decision_summary: null, updates: [] }
       }
       if (scenario === 'session-missing') data.brief.session = null
       if (scenario === 'session-malformed-times') {
@@ -392,6 +404,10 @@ try {
         assert.doesNotMatch(await panel.getByRole('region', { name: '我的提醒', exact: true }).innerText(), /Synthetic completed/)
       }
     }
+    const actionSectionLabel = scenario === 'session-stale-us' ? '目前可用行動' : scenario === 'refresh-error' ? '今天怎麼做' : null
+    if (actionSectionLabel) {
+      await panel.locator(`section[aria-label="${actionSectionLabel}"]`).screenshot({ path: `${output}/${scenario}-action-card.png` })
+    }
     await expand(panel)
     const text = await panel.innerText()
     const todaySteps = scenario.startsWith('structured-judgment')
@@ -409,7 +425,7 @@ try {
       case 'actions-partial': assert.match(text, /沒有可確認的下一步/); assert.doesNotMatch(text, /今天不用動。/); break
       case 'research-only': assert.match(text, /補研究：核對合成公開資料/); break
       case 'initial-error': assert.match(text, /簡報讀取失敗/); assert.equal(await panel.getByLabel('主要下一步').count(), 0); assert.match(text, /2026-10-05/); break
-      case 'refresh-error': assert.equal(await panel.getByLabel('主要下一步').count(), 0); assert.match(text, /下一步尚未確認/); assert.match(await page.locator('main').innerText(), /讀取失敗|更新失敗|本次更新失敗/); assert.match(text, /隔夜價格反應/); break
+      case 'refresh-error': assert.equal(await panel.getByLabel('主要下一步').count(), 1); assert.match(text, /本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動/); assert.match(await page.locator('main').innerText(), /讀取失敗|更新失敗|本次更新失敗/); assert.match(text, /隔夜價格反應/); break
       case 'quote-unavailable': assert.match(text, /未取得|—/); break
       case 'narrative-stale-partial': assert.match(text, /來源較舊/); assert.match(text, /五層證據覆蓋仍不完整/); break
       case 'narrative-delayed': assert.match(text, /目前判斷/); break
@@ -427,7 +443,7 @@ try {
       case 'market-mixed-dates': assert.match(text, /TWSE 行情日：2001[-/]01[-/]02 · TPEx 行情日：2001[-/]01[-/]03/); assert.match(text, /2001[-/]02[-/]03/); break
       case 'market-known-breadth-no-ratio': assert.match(text, /漲方比例\s*—/); assert.match(text, /合計\s*7\s*5\s*2/); break
       case 'session-tw': assert.match(text, /台股盤前注意/); assert.match(text, /08:00/); break
-      case 'session-stale-us': assert.match(text, /不把舊判斷當成今天的新決定/); break
+      case 'session-stale-us': assert.match(text, /目前最新可用簡報，不代表今天新產生的決定/); assert.match(text, /跨日後仍保留最新簡報中的行動/); assert.match(text, /2026-09-29/); assert.match(text, /21:20/); assert.equal(await panel.getByLabel('主要下一步').count(), 1); break
       case 'session-missing': assert.match(text, /版次未標示/); break
       case 'session-malformed-times': assert.doesNotMatch(text, /99:99/); break
       case 'watch-read-error': assert.match(text, /讀取失敗|讀不到/); assert.doesNotMatch(text, /目前沒有待處理工作/); break
