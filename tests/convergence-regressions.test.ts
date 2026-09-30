@@ -35,13 +35,14 @@ test("optional legacy evidence arrays and explicit challenging/unknown branches 
   assert.deepEqual(mixed.legacyUnknown, ["合成額外未知原文"])
 
 })
-test("a failed reread removes current action and judgment while retaining source history", async () => {
+test("a failed reread keeps the last successful action visible and warns that it may be old", async () => {
   const { TodayNextSteps } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
   const client = new QueryClient()
   const b = { ...investment.brief, state: "current", judgment: { class: "watch", judgment: "合成上次判斷", why_now: "合成原因", revisit: null, decision_effect: "合成影響", provenance: { validated_story_ids: [], source_cutoff: null } } }
   const html = renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(TodayNextSteps, { b, today: investment.today, readFailed: true })))
-  assert.match(html, /本次簡報讀取失敗；下一步尚未確認/)
-  assert.doesNotMatch(html, /aria-label="主要下一步"|aria-label="其他行動"/)
+  assert.match(html, /本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動/)
+  assert.match(html, /aria-label="主要下一步"/)
+  assert.match(html, /收盤前再看一次量能是否延續/)
   assert.match(html, /上次讀取的判斷（目前未確認）/)
   assert.match(html, /合成上次判斷/)
 })

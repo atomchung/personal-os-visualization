@@ -10,7 +10,7 @@ import { StockMomentum } from "./StockMomentum"
 import {
   actionStatusLabel, actionStatusNote, currentOpenActionItems, groupBriefRows,
   JUDGMENT_CLASS_LABEL, newsScanNote, pendingActionsCountLine, providerCompletionNote, providerDetailTitle, taipeiClock,
-  sourceTimestamp, structuredBriefJudgmentReplacement, todayActionKindLabel, currentTodayActionPlan, todayGlobalDecisionSummary,
+  sourceTimestamp, structuredBriefJudgmentReplacement, todayActionKindLabel, currentTodayActionPlan, todayActionSection, todayGlobalDecisionSummary,
 } from "@/lib/investmentFormat"
 import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
 import { ReadingText, InlineText } from "./ReadingText"
@@ -223,8 +223,9 @@ function ThesisAttention({ b, onOpenThesis, presentation, timelineStoryIds }: {
 }
 
 export function TodayNextSteps({ b, today, readFailed = false }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed?: boolean }) {
-  // Only a contract-consistent judgment may replace the unique unclassified
-  // formal row. Read failures retain the legacy row in source detail.
+  // Only a current, contract-consistent judgment may replace the source row.
+  // On read failure, keep the cached source snapshot visible without deriving
+  // a new judgment from it.
   const replacement = !readFailed && b.state === "current" ? structuredBriefJudgmentReplacement(b) : null
   const judgment = replacement?.judgment ?? null
   const previousJudgment = readFailed && typeof b.judgment?.judgment === "string" && b.judgment.judgment.trim()
@@ -233,7 +234,10 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
   const cachedSteps = readFailed
     ? currentTodayActionPlan(b, today, false)
     : currentTodayActionPlan(b, today)
-  const steps = readFailed ? [] : cachedSteps
+  // A failed refresh does not replace the last successful snapshot. Keep its
+  // rows visible with the warning below so a transport error cannot look like
+  // an empty action list.
+  const steps = cachedSteps
   const catalystQuery = useQuery({
     queryKey: ["investment-narrative"],
     queryFn: ({ signal }) => getInvestmentNarrative(signal),
@@ -250,6 +254,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
   const remaining = judgment ? steps.slice(2) : steps.slice(3)
   const decisionSummary = readFailed || b.state === "stale" ? "" : today?.decision_summary?.trim() || ""
   const globalDecisionSummary = todayGlobalDecisionSummary(decisionSummary, steps)
+  const actionSection = todayActionSection(b)
   const checkpoint = !readFailed && b.state === "current" ? todayCheckpoint(b, catalystQuery.data?.catalysts_30d) : null
   // Detail-only content: never rendered on the card's main level (see below).
   const checkpointNote = checkpoint
@@ -271,14 +276,15 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
     {item.reason?.trim() ? <FieldList><Field label="為什麼現在"><InlineText text={item.reason.trim()} /></Field></FieldList> : null}
   </li>
   const sourceNotes = (readFailed ? cachedSteps : steps).filter(item => item.date || item.source || item.id || item.sameTextRecords?.length)
-  return <section className="flex min-w-0 flex-col gap-3" aria-label="今天怎麼做">
-    <SectionHeading>今天怎麼做</SectionHeading>
+  return <section className="flex min-w-0 flex-col gap-3" aria-label={actionSection.heading}>
+    <SectionHeading>{actionSection.heading}</SectionHeading>
     <Card className="min-w-0 p-4 sm:p-5">
       <div className="flex min-w-0 flex-col gap-3">
-      {b.state === "stale" ? <p role="status" className="text-caption text-warn">正式簡報沿用 {b.date ?? "較早日期"}；不把舊判斷當成今天的新決定。</p> : b.state === "missing" ? <p role="status" className="text-caption text-warn">尚未取得正式簡報；不將舊快取或殘留欄位當作今天已確認的工作。</p> : b.state === "invalid" ? <p role="status" className="text-caption text-warn">正式簡報無法完整辨識；其中的行動不列為今天已確認的工作。</p> : null}
+      {actionSection.context ? <p role="status" className="text-caption text-warn">{actionSection.context}</p> : b.state === "missing" ? <p role="status" className="text-caption text-warn">尚未取得正式簡報；不將舊快取或殘留欄位當作今天已確認的工作。</p> : b.state === "invalid" ? <p role="status" className="text-caption text-warn">正式簡報無法完整辨識；其中的行動不列為今天已確認的工作。</p> : null}
       {today?.state === "partial" || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">今日更新狀態為 {today.state}；空白欄位不能確認沒有新行動。</p> : null}
       {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
-      {readFailed ? <p role="status" className="text-body text-warn">本次簡報讀取失敗；下一步尚未確認。上次判斷與行動保留在來源明細。</p> : judgment ? <div className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
+      {readFailed ? <p role="status" className="text-body text-warn">本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動，是否已有新版本尚未確認。</p> : null}
+      {judgment ? <div className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Chip tone="info">{JUDGMENT_CLASS_LABEL[judgment.class]}</Chip>
             <p className="min-w-0 text-body font-medium leading-relaxed text-ink"><InlineText text={judgment.judgment} /></p>
@@ -306,7 +312,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
             <ul className="flex min-w-0 flex-col gap-2">{b.upcoming.map((item, index) => <li key={index}><span>{item.date_label} · </span><InlineText text={item.event} />{item.check ? <p>檢查：<InlineText text={item.check} /></p> : <p>檢查條件未提供。</p>}</li>)}</ul>
           </div> : null}
           {sourceNotes.length ? <div className="flex min-w-0 flex-col gap-2">
-            <p className="font-medium text-ink-2">{readFailed ? "上次讀取的行動（目前未確認）" : "這項工作的來源"}</p>
+            <p className="font-medium text-ink-2">{readFailed ? "上次成功讀取的行動（是否已有新版本尚未確認）" : "這項工作的來源"}</p>
             <ul className="flex min-w-0 flex-col gap-2">{sourceNotes.map(item => <li key={item.key} className="flex min-w-0 flex-col gap-1"><p><TargetText text={item.text} /></p>{item.date ? <p>記錄日期：{sourceTimestamp(item.date)}</p> : null}{item.source ? <p className="break-all">來源：{item.source}</p> : null}{item.id ? <p className="break-all">ID：{item.id}</p> : null}{item.sameTextRecords?.length ? <><p>另有 {item.sameTextRecords.length} 筆來源紀錄文字完全相同；僅按原文相同收合，是否為同一件事未確認。</p><ul className="flex min-w-0 flex-col gap-1">{item.sameTextRecords.map((record, recordIndex) => <li key={`${record.origin}:${record.id ?? recordIndex}`} className="break-all">{record.origin === "brief" ? "簡報" : "盤中更新"}{record.date ? ` · ${sourceTimestamp(record.date)}` : " · 日期未提供"}{record.source ? ` · ${record.source}` : ""}{record.id ? ` · ID：${record.id}` : ""}{record.reason ? <p>該來源自己的理由：<InlineText text={record.reason} /></p> : null}</li>)}</ul></> : null}</li>)}</ul>
           </div> : null}
           {judgment ? <div className="flex min-w-0 flex-col gap-1">

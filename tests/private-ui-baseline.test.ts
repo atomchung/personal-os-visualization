@@ -409,7 +409,7 @@ test("today next steps preserve producer kinds and status, and do not infer a ch
   assert.match(readFileSync(new URL("../src/components/investment/InvestmentPage.tsx", import.meta.url), "utf8"), /下一個明確檢查點未知/)
 })
 
-test("Today only presents action rows from current producer states", () => {
+test("Today presents ready updates and retains date-stale brief actions", () => {
   const brief = structuredClone(investment.brief)
   const template = brief.action_items![0]
   brief.actions = []
@@ -419,7 +419,9 @@ test("Today only presents action rows from current producer states", () => {
   const today = { ...structuredClone(investment.today), state: "ready" as const, updates: [{ ...update, id: "update:current", action: "正式來源的盤中提醒。" }] }
 
   assert.deepEqual(currentTodayActionPlan(brief, today).map(item => item.text), ["正式來源的盤中提醒。", "正式來源的目前行動。"])
-  for (const state of ["stale", "missing", "invalid"] as const) {
+  const staleBrief = { ...brief, state: "stale" as const }
+  assert.deepEqual(currentTodayActionPlan(staleBrief, today).map(item => item.text), ["正式來源的盤中提醒。", "正式來源的目前行動。"], "date-stale brief rows remain visible alongside ready updates")
+  for (const state of ["missing", "invalid"] as const) {
     const nonCurrentBrief = { ...brief, state }
     assert.deepEqual(currentTodayActionPlan(nonCurrentBrief, today).map(item => item.text), ["正式來源的盤中提醒。"], `${state} brief rows are not current, while ready update rows remain independently visible`)
   }
@@ -431,6 +433,48 @@ test("Today only presents action rows from current producer states", () => {
   assert.match(page, /currentTodayActionPlan\(b, today\)/)
   assert.match(page, /尚未取得正式簡報；不將舊快取或殘留欄位當作今天已確認的工作。/)
   assert.match(page, /正式簡報無法完整辨識；其中的行動不列為今天已確認的工作。/)
+  assert.match(page, /以下保留上次成功讀到的簡報與行動/)
+})
+
+test("Today retains the same last-available brief across midnight and atomically switches to a newer brief", () => {
+  const template = structuredClone(investment.brief.action_items![0]!)
+  const previous = {
+    ...structuredClone(investment.brief),
+    state: "stale" as const,
+    date: "2026-09-29",
+    generated_at: "2026-09-29T21:40:00+08:00",
+    source_cutoff: "2026-09-29T21:20:00+08:00",
+    session: "us-open-prep",
+    actions: [],
+    judgment: null,
+    action_items: [{ ...template, id: "ai:previous", text: "前一份晚報的正式行動。", date: "2026-09-29" }],
+  }
+  const noUpdates = { ...structuredClone(investment.today), updates: [] }
+  const originalProvenance = [previous.date, previous.session, previous.generated_at, previous.source_cutoff]
+  const previousSteps = currentTodayActionPlan(previous, noUpdates)
+  assert.deepEqual(previousSteps.map(item => [item.id, item.text, item.date]), [
+    ["ai:previous", "前一份晚報的正式行動。", "2026-09-29"],
+  ])
+  assert.deepEqual([previous.date, previous.session, previous.generated_at, previous.source_cutoff], originalProvenance)
+
+  const sameSnapshotAfterMidnight = { ...previous, state: "current" as const }
+  assert.deepEqual(currentTodayActionPlan(sameSnapshotAfterMidnight, noUpdates).map(item => [item.id, item.text, item.date]), [
+    ["ai:previous", "前一份晚報的正式行動。", "2026-09-29"],
+  ])
+
+  const nextBrief = {
+    ...previous,
+    state: "current" as const,
+    date: "2026-09-30",
+    session: "tw-open-prep",
+    generated_at: "2026-09-30T08:10:00+08:00",
+    source_cutoff: "2026-09-30T08:00:00+08:00",
+    action_items: [{ ...template, id: "ai:next", text: "下一份早報的正式行動。", date: "2026-09-30" }],
+  }
+  const nextSteps = currentTodayActionPlan(nextBrief, noUpdates)
+  assert.deepEqual(nextSteps.map(item => [item.id, item.text, item.date]), [
+    ["ai:next", "下一份早報的正式行動。", "2026-09-30"],
+  ])
 })
 
 test("Today collapses exact cross-source copy without asserting that the records are linked", () => {
