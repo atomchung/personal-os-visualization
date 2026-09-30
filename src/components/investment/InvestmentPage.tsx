@@ -269,7 +269,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
   // never a placeholder for a missing one. Source/id detail moved below.
   const row = (item: (typeof steps)[number], isPrimary = false) => <li key={item.key} className={`flex min-w-0 flex-col gap-3 border-l-2 pl-3 ${isPrimary ? "border-accent" : "border-line-soft"}`}>
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <Chip tone={isPrimary ? "info" : "mute"}>{todayActionKindLabel(item.kind, item.origin)}</Chip>
+      <Chip tone={isPrimary ? "info" : "mute"}>{todayActionKindLabel(item.kind, item.origin, readFailed || b.state === "stale")}</Chip>
       <Chip tone={item.status ? statusTone(item.status) : "mute"}>{status(item.status)}</Chip>
       <p className="min-w-0 text-body font-medium leading-relaxed text-ink"><TargetText text={item.text} /></p>
     </div>
