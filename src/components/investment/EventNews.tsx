@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { InlineText } from "./ReadingText"
 import { sourceTimestamp } from "@/lib/investmentFormat"
-import type { NewsEvents, NewsEvent, EventSource } from "@/lib/investment"
+import type { NewsEvents, NewsEvent, EventSource, InvestmentOverdueCheckpoint } from "@/lib/investment"
 
 const DIRECTIONS: Record<string, string> = { supports: "支持", challenges: "挑戰", mixed: "正反並存", unknown: "方向待確認" }
 
@@ -48,5 +48,23 @@ export function EventNews({ projection }: { projection: NewsEvents }) {
   return <div className="flex min-w-0 flex-col gap-3">
     {projection.state !== "ready" ? <p className="text-caption text-ink-3">事件來源或關聯部分可用；缺少關聯不代表沒有影響。</p> : null}
     {projection.items.length ? [...projection.items].reverse().map(event => <EventCard key={event.key} event={event} />) : <p className="text-body text-ink-3">本次來源沒有可讀的事件；不代表沒有新聞。</p>}
+    {projection.overdue_checkpoints?.length ? <OverdueCheckpoints items={projection.overdue_checkpoints} /> : null}
   </div>
+}
+
+function OverdueCheckpoints({ items }: { items: InvestmentOverdueCheckpoint[] }) {
+  return <section aria-label="已到期檢查點" className="flex min-w-0 flex-col gap-3 border-t border-line-soft pt-3">
+    <div className="flex min-w-0 flex-col gap-1">
+      <p className="text-body font-medium text-ink">已到期檢查點 · 尚無結果</p>
+      <p className="text-caption text-ink-3">仍待來源回報；不當作已完成的事件或新判斷。</p>
+    </div>
+    <ul className="flex min-w-0 flex-col gap-3">
+      {items.map(item => <li key={item.story_id} className="flex min-w-0 flex-col gap-2 border-l-2 border-line-soft pl-3">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-2"><p className="min-w-0 text-body font-medium text-ink"><InlineText text={item.title} /></p><Chip tone="warn">結果待確認</Chip><span className="text-caption text-ink-3">到期 {sourceTimestamp(item.due_date)}</span></div>
+        {item.checks.map((check, index) => <p key={`${check.scope}:${index}`} className="text-body text-ink-2">{check.scope} · {check.check || "來源未提供檢查條件"}</p>)}
+        {item.affected_tickers.length || item.affected_scopes.length ? <p className="text-caption text-ink-3">涵蓋：{[...item.affected_tickers, ...item.affected_scopes].join("、")}</p> : null}
+        <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">來源與事件身份</summary><ul className="flex flex-col gap-1 pt-1">{item.sources.map((source, index) => <li key={`${source.path ?? "source"}:${index}`} className="break-all">{source.path ?? "來源位置未提供"}{source.line ? `:${source.line}` : ""}{source.raw ? <p className="pt-1"><InlineText text={source.raw} /></p> : null}</li>)}</ul><p className="pt-1">story ID：{item.story_id}</p>{!item.sources.length ? <p>來源位置未提供。</p> : null}{item.limitations.map((note, index) => <p key={`limitation:${index}`} className="text-warn"><InlineText text={note} /></p>)}</details>
+      </li>)}
+    </ul>
+  </section>
 }

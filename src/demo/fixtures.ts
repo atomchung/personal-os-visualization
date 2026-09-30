@@ -1,6 +1,6 @@
 /** Synthetic showcase fixture; never generated from a real API or private vault. */
 import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
-import type { TwRelativeStrength, InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchDetail, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, RelativeStrength, StockMomentumData, StockQuote } from "../lib/investment"
+import type { TwRelativeStrength, InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentMarketObservation, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchDetail, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, RelativeStrength, StockMomentumData, StockQuote } from "../lib/investment"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 
 export const DATE = investmentScenario.as_of
@@ -10,6 +10,18 @@ const NEXT_DATE = new Date(Date.parse(`${DATE}T00:00:00Z`) + 86_400_000).toISOSt
 const BRIEF_GENERATED_AT = `${DATE}T21:30:00+08:00`
 const BRIEF_SOURCE_CUTOFF = `${DATE}T21:15:00+08:00`
 const UPDATE_OBSERVED_AT = `${NEXT_DATE}T00:27:00+08:00`
+const syntheticFormalMarketObservation: InvestmentMarketObservation = {
+  information_kind: "market_observation", market: "us", event: "合成正式簡報市場讀數",
+  observation_value: "虛構基準讀數 0.4%", source_published_at: "2026-09-24T01:07:00Z",
+  source_category: "synthetic", is_price_or_proxy_observation: true,
+  source: { path: "synthetic/market-observation.md", at: "2026-09-24T01:07:00Z", source_cutoff: "2026-09-24T01:07:00Z" },
+}
+const syntheticIntradayMarketObservation: InvestmentMarketObservation = {
+  information_kind: "market_observation", market: "us", event: "合成盤中增量市場讀數",
+  observation_value: "虛構增量讀數 1.1%", source_published_at: "2026-09-24T01:07:00Z",
+  source_category: "synthetic", is_price_or_proxy_observation: true,
+  source_path: "synthetic/intraday-market-observation.md",
+}
 export const WEEK = "2026-W38"
 
 export function createState() {
@@ -147,6 +159,7 @@ const openActionItem: InvestmentActionItem = {
   id: "ai:demo-deliver-questions",
   text: investmentScenario.action,
   status: "open",
+  kind: "watch",
   tickers: [investmentScenario.symbol],
   evidence: [investmentScenario.evidence_to_check],
   artifact_id: investmentScenario.source_id,
@@ -180,6 +193,28 @@ export const investment: InvestmentData = {
     decision_summary: "今天不需要因這則新訊號調整部位。",
     decision_summary_date: DATE,
     limitations: [],
+    intraday_refresh: {
+      schema_version: "1.0",
+      markets: {
+        tw: {
+          state: "no_material_update", freshness: "fresh", baseline_cutoff: BRIEF_SOURCE_CUTOFF,
+          input_cutoff: BRIEF_SOURCE_CUTOFF, last_successful_cutoff: "2026-09-24T01:05:00Z",
+          last_successful_refresh: { market: "tw", started_at: "2026-09-24T01:00:00Z", finished_at: "2026-09-24T01:05:00Z", baseline_cutoff_at: BRIEF_SOURCE_CUTOFF, input_cutoff: BRIEF_SOURCE_CUTOFF, source_cutoff: "2026-09-24T01:04:00Z", output_cutoff: "2026-09-24T01:04:00Z", baseline_path: "synthetic/brief.md", baseline_artifact_sha256: "synthetic-baseline-revision", discovery_scope: ["post_cutoff_news"], stop_stage: "L1", calls: { discovery: 2, verification: 0 }, candidate_count: 0, updated_story_ids: [], story_statuses: [], result: "no_material_update", coverage_state: "complete", limitations: [] },
+          latest_receipt: { market: "tw", started_at: "2026-09-24T01:00:00Z", finished_at: "2026-09-24T01:05:00Z", baseline_cutoff_at: BRIEF_SOURCE_CUTOFF, input_cutoff: BRIEF_SOURCE_CUTOFF, source_cutoff: "2026-09-24T01:04:00Z", output_cutoff: "2026-09-24T01:04:00Z", baseline_path: "synthetic/brief.md", baseline_artifact_sha256: "synthetic-baseline-revision", discovery_scope: ["post_cutoff_news"], stop_stage: "L1", calls: { discovery: 2, verification: 0 }, candidate_count: 0, updated_story_ids: [], story_statuses: [], result: "no_material_update", coverage_state: "complete", limitations: [] },
+          story_states: [], limitations: [],
+        },
+        us: {
+          state: "partial", freshness: "stale", baseline_cutoff: "2026-09-23T21:00:00Z",
+          input_cutoff: "2026-09-24T01:05:00Z", last_successful_cutoff: "2026-09-24T01:04:00Z",
+          last_successful_refresh: { market: "us", started_at: "2026-09-24T01:00:00Z", finished_at: "2026-09-24T01:05:00Z", baseline_cutoff_at: "2026-09-23T21:00:00Z", input_cutoff: "2026-09-23T21:00:00Z", source_cutoff: "2026-09-24T01:04:00Z", output_cutoff: "2026-09-24T01:04:00Z", calls: { discovery: 2, verification: 0 }, candidate_count: 0, updated_story_ids: [], story_statuses: [], result: "no_material_update", coverage_state: "complete", limitations: [] },
+          latest_receipt: { market: "us", started_at: "2026-09-24T01:06:00Z", finished_at: "2026-09-24T01:08:00Z", baseline_cutoff_at: "2026-09-23T21:00:00Z", input_cutoff: "2026-09-24T01:04:00Z", source_cutoff: "2026-09-24T01:07:00Z", output_cutoff: null, stop_stage: "L1", calls: { discovery: 4, verification: 0 }, candidate_count: 0, updated_story_ids: [], story_statuses: [], market_observations: [syntheticIntradayMarketObservation], result: "partial", coverage_state: "partial", limitations: ["合成情境：本次覆蓋不完整，未推進成功截止。"] },
+          story_states: [], limitations: ["合成情境：以最近一次成功 cutoff 為增量基準。"],
+        },
+      },
+      timeline_updates: [], updates: [],
+      market_observations: [syntheticIntradayMarketObservation],
+      limitations: ["展示用合成回執；沒有連接外部來源。"],
+    },
     updates: [{
       id: "news:demo-intraday-1",
       story_id: "demo-storage-event",
@@ -198,6 +233,15 @@ export const investment: InvestmentData = {
     thesis_changes: [{ thesis: investmentScenario.thesis, event_ref: "範例事件", event_index: 0, change: investmentScenario.thesis_change, reason: investmentScenario.thesis_reason }], thesis_notes: [],
     upcoming: [{ date_label: investmentScenario.next_check_date.slice(5).replace("-", "/"), event: investmentScenario.upcoming_event, check: investmentScenario.evidence_to_check }], upcoming_notes: [], actions: [investmentScenario.action],
     action_items: [openActionItem],
+    judgment: {
+      class: "watch",
+      judgment: investmentScenario.action,
+      why_now: "合成示例：此判斷與下一步來自同一個來源段落。",
+      revisit: "收到下一次合成資料後",
+      decision_effect: "只有來源更新時才重新檢視。",
+      provenance: null,
+      same_action_id: openActionItem.id,
+    },
     envelope: {
       artifact: "daily-brief",
       id: investmentScenario.source_id,
@@ -460,13 +504,35 @@ const demoThesisEvidence: InvestmentNarrativeThesisEvidence = {
   reason: "合成測試：證據尚未映射到五層，僅示範證據覆蓋狀態。",
 }
 
+const demoNewsEvent = investment.brief.events[0]!
+
 export const investmentNarrative: InvestmentNarrative = {
+  news_events: {
+    state: "partial", items: [{
+      key: demoNewsEvent.story_id ?? "demo-storage-event", story_id: demoNewsEvent.story_id ?? null,
+      title: demoNewsEvent.event, state: "unlinked", ticker_link_state: "unknown", thesis_link_state: "unlinked",
+      affected_tickers: [], ticker_effects: [], thesis_effects: [], canonical_claim_effects: [],
+      occurrences: [{ kind: "brief", title: demoNewsEvent.event, market_reaction: demoNewsEvent.market_reaction || null,
+        interpretation: demoNewsEvent.interpretation || null, impact: demoNewsEvent.impact || null,
+        source: { path: "synthetic/daily-brief.md" } }],
+      checkpoint: { state: "unlinked", story_id: demoNewsEvent.story_id ?? null, checks: [] },
+      limitations: ["此合成事件尚未登記標的或論點關係。"],
+    }], retired_items: [],
+    market_observations: [syntheticFormalMarketObservation],
+    overdue_checkpoints: [{
+      story_id: "synthetic-market-reopen", title: "虛構市場重開檢查點", state: "result_pending", result_state: "pending", due_date: "2026-09-23",
+      affected_tickers: [], affected_scopes: ["synthetic-market"],
+      checks: [{ scope: "synthetic-market", check: "等候虛構來源確認重開結果", state: "registered", result_state: "unknown" }],
+      sources: [{ path: "synthetic/checkpoints.md", line: 1, raw: "虛構檢查點；不是實際市場事件。" }],
+      limitations: ["合成資料仍待結果。"],
+    }],
+    limitations: ["展示用合成事件資料。"],
+  },
   catalysts_30d: {
-    state: "partial", window_start: DATE, window_end: "2026-10-20",
+    state: "ready", window_start: DATE, window_end: "2026-10-20",
     items: [{ ticker: "DEMO", type: "虛構財報", raw: "2026-10-05 公布虛構公司財報，核對需求是否延續。", date_precision: "day", date: "2026-10-05", date_label: "2026-10-05", source_qualifiers: [], source: { path: "synthetic/catalysts.md", line: 1 }, window_membership: "within" }],
-    uncertain_items: [{ ticker: "DEMO", type: "虛構產品驗證", raw: "2026-10 月可能公布驗證結果，日期尚未確認。", date_precision: "month", date: null, date_label: "2026-10", source_qualifiers: ["日期未確認"], source: { path: "synthetic/catalysts.md", line: 2 }, window_membership: "possible" },
-      { ticker: "DEMO-C", type: "虛構待公布事項", raw: "虛構事項尚未登記日期與窗口關係。", date_precision: "imprecise", date: null, date_label: null, source_qualifiers: ["窗口關係未知"], source: { path: "synthetic/catalysts.md", line: 3 }, window_membership: "unknown" }],
-    coverage_gaps: [{ ticker: "DEMO-B", reason: "合成來源尚未登記下一個事件。" }], limitations: ["合成案例只示範部分催化劑來源。"],
+    uncertain_items: [],
+    coverage_gaps: [], limitations: [],
   },
   artifact: "personalos-investment-hub",
   schema_version: "1.0",

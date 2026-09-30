@@ -565,6 +565,25 @@ export function structuredBriefJudgmentReplacement(brief: InvestmentBrief): Stru
   if (!judgment || !Array.isArray(brief.actions)) return null
 
   if (brief.action_items !== undefined && !Array.isArray(brief.action_items)) return null
+  const hasExplicitActionRelation = Object.prototype.hasOwnProperty.call(judgment, "same_action_id")
+  const linkedId: unknown = judgment.same_action_id
+  if (hasExplicitActionRelation) {
+    if (typeof linkedId !== "string" || !linkedId.trim() || linkedId !== linkedId.trim()
+      || !Array.isArray(brief.action_items)) return null
+    // The producer emits this pointer only for one same-source, same-class
+    // action. Recheck exact uniqueness and the shared classification before
+    // suppressing a row; malformed or ambiguous pointers keep both records.
+    const matches = brief.action_items
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => isRecord(item) && item.id === linkedId)
+    if (matches.length === 1) {
+      const { item, index } = matches[0]
+      if (isContractActionItem(item) && item.kind === judgment.class && ["open", "has-canonical-home"].includes(item.status)) {
+        return { judgment, source: "action_items", index }
+      }
+    }
+    return null
+  }
   if (brief.action_items?.length) {
     if (brief.action_items.length !== 1 || brief.actions.length > 1) return null
     const item: unknown = brief.action_items[0]
@@ -713,11 +732,18 @@ function stripActionPrefix(text: string): string {
 export function currentTodayActionEntries(brief: InvestmentBrief, today?: InvestmentTodayView, allowJudgmentReplacement = true): TodayNextStep[] {
   const entries: TodayNextStep[] = []
   const seenIds = new Set<string>()
+  const briefIdCounts = new Map<string, number>()
+  for (const item of brief.action_items ?? []) {
+    if (!isRecord(item) || typeof item.id !== "string" || !item.id.trim()) continue
+    briefIdCounts.set(item.id, (briefIdCounts.get(item.id) ?? 0) + 1)
+  }
+  const ambiguousBriefIds = new Set([...briefIdCounts].filter(([, count]) => count > 1).map(([id]) => id))
   const replacement = allowJudgmentReplacement ? structuredBriefJudgmentReplacement(brief) : null
   const add = (entry: TodayNextStep) => {
     if (!entry.text.trim()) return
     const identity = entry.id ? `${entry.origin}:${entry.id}` : null
-    if (identity && seenIds.has(identity)) return
+    const ambiguousBriefId = entry.origin === "brief" && entry.id !== null && ambiguousBriefIds.has(entry.id)
+    if (identity && seenIds.has(identity) && !ambiguousBriefId) return
     if (identity) seenIds.add(identity)
     const sameText = entries.find(existing => existing.origin !== entry.origin && existing.text === entry.text)
     if (sameText) {
@@ -759,7 +785,7 @@ export function currentTodayActionEntries(brief: InvestmentBrief, today?: Invest
       if (replacement?.source === "action_items" && replacement.index === index) continue
       if (item.status === "closed" && item.kind !== "no_change") continue
       add({
-        key: `brief:${item.id || entries.length}`,
+        key: `brief:${item.id || entries.length}${item.id && ambiguousBriefIds.has(item.id) ? `:${index}` : ""}`,
         text: item.text.trim(),
         kind: item.kind ?? "unknown",
         status: item.status ?? null,
