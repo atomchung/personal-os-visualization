@@ -39,7 +39,7 @@ await page.addInitScript(scenario => {
       ]
       data.today.intraday_refresh.market_observations = [incremental]
     }
-    if (['blank-summary', 'market-observation-legacy-timeline'].includes(scenario) && data?.news_events) throw new Error('Synthetic event projection unavailable')
+    if (['blank-summary', 'market-observation-legacy-timeline', 'market-observation-only-projection-error'].includes(scenario) && data?.news_events) throw new Error('Synthetic event projection unavailable')
     if (scenario === 'market-observation-event-projection' && data?.brief && data?.today) {
       const earlier = { information_kind: 'market_observation', market: 'tw', event: '更早版次專屬市場讀數', observation_value: '虛構早期讀數 0.2%', observed_at: '2026-09-28T08:00:00+08:00', source_path: 'synthetic/earlier-brief-market.md' }
       const current = { information_kind: 'market_observation', market: 'us', event: '合成目前簡報市場讀數', observation_value: '虛構目前讀數 0.7%', observed_at: '2026-09-29T21:00:00+08:00', source_path: 'synthetic/current-brief-market.md' }
@@ -156,6 +156,17 @@ await page.addInitScript(scenario => {
         data.brief.market_observations = []
         data.today.market_observations = []
         data.today.timeline = [{ ...observation, kind: 'update', at: observation.observed_at, timeline_at: observation.observed_at, summary: '合成時間軸額外摘要。', id: 'synthetic-only-market-update', story_id: null, portfolio_impact: '', action: '', relevance: [] }]
+        data.today.intraday_refresh.market_observations = [observation]
+      }
+      if (scenario === 'market-observation-only-projection-error') {
+        const observation = { information_kind: 'market_observation', market: 'tw', event: '合成無時間的盤中市場觀察', observation_value: '虛構盤中讀數 0.6%', source_path: 'synthetic/sparse-intraday-market.md' }
+        data.brief.headline = ''
+        data.brief.events = []
+        data.brief.market_observations = []
+        data.brief.event_notes = []
+        data.today.updates = []
+        data.today.market_observations = []
+        data.today.timeline = [{ ...observation, kind: 'update', at: '2026-09-30T09:10:00+08:00', timeline_at: '2026-09-30T09:10:00+08:00', summary: '合成時間軸包裝摘要。', id: 'synthetic-sparse-market-update', story_id: null, portfolio_impact: '', action: '', relevance: [] }]
         data.today.intraday_refresh.market_observations = [observation]
       }
       if (scenario === 'blank-summary') {
@@ -427,7 +438,7 @@ try {
     await page.close()
   }
   // Preserve legacy degraded-state scenarios, now checked against the converged owner layout.
-  const scenarios = ['unlinked-long', 'blank-summary', 'missing', 'news-without-timeline', 'market-only-no-timeline', 'market-observation-only-duplicate-timeline', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'market-observation-legacy-timeline', 'market-observation-event-projection', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility', 'tw-rs-unavailable', 'tw-rs-read-error', 'structured-judgment', 'structured-judgment-generic-action', 'structured-judgment-multiple-primary', 'structured-judgment-invalid-watch', 'structured-judgment-invalid-provenance', 'layer-reading', 'quote-cached-error', 'pulse-cached-error', 'market-empty-refetch', 'market-omitted-refetch', 'legacy-evidence']
+  const scenarios = ['unlinked-long', 'blank-summary', 'missing', 'news-without-timeline', 'market-only-no-timeline', 'market-observation-only-duplicate-timeline', 'market-observation-only-projection-error', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'market-observation-legacy-timeline', 'market-observation-event-projection', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility', 'tw-rs-unavailable', 'tw-rs-read-error', 'structured-judgment', 'structured-judgment-generic-action', 'structured-judgment-multiple-primary', 'structured-judgment-invalid-watch', 'structured-judgment-invalid-provenance', 'layer-reading', 'quote-cached-error', 'pulse-cached-error', 'market-empty-refetch', 'market-omitted-refetch', 'legacy-evidence']
   for (const scenario of scenarios) {
     console.log(`Checking ${scenario}`)
     const { page, errors, externalRequests } = await openPage(320, scenario)
@@ -495,6 +506,12 @@ try {
       case 'market-observation-only-duplicate-timeline':
         assert.equal(await panel.getByRole('region', { name: '盤中增量市場讀數', exact: true }).count(), 1)
         assert.equal(await panel.getByText('簡報版次與掃描時間軸', { exact: true }).count(), 0, 'a filtered duplicate cannot leave an empty expandable timeline')
+        break
+      case 'market-observation-only-projection-error':
+        assert.equal(await panel.getByRole('region', { name: '盤中增量市場讀數', exact: true }).count(), 1)
+        assert.match(text, /合成無時間的盤中市場觀察/)
+        assert.doesNotMatch(text, /尚未取得可讀的今日變化/)
+        assert.equal(await panel.getByText('簡報版次與掃描時間軸', { exact: true }).count(), 0, 'sparse duplicate update is hidden by its exact sparse receipt')
         break
       case 'actions-partial': assert.match(text, /沒有可確認的下一步/); assert.doesNotMatch(text, /今天不用動。/); break
       case 'research-only': assert.match(text, /補研究：核對合成公開資料/); break

@@ -4,10 +4,10 @@ import { sourceTimestamp } from "@/lib/investmentFormat"
 import type { InvestmentMarketObservation } from "@/lib/investment"
 
 const OBSERVATION_FIELDS = [
-  "information_kind", "event", "title", "market_reaction", "interpretation", "impact", "today", "summary",
+  "information_kind", "event", "title", "market_reaction", "interpretation", "impact", "today",
   "observation_value", "observation_as_of", "observation_relation", "source_url", "source_published_at",
   "source_category", "is_price_or_proxy_observation", "declared_decision_transition", "transition_reason",
-  "market", "at", "observed_at", "source_cutoff", "source_path", "source",
+  "market", "observed_at", "source_cutoff", "source_path", "source",
 ] as const
 
 function canonicalValue(value: unknown): unknown {
@@ -51,7 +51,7 @@ function observationTitle(row: InvestmentMarketObservation): string {
 }
 
 function observationTime(row: InvestmentMarketObservation): string | null {
-  return row.observation_as_of || row.source?.at || row.observed_at || row.source_published_at || row.at || null
+  return row.observation_as_of || row.source?.at || row.observed_at || row.source_published_at || null
 }
 
 function observationSource(row: InvestmentMarketObservation): string | null {
