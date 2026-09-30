@@ -36,6 +36,16 @@ export function marketObservationKey(row: InvestmentMarketObservation): string {
   return `full:${JSON.stringify(canonicalValue(observation))}`
 }
 
+export function uniqueMarketObservations(rows: readonly InvestmentMarketObservation[]): InvestmentMarketObservation[] {
+  const seen = new Set<string>()
+  return rows.filter(row => {
+    const key = marketObservationKey(row)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 function observationTitle(row: InvestmentMarketObservation): string {
   return row.event?.trim() || row.title?.trim() || row.summary?.trim() || row.observation_value?.trim() || "市場讀數"
 }

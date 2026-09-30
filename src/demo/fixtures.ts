@@ -504,9 +504,20 @@ const demoThesisEvidence: InvestmentNarrativeThesisEvidence = {
   reason: "合成測試：證據尚未映射到五層，僅示範證據覆蓋狀態。",
 }
 
+const demoNewsEvent = investment.brief.events[0]!
+
 export const investmentNarrative: InvestmentNarrative = {
   news_events: {
-    state: "partial", items: [], retired_items: [],
+    state: "partial", items: [{
+      key: demoNewsEvent.story_id ?? "demo-storage-event", story_id: demoNewsEvent.story_id ?? null,
+      title: demoNewsEvent.event, state: "unlinked", ticker_link_state: "unknown", thesis_link_state: "unlinked",
+      affected_tickers: [], ticker_effects: [], thesis_effects: [], canonical_claim_effects: [],
+      occurrences: [{ kind: "brief", title: demoNewsEvent.event, market_reaction: demoNewsEvent.market_reaction || null,
+        interpretation: demoNewsEvent.interpretation || null, impact: demoNewsEvent.impact || null,
+        source: { path: "synthetic/daily-brief.md" } }],
+      checkpoint: { state: "unlinked", story_id: demoNewsEvent.story_id ?? null, checks: [] },
+      limitations: ["此合成事件尚未登記標的或論點關係。"],
+    }], retired_items: [],
     market_observations: [syntheticFormalMarketObservation],
     overdue_checkpoints: [{
       story_id: "synthetic-market-reopen", title: "虛構市場重開檢查點", state: "result_pending", result_state: "pending", due_date: "2026-09-23",

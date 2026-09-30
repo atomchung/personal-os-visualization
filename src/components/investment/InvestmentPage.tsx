@@ -17,7 +17,7 @@ import { ReadingText, InlineText } from "./ReadingText"
 import { buildTodayStories, todayCheckpoint, todayStoryHeadline, type TodayStory } from "@/lib/investmentToday"
 import { DayTimeline, TargetText } from "./DayTimeline"
 import { EventNews } from "./EventNews"
-import { marketObservationKey, MarketObservations } from "./MarketObservations"
+import { marketObservationKey, MarketObservations, uniqueMarketObservations } from "./MarketObservations"
 import { InvestmentReminderPanel, InvestmentWorkPanel } from "./InvestmentWork"
 import { PendingBoard } from "./InvestmentPending"
 import { InvestmentHistory } from "./InvestmentHistory"
@@ -28,7 +28,7 @@ import {
   getInvestmentHistory, getInvestmentContext, getInvestmentSource,
   getInvestmentActions, getInvestmentNarrative, getInvestmentRefreshStatus, postInvestmentRefresh,
   type InvestmentIntradayMarketProjection, type InvestmentIntradayRefresh, type InvestmentRefreshAction, type InvestmentRefreshStatus,
-  type InvestmentActionItem, type InvestmentActions, type InvestmentBrief, type InvestmentSource, type InvestmentTodayView,
+  type InvestmentActionItem, type InvestmentActions, type InvestmentBrief, type InvestmentMarketObservation, type InvestmentSource, type InvestmentTodayView,
 } from "@/lib/investment"
 
 function SourceText({ source }: { source: InvestmentSource }) {
@@ -387,7 +387,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
       {today?.state === "partial" || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">今日更新狀態為 {today.state}；空白欄位不能確認沒有新行動。</p> : null}
       {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
       {readFailed ? <p role="status" className="text-body text-warn">本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動，是否已有新版本尚未確認。</p> : null}
-      {judgment ? <div aria-label="主要下一步" className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
+      {judgment ? <div role="group" aria-label="主要下一步" className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Chip tone="info">{JUDGMENT_CLASS_LABEL[judgment.class]}</Chip>
             <p className="min-w-0 text-body font-medium leading-relaxed text-ink"><InlineText text={judgment.judgment} /></p>
@@ -449,18 +449,26 @@ function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: { b: Inv
   const timeline = today?.timeline ?? []
   const intradayMarketObservations = today?.intraday_refresh?.market_observations ?? []
   const intradayMarketObservationKeys = new Set(intradayMarketObservations.map(marketObservationKey))
-  const newsFormalMarketObservations = (news?.market_observations ?? []).filter(row => !intradayMarketObservationKeys.has(marketObservationKey(row)))
-  const newsFormalMarketObservationKeys = new Set(newsFormalMarketObservations.map(marketObservationKey))
-  const timelineHasUnprojectedBriefObservations = timeline.some(node => node.kind === "brief"
-    && (node.market_observations ?? []).some(row => !intradayMarketObservationKeys.has(marketObservationKey(row))
-      && !newsFormalMarketObservationKeys.has(marketObservationKey(row))))
-  const fallbackFormalMarketObservations = b.market_observations?.length ? b.market_observations : today?.market_observations ?? []
-  const formalMarketObservations = newsFormalMarketObservations.length ? newsFormalMarketObservations
-    : !timelineHasUnprojectedBriefObservations ? fallbackFormalMarketObservations.filter(row => !intradayMarketObservationKeys.has(marketObservationKey(row))) : []
+  const timelineMarketObservationKeys = new Set(timeline.flatMap(node => node.kind === "brief"
+    ? (node.market_observations ?? []).map(marketObservationKey)
+    : node.information_kind === "market_observation" ? [marketObservationKey(node as InvestmentMarketObservation)] : []))
+  const currentFormalMarketObservations = [
+    ...(b.market_observations ?? []),
+    ...(today?.market_observations ?? []),
+  ].filter(row => !intradayMarketObservationKeys.has(marketObservationKey(row)))
+  const standaloneNewsMarketObservations = (news?.market_observations ?? []).filter(row =>
+    !intradayMarketObservationKeys.has(marketObservationKey(row))
+      && !timelineMarketObservationKeys.has(marketObservationKey(row)))
+  const formalMarketObservations = uniqueMarketObservations([
+    ...currentFormalMarketObservations,
+    ...standaloneNewsMarketObservations,
+  ])
   const hiddenMarketObservationKeys = new Set([
     ...formalMarketObservations.map(marketObservationKey),
     ...intradayMarketObservations.map(marketObservationKey),
   ])
+  const visibleTimeline = timeline.filter(node => !(node.kind === "update" && node.information_kind === "market_observation"
+    && hiddenMarketObservationKeys.has(marketObservationKey(node as InvestmentMarketObservation))))
   const stories = buildTodayStories(b.date, b.events, updates)
   const envelopeIncomplete = b.envelope && b.envelope.completeness !== "ready"
   const headline = b.headline.trim()
@@ -484,8 +492,8 @@ function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: { b: Inv
       {news ? <EventNews projection={news} /> : null}
       {formalMarketObservations.length ? <MarketObservations title="正式簡報與事件讀回的市場讀數" observations={formalMarketObservations} /> : null}
       {intradayMarketObservations.length ? <MarketObservations title="盤中增量市場讀數" observations={intradayMarketObservations} /> : null}
-      {timeline.length ? news
-        ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">簡報版次與掃描時間軸</summary><DayTimeline nodes={timeline} brief={b} showBriefMarketObservations hiddenMarketObservationKeys={hiddenMarketObservationKeys} /></details>
+      {visibleTimeline.length ? news
+        ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">簡報版次與掃描時間軸</summary><DayTimeline nodes={visibleTimeline} brief={b} showBriefMarketObservations hiddenMarketObservationKeys={hiddenMarketObservationKeys} /></details>
         // One line for the whole cycle. The headline is not repeated above it:
         // it is the newest brief's own first line and already sits on that node,
         // and printing it separately is what made 今日基線 read as contradicting
