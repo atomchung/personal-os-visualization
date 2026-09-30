@@ -811,8 +811,9 @@ export function todayGlobalDecisionSummary(summary: string, steps: readonly { te
   return value
 }
 
-export function todayActionKindLabel(kind: ActionItemKind, origin: TodayNextStep["origin"]): string {
+export function todayActionKindLabel(kind: ActionItemKind, origin: TodayNextStep["origin"], historicalBrief = false): string {
   if (origin === "update") return "盤中提醒"
+  if (historicalBrief && kind === "no_change") return "前版：不調整"
   if (kind === "action") return "現在行動"
   if (kind === "watch") return "等待／觀察"
   if (kind === "research") return "補研究"

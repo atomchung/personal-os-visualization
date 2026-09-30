@@ -47,6 +47,31 @@ test("a failed reread keeps the last successful action visible and warns that it
   assert.match(html, /合成上次判斷/)
 })
 
+test("stale and failed-read no-change rows are labeled as prior brief judgments", async () => {
+  const { TodayNextSteps } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  const client = new QueryClient()
+  const template = investment.brief.action_items![0]!
+  const b = {
+    ...investment.brief,
+    state: "stale" as const,
+    date: "2026-09-29",
+    session: "us-open-prep",
+    actions: [],
+    judgment: null,
+    action_items: [{ ...template, id: "stale-no-change", kind: "no_change" as const, status: "closed" as const, text: "當時沒有因消息調整部位。", date: "2026-09-29" }],
+  }
+  const today = { ...investment.today, state: "ready" as const, updates: [] }
+  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(TodayNextSteps, { b, today })))
+  assert.match(html, /前版：不調整/)
+  assert.match(html, /不代表今天新產生的決定/)
+  assert.doesNotMatch(html, />今天不用動</)
+
+  const failedReadHtml = renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(TodayNextSteps, { b: { ...b, state: "current" as const }, today, readFailed: true })))
+  assert.match(failedReadHtml, /本次簡報讀取失敗/)
+  assert.match(failedReadHtml, /前版：不調整/)
+  assert.doesNotMatch(failedReadHtml, />今天不用動</)
+})
+
 test("global-only rows survive an existing layer card, with original unknown strings", async () => {
   const { InvestmentNarrativeSection } = await server.ssrLoadModule("/src/components/investment/InvestmentNarrative.tsx")
   const data = structuredClone(investmentNarrative)
