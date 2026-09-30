@@ -72,6 +72,49 @@ export type InvestmentBriefJudgment = {
   revisit: string | null
   decision_effect: string | null
   provenance: InvestmentBriefJudgmentProvenance | null
+  /** Explicit producer relation to one exact action row; absent means unlinked. */
+  same_action_id?: string | null
+}
+
+/** A producer-classified market reading stays separate from event identities. */
+export type InvestmentMarketObservation = {
+  information_kind: "market_observation"
+  event?: string
+  title?: string
+  market_reaction?: string | null
+  interpretation?: string | null
+  impact?: string | null
+  today?: string | null
+  summary?: string | null
+  observation_value?: string | null
+  observation_as_of?: string | null
+  observation_relation?: string | null
+  source_url?: string | null
+  source_published_at?: string | null
+  source_category?: string | null
+  is_price_or_proxy_observation?: boolean
+  declared_decision_transition?: boolean | null
+  transition_reason?: string | null
+  market?: "tw" | "us" | null
+  at?: string | null
+  observed_at?: string | null
+  source_cutoff?: string | null
+  source_revision?: string | null
+  source_path?: string | null
+  source?: EventSource | null
+}
+
+export type InvestmentOverdueCheckpoint = {
+  story_id: string
+  title: string
+  state: "result_pending"
+  result_state: "pending"
+  due_date: string
+  affected_tickers: string[]
+  affected_scopes: string[]
+  checks: { scope: string; check: string | null; state?: string; result_state: string; source?: EventSource | null }[]
+  sources: EventSource[]
+  limitations: string[]
 }
 
 export type InvestmentBrief = {
@@ -92,6 +135,8 @@ export type InvestmentBrief = {
     impact: string
     today: string
   }[]
+  /** Producer-separated market readings from the same formal baseline. */
+  market_observations?: InvestmentMarketObservation[]
   event_notes: string[]
   /** `event_index` is the one event this row belongs to, or null when the reference
    * named none or more than one (and on briefs written before the column existed). */
@@ -122,6 +167,19 @@ export type InvestmentTodayUpdate = {
   source_cutoff?: string | null
   scan_completed_at?: string | null
   coverage_state?: "complete" | "partial" | null
+  information_kind?: "event" | "market_observation" | "unknown" | null
+  event?: string | null
+  event_title?: string | null
+  market?: "tw" | "us" | null
+  source_url?: string | null
+  source_published_at?: string | null
+  source_category?: string | null
+  observation_value?: string | null
+  observation_as_of?: string | null
+  observation_relation?: string | null
+  is_price_or_proxy_observation?: boolean
+  declared_decision_transition?: boolean | null
+  transition_reason?: string | null
   summary: string
   portfolio_impact: string
   action: string
@@ -145,14 +203,63 @@ export type InvestmentTimelineNode =
       path: string
       headline: string
       events: InvestmentBrief["events"]
+      market_observations?: InvestmentMarketObservation[]
     }
   | ({ kind: "update"; at: string; timeline_at?: string } & InvestmentTodayUpdate)
+
+export type InvestmentIntradayReceipt = {
+  market?: "tw" | "us"
+  started_at?: string | null
+  finished_at?: string | null
+  baseline_cutoff_at?: string | null
+  baseline_generated_at?: string | null
+  baseline_path?: string | null
+  baseline_artifact_sha256?: string | null
+  input_cutoff?: string | null
+  source_cutoff?: string | null
+  output_cutoff?: string | null
+  discovery_scope?: string[]
+  stop_stage?: string | null
+  source_categories?: string[]
+  calls?: { discovery?: number; verification?: number }
+  candidate_count?: number
+  updated_story_ids?: string[]
+  story_statuses?: { story_id: string; status: string; outcome: string; summary?: string; source_cutoff?: string | null }[]
+  market_observations?: InvestmentMarketObservation[]
+  result?: string
+  coverage_state?: "complete" | "partial" | "failed" | string
+  limitations?: string[]
+}
+
+export type InvestmentIntradayMarketProjection = {
+  state: string
+  freshness: string
+  baseline_cutoff: string | null
+  input_cutoff: string | null
+  last_successful_cutoff: string | null
+  last_successful_refresh: InvestmentIntradayReceipt | null
+  latest_receipt: InvestmentIntradayReceipt | null
+  story_states: { story_id: string; status: string; outcome: string; at?: string; source_cutoff?: string; summary?: string }[]
+  limitations: string[]
+}
+
+export type InvestmentIntradayRefresh = {
+  schema_version: string
+  markets: { tw?: InvestmentIntradayMarketProjection; us?: InvestmentIntradayMarketProjection }
+  timeline_updates: InvestmentTodayUpdate[]
+  updates: InvestmentTodayUpdate[]
+  market_observations: InvestmentMarketObservation[]
+  limitations: string[]
+}
 
 export type InvestmentTodayView = {
   state: "ready" | "partial" | "unavailable"
   decision_summary: string | null
   decision_summary_date?: string | null
   updates: InvestmentTodayUpdate[]
+  market_observations?: InvestmentMarketObservation[]
+  /** Per-market receipt projection; no consumer-side freshness inference. */
+  intraday_refresh?: InvestmentIntradayRefresh
   /**
    * The whole cycle, oldest first, in the producer's order. Overlaps `updates`
    * by design: that one is the delta the newest brief has not absorbed, this is
@@ -382,7 +489,14 @@ export type NewsEvent = {
   checkpoint: { state: string; story_id: string | null; checks: FutureCheckpoint["checks"]; sources?: EventSource[] }
   limitations: string[]
 }
-export type NewsEvents = { state: string; items: NewsEvent[]; limitations: string[] }
+export type NewsEvents = {
+  state: string
+  items: NewsEvent[]
+  retired_items?: NewsEvent[]
+  market_observations?: InvestmentMarketObservation[]
+  overdue_checkpoints?: InvestmentOverdueCheckpoint[]
+  limitations: string[]
+}
 export type InvestmentNarrative = {
   news_events?: NewsEvents | null
   future_checkpoints?: FutureCheckpoints | null

@@ -26,7 +26,7 @@ import { buildTimeline, researchForToday, splitCatalyst, watchDateWindow } from 
 import { NAV_GROUPS, PAGE_COPY, isTabKey } from "../src/lib/informationArchitecture.ts"
 import type { InvestmentActionItem } from "../src/lib/investment.ts"
 import { anchorRelativeDay, catalystDateGroups, buildTodayStories, staleBriefStatusText, taipeiCalendarDate, todayStoryHeadline } from "../src/lib/investmentToday.ts"
-import { layerGapLine, layerReadingCaption, layerReadingText, researchDirectionView, actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyChainDetailLinked, historyChainLinked, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayNextSteps, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
+import { currentTodayActionPlan, structuredBriefJudgmentReplacement, layerGapLine, layerReadingCaption, layerReadingText, researchDirectionView, actionStatusLabel, actionStatusNote, briefActions, briefSessionRows, groupBriefRows, historyChainDetailLinked, historyChainLinked, historyDetailLookupId, historyReadingOrder, reusableLearningItems, marketIndexDirectionDisplay, narrativeDisplayState, narrativeSignalSections, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, numberedTargets, recentActions, remainingActions, sourceTimestamp, quoteTime, taipeiCalendarToday, todayActionPlan, todayNextSteps, todayActionSection, unlinkedRowsWithoutLayerCard, workPanelView } from "../src/lib/investmentFormat.ts"
 
 const write = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) })
 
@@ -693,6 +693,53 @@ test("Today actions preserve update provenance, keep overflow reachable, and ret
   assert.equal(researchOnly.emptyMessage, "已確認沒有列出立即行動；另有 1 項補研究，請展開查看。")
 })
 
+test("Today only folds the unique action explicitly linked by the source judgment", () => {
+  const action = {
+    id: "synthetic-watch-1", text: "等待下一筆公開資料再檢視。", status: "open" as const, kind: "watch" as const,
+    tickers: [], evidence: [], artifact_id: "synthetic-brief", source: "synthetic-brief", date: "2026-09-30",
+  }
+  const other = {
+    ...action, id: "synthetic-research-1", text: "補研究：核對另一個獨立問題。", kind: "research" as const,
+  }
+  const judgment = {
+    class: "watch" as const, judgment: "等待下一筆公開資料再檢視。", why_now: "合成驗證情境。",
+    revisit: "資料公布後", decision_effect: "若來源改變再回看。", provenance: null,
+    same_action_id: action.id,
+  }
+  const base = {
+    ...syntheticInvestment.brief, state: "current" as const, actions: [], source: null,
+    action_items: [action, other], judgment,
+  }
+  const linked = structuredBriefJudgmentReplacement(base)
+  assert.equal(linked?.source, "action_items")
+  assert.equal(linked?.index, 0)
+  assert.deepEqual(currentTodayActionPlan(base, { state: "ready", decision_summary: null, updates: [], limitations: [] }).map(item => item.id), [other.id])
+
+  for (const badId of [undefined, null, "", "synthetic-watch-1 ", 17 as unknown as string]) {
+    const unlinked = { ...base, judgment: { ...judgment, same_action_id: badId } }
+    assert.equal(structuredBriefJudgmentReplacement(unlinked), null)
+    assert.deepEqual(currentTodayActionPlan(unlinked, { state: "ready", decision_summary: null, updates: [], limitations: [] }).map(item => item.id), [action.id, other.id])
+  }
+
+  const duplicate = { ...base, action_items: [action, { ...action, text: "相同 ID 的第二個合成來源列。" }] }
+  assert.equal(structuredBriefJudgmentReplacement(duplicate), null)
+  const duplicatePlan = currentTodayActionPlan(duplicate, { state: "ready", decision_summary: null, updates: [], limitations: [] })
+  assert.deepEqual(duplicatePlan.map(item => item.id), [action.id, action.id])
+  assert.equal(new Set(duplicatePlan.map(item => item.key)).size, 2, "ambiguous source rows remain individually reachable")
+
+  const mismatched = { ...base, action_items: [{ ...action, kind: "action" as const }] }
+  assert.equal(structuredBriefJudgmentReplacement(mismatched), null)
+  assert.deepEqual(currentTodayActionPlan(mismatched, { state: "ready", decision_summary: null, updates: [], limitations: [] }).map(item => item.id), [action.id])
+
+  const legacyLine = "等待資料公布；why_now: 來源尚未確認；revisit: 資料公布後；decision_effect: 依正式結果重看。"
+  const legacyAction = { ...action, kind: undefined, text: legacyLine }
+  const legacyJudgment = { ...judgment, judgment: "等待資料公布。" }
+  delete legacyJudgment.same_action_id
+  assert.equal(structuredBriefJudgmentReplacement({ ...base, actions: [legacyLine], action_items: [legacyAction], judgment: legacyJudgment })?.source, "action_items")
+  assert.equal(structuredBriefJudgmentReplacement({ ...base, actions: [legacyLine], action_items: [legacyAction], judgment: { ...legacyJudgment, same_action_id: null } }), null,
+    "an explicit null relation remains unlinked and cannot fall back to legacy inference")
+})
+
 test("Today action query failures remain visible even when cached steps exist", () => {
   const brief = { ...syntheticInvestment.brief, state: "current" as const, actions: ["保留快取行動"], action_items: [], source: null, envelope: { ...syntheticInvestment.brief.envelope!, completeness: "ready" as const, limitations: [] } }
   const plan = todayActionPlan(brief, { state: "ready", decision_summary: null, updates: [], limitations: [] }, true)
@@ -954,18 +1001,16 @@ test("layer readings show producer-authored current understanding and gaps witho
   assert.equal(layerReadingText(legacyLayer.current_reading), null, "old producers remain supported")
 })
 
-test("30-day catalyst projection preserves exact, approximate, missing and partial coverage", async () => {
+test("30-day catalyst projection keeps explicit dated events without fabricating a gap", async () => {
   const request = createDemoRequest()
   const narrative = await (await request("/api/investment/narrative")).json()
   const projection = narrative.catalysts_30d
   const view = catalystDateGroups(projection)
-  assert.equal(view.state, "partial")
+  assert.equal(view.state, "ready")
   assert.equal(view.exact[0]?.date, "2026-10-05", "future event beyond brief seven-day horizon remains visible")
-  assert.equal(view.uncertain[0]?.date, null)
-  assert.equal(view.uncertain[0]?.window_membership, "possible")
-  assert.equal(view.uncertain[1]?.window_membership, "unknown", "unknown window membership stays unknown alongside possible items")
-  assert.equal(view.uncertain[1]?.date, null)
-  assert.equal(projection.coverage_gaps.length, 1)
+  assert.deepEqual(view.uncertain, [], "the consumer does not synthesize an event for an optional empty next_catalyst")
+  assert.deepEqual(projection.coverage_gaps, [], "no monthly cadence is presented as a missing catalyst")
+  assert.deepEqual(projection.limitations, [])
   const approximate = { ...projection.items[0], date_precision: "approximate_day", date: null, window_membership: "possible" }
   assert.equal(catalystDateGroups({ ...projection, items: [approximate], uncertain_items: [] }).exact.length, 0)
   assert.equal(catalystDateGroups({ ...projection, state: "unknown", items: [], uncertain_items: [] }).state, "unknown")

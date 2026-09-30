@@ -10,13 +10,14 @@ import { StockMomentum } from "./StockMomentum"
 import {
   actionStatusLabel, actionStatusNote, currentOpenActionItems, groupBriefRows,
   JUDGMENT_CLASS_LABEL, newsScanNote, pendingActionsCountLine, providerCompletionNote, providerDetailTitle, taipeiClock,
-  sourceTimestamp, structuredBriefJudgmentReplacement, todayActionKindLabel, currentTodayActionPlan, todayActionSection, todayGlobalDecisionSummary,
+  sourceTimestamp, structuredBriefJudgmentReplacement, validatedBriefJudgment, todayActionKindLabel, currentTodayActionPlan, todayActionSection, todayGlobalDecisionSummary,
 } from "@/lib/investmentFormat"
 import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
 import { ReadingText, InlineText } from "./ReadingText"
 import { buildTodayStories, todayCheckpoint, todayStoryHeadline, type TodayStory } from "@/lib/investmentToday"
 import { DayTimeline, TargetText } from "./DayTimeline"
 import { EventNews } from "./EventNews"
+import { MarketObservations } from "./MarketObservations"
 import { InvestmentReminderPanel, InvestmentWorkPanel } from "./InvestmentWork"
 import { PendingBoard } from "./InvestmentPending"
 import { InvestmentHistory } from "./InvestmentHistory"
@@ -26,7 +27,7 @@ import {
   BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentResearch,
   getInvestmentHistory, getInvestmentContext, getInvestmentSource,
   getInvestmentActions, getInvestmentNarrative, getInvestmentRefreshStatus, postInvestmentRefresh,
-  type InvestmentRefreshAction, type InvestmentRefreshStatus,
+  type InvestmentIntradayMarketProjection, type InvestmentIntradayRefresh, type InvestmentRefreshAction, type InvestmentRefreshStatus,
   type InvestmentActionItem, type InvestmentActions, type InvestmentBrief, type InvestmentSource, type InvestmentTodayView,
 } from "@/lib/investment"
 
@@ -47,6 +48,105 @@ function durationLabel(raw: number): string {
   const seconds = Math.max(0, Math.round(raw))
   if (seconds < 60) return `${seconds} 秒`
   return `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`
+}
+
+const INTRADAY_MARKET_LABEL = { tw: "台股", us: "美股" } as const
+
+function intradayResultLabel(result: string | undefined): string {
+  switch (result) {
+    case "no_material_update": return "完成，沒有重大更新"
+    case "updated": return "已更新事件"
+    case "needs_deeper_analysis": return "有候選仍待深入分析"
+    case "partial": return "部分來源完成"
+    case "failed": return "刷新失敗"
+    case "unavailable": return "來源不可用"
+    default: return result || "結果未提供"
+  }
+}
+
+function intradayFreshnessLabel(freshness: string | undefined): string {
+  switch (freshness) {
+    case "baseline": return "沿用正式簡報基準"
+    case "fresh": return "截止已前移"
+    case "stale": return "未前移成功截止"
+    case "unknown": return "新鮮度未知"
+    default: return "新鮮度未提供"
+  }
+}
+
+function intradayMarketSummary(market: InvestmentIntradayMarketProjection | undefined): string {
+  if (!market) return "刷新狀態未提供"
+  if (!market.latest_receipt && market.state === "not_requested") return "尚未執行；沿用正式簡報基準"
+  const result = market.latest_receipt?.result ?? market.state
+  return `${intradayResultLabel(result)} · ${intradayFreshnessLabel(market.freshness)}`
+}
+
+function qualifiedDuration(start: string | null | undefined, finish: string | null | undefined): string | null {
+  if (!start || !finish || !/(?:Z|[+-]\d{2}:\d{2})$/i.test(start) || !/(?:Z|[+-]\d{2}:\d{2})$/i.test(finish)) return null
+  const startAt = Date.parse(start)
+  const finishAt = Date.parse(finish)
+  return Number.isFinite(startAt) && Number.isFinite(finishAt) && finishAt >= startAt
+    ? durationLabel((finishAt - startAt) / 1000) : null
+}
+
+function intradayMarketDegraded(market: InvestmentIntradayMarketProjection | undefined): boolean {
+  if (!market) return true
+  const result = market.latest_receipt?.result ?? market.state
+  return market.freshness === "stale" || market.freshness === "unknown"
+    || ["partial", "failed", "unavailable"].includes(result)
+    || ["partial", "failed"].includes(market.latest_receipt?.coverage_state ?? "")
+}
+
+function TodayIntradayReceipts({ refresh }: { refresh?: InvestmentIntradayRefresh }) {
+  if (!refresh) return <section aria-label="台美盤中刷新回執" className="flex min-w-0 flex-col gap-2 border-y border-line-soft py-2">
+    <p role="status" className="text-caption text-warn">Today 讀回未提供台美分市場增量回執；各自 cutoff、執行狀態與費用金額目前無法確認。</p>
+  </section>
+  const markets = (["tw", "us"] as const).map(key => [key, refresh.markets[key]] as const)
+  const degraded = markets.some(([, value]) => intradayMarketDegraded(value))
+  return <section aria-label="台美盤中刷新回執" className="flex min-w-0 flex-col gap-2 border-y border-line-soft py-2">
+    <p role="status" className={`text-caption ${degraded ? "text-warn" : "text-ink-3"}`}>
+      {markets.map(([key, value]) => `${INTRADAY_MARKET_LABEL[key]}：${intradayMarketSummary(value)}`).join(" · ")}
+    </p>
+    <details className="text-caption text-ink-3">
+      <summary className="cursor-pointer py-1">盤中截止、執行時間與來源回執</summary>
+      <div className="mt-2 flex min-w-0 flex-col gap-3">
+        {markets.map(([key, market]) => {
+          const receipt = market?.latest_receipt
+          const start = receipt?.started_at
+          const finish = receipt?.finished_at
+          const elapsed = qualifiedDuration(start, finish)
+          const callCount = receipt?.calls
+          return <div key={key} className="flex min-w-0 flex-col gap-1 border-l-2 border-line-soft pl-3">
+            <p className="font-medium text-ink-2">{INTRADAY_MARKET_LABEL[key]} · {intradayMarketSummary(market)}</p>
+            {market ? <>
+              <p>正式基準 cutoff：{sourceTimestamp(market.baseline_cutoff)}</p>
+              {receipt?.baseline_cutoff_at ? <p>本次回執採用的基準 cutoff：{sourceTimestamp(receipt.baseline_cutoff_at)}</p> : null}
+              <p>本次輸入 cutoff：{sourceTimestamp(market.input_cutoff)}</p>
+              {receipt?.source_cutoff ? <p>本次搜尋 cutoff：{sourceTimestamp(receipt.source_cutoff)}</p> : null}
+              {receipt ? <p>本次輸出 cutoff：{sourceTimestamp(receipt.output_cutoff)}</p> : null}
+              <p>最近成功 cutoff：{sourceTimestamp(market.last_successful_cutoff)}</p>
+            </> : <p>此市場的回執資料未提供。</p>}
+            {start || finish ? <p>開始：{sourceTimestamp(start)} · 結束：{sourceTimestamp(finish)}{elapsed ? ` · 耗時 ${elapsed}` : ""}</p> : null}
+            {receipt ? <>
+              <p>結果：{intradayResultLabel(receipt.result)} · 覆蓋：{receipt.coverage_state ?? "未提供"} · 停止階段：{receipt.stop_stage ?? "未提供"}</p>
+              <p>探索查詢：{callCount?.discovery ?? "未提供"} · 候選：{receipt.candidate_count ?? "未提供"} · 來源查證：{callCount?.verification ?? "未提供"}</p>
+              {receipt.discovery_scope?.length ? <p>搜尋範圍：{receipt.discovery_scope.join("、")}</p> : null}
+              {receipt.source_categories?.length ? <p>來源類別：{receipt.source_categories.join("、")}</p> : null}
+              <p>回執列出的 story ID：{receipt.updated_story_ids?.length ?? "未提供"} · 市場讀數：{receipt.market_observations?.length ?? "未提供"}</p>
+              {receipt.updated_story_ids?.length ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">回執列出的 story ID · {receipt.updated_story_ids.length}</summary><ul className="flex min-w-0 flex-col gap-1 pt-1">{receipt.updated_story_ids.map((storyId, index) => <li key={`${storyId}:${index}`} className="break-all">{storyId}</li>)}</ul></details> : null}
+              {receipt.story_statuses?.length ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">逐筆事件結果 · {receipt.story_statuses.length}</summary><ul className="flex min-w-0 flex-col gap-2 pt-1">{receipt.story_statuses.map((item, index) => <li key={`${item.story_id}:${index}`} className="flex min-w-0 flex-col gap-1 break-words border-l-2 border-line-soft pl-2"><p className="break-all">{item.story_id} · {item.status} · {item.outcome}</p>{item.summary ? <p><InlineText text={item.summary} /></p> : null}{item.source_cutoff ? <p>來源截止：{sourceTimestamp(item.source_cutoff)}</p> : null}</li>)}</ul></details> : null}
+              {receipt.baseline_path ? <p className="break-all">基準來源：{receipt.baseline_path}</p> : null}
+              {receipt.baseline_artifact_sha256 ? <p className="break-all">基準修訂：{receipt.baseline_artifact_sha256}</p> : null}
+              {receipt.limitations?.map((limitation, index) => <p key={`receipt-${index}`} className="text-warn">{limitation}</p>)}
+            </> : null}
+            {market?.limitations.map((limitation, index) => <p key={`market-${index}`} className="text-warn">{limitation}</p>)}
+            <p>費用金額未由來源回報；耗時與查詢次數不換算金額。</p>
+          </div>
+        })}
+        {refresh.limitations.map((limitation, index) => <p key={`refresh-${index}`} className="text-warn">{limitation}</p>)}
+      </div>
+    </details>
+  </section>
 }
 
 function refreshStateLabel(action: InvestmentRefreshAction, status: InvestmentRefreshStatus | undefined): string {
@@ -227,7 +327,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
   // On read failure, keep the cached source snapshot visible without deriving
   // a new judgment from it.
   const replacement = !readFailed && b.state === "current" ? structuredBriefJudgmentReplacement(b) : null
-  const judgment = replacement?.judgment ?? null
+  const judgment = replacement?.judgment ?? (!readFailed && b.state === "current" ? validatedBriefJudgment(b) : null)
   const previousJudgment = readFailed && typeof b.judgment?.judgment === "string" && b.judgment.judgment.trim()
     ? b.judgment.judgment.trim()
     : null
@@ -246,9 +346,9 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
     refetchOnWindowFocus: false,
     staleTime: 60_000,
   })
-  // With a judgment, its own row takes the primary slot and every step
-  // becomes a secondary/overflow row instead (the legacy serialized form of
-  // that same judgment is already filtered out of `steps` upstream).
+  // With a source judgment, its own row takes the primary slot. Only an
+  // exact, unique producer-linked action ID is removed from `steps`; missing
+  // or ambiguous relationships keep the source action visible below.
   const primary = judgment ? undefined : steps[0]
   const secondary = judgment ? steps.slice(0, 2) : steps.slice(1, 3)
   const remaining = judgment ? steps.slice(2) : steps.slice(3)
@@ -344,6 +444,13 @@ function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: { b: Inv
   // The producer's own cycle line. Empty from a producer too old to send it, in
   // which case the day still renders through the per-story cards below.
   const timeline = today?.timeline ?? []
+  const timelineHasMarketObservations = timeline.some(node => node.kind === "brief"
+    ? Boolean(node.market_observations?.length)
+    : node.information_kind === "market_observation")
+  const formalMarketObservations = news?.market_observations?.length ? news.market_observations
+    : !timelineHasMarketObservations ? (b.market_observations?.length ? b.market_observations
+      : today?.market_observations ?? []) : []
+  const intradayMarketObservations = today?.intraday_refresh?.market_observations ?? []
   const stories = buildTodayStories(b.date, b.events, updates)
   const envelopeIncomplete = b.envelope && b.envelope.completeness !== "ready"
   const headline = b.headline.trim()
@@ -364,13 +471,16 @@ function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: { b: Inv
       {b.state === "stale" ? <p role="status" className="text-caption text-warn">目前是較早的簡報，請留意資料截止時間。</p> : null}
       {b.state === "invalid" ? <p role="status" className="text-caption text-warn">這份簡報部分內容未能辨識，已保留可讀段落與完整原文。</p> : null}
       {envelopeIncomplete ? <p role="status" className="text-caption text-warn">{b.envelope?.completeness === "partial" ? "這份簡報資料不完整；細節可在下方來源展開查看。" : "這份簡報的資料包目前無法確認是否完整。"}</p> : null}
-      {news ? <><EventNews projection={news} />{timeline.length ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">簡報版次與掃描時間軸</summary><DayTimeline nodes={timeline} brief={b} /></details> : null}</> : timeline.length
+      {news ? <EventNews projection={news} /> : null}
+      {formalMarketObservations.length ? <MarketObservations title="正式簡報與事件讀回的市場讀數" observations={formalMarketObservations} /> : null}
+      {intradayMarketObservations.length ? <MarketObservations title="盤中增量市場讀數" observations={intradayMarketObservations} /> : null}
+      {news ? (timeline.length ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">簡報版次與掃描時間軸</summary><DayTimeline nodes={timeline} brief={b} showMarketObservations={!formalMarketObservations.length} /></details> : null) : timeline.length
         // One line for the whole cycle. The headline is not repeated above it:
         // it is the newest brief's own first line and already sits on that node,
         // and printing it separately is what made 今日基線 read as contradicting
         // the card underneath whenever an intraday update had moved on.
         ? <DayTimeline nodes={timeline} brief={b} />
-        : stories.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
+        : stories.length || formalMarketObservations.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
         {headline && headline !== decisionSummary ? <p className="p-4 text-body leading-relaxed text-ink-2 sm:p-5"><span className="font-medium text-ink">今日基線：</span><ReadingText text={headline} /></p> : null}
         {stories.map(story => <StoryCard key={story.key} story={story} b={b} />)}
       </Card> : headline ? <Card className="min-w-0 p-4 sm:p-5"><span className="font-medium text-ink">今日基線：</span><ReadingText text={headline} /></Card> : <p className="text-body text-ink-3">尚未取得可讀的今日變化。</p>}
@@ -456,6 +566,7 @@ export function InvestmentPage() {
       </div>
     </div> : null}
     {refreshError ? <p role="alert" aria-live="polite" className="text-caption text-warn">{refreshError}</p> : null}
+    {view === "today" ? <TodayIntradayReceipts refresh={query.data?.today?.intraday_refresh} /> : null}
     <nav aria-label="投資內容" className="flex min-w-0 gap-4 overflow-x-auto border-b border-line-soft sm:gap-5" role="tablist">{VIEWS.map(([key, label], index) => <Button key={key} id={`investment-tab-${key}`} role="tab" aria-controls={`investment-panel-${key}`} aria-selected={view === key} tabIndex={view === key ? 0 : -1} variant="link" className={`shrink-0 rounded-none border-b-2 px-0 py-3 ${view === key ? "border-accent text-ink" : "border-transparent text-ink-3"}`} onClick={() => setView(key)} onKeyDown={event => {
       const next = event.key === "ArrowRight" ? (index + 1) % VIEWS.length : event.key === "ArrowLeft" ? (index + VIEWS.length - 1) % VIEWS.length : event.key === "Home" ? 0 : event.key === "End" ? VIEWS.length - 1 : null
       if (next !== null) { event.preventDefault(); openView(VIEWS[next][0]) }
