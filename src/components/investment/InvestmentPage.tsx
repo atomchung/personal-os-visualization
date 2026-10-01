@@ -653,7 +653,7 @@ export function InvestmentPage() {
       {history.data ? <ReadingColumn><InvestmentHistory data={history.data} context={context.data} /></ReadingColumn> : null}
     </div>
     <details className="border-t border-line-soft pt-3"><summary className="cursor-pointer py-2 text-caption text-ink-3">資料來源與讀取狀況{watch.data?.watch.coverage.errors.length ? ` · ${watch.data.watch.coverage.errors.length} 項異常` : ""}</summary><div className="flex flex-col gap-2 pt-2 text-caption text-ink-3">
-      <p>{DEMO_MODE ? "簡報、研究、日期與行情全由合成資料提供。更新資料只重讀範例，不連接帳戶或外部資料。" : "簡報、研究和日期讀取本機 Investment Note；行情向 Yahoo Finance 查詢。「刷新盤面」會先把本機 Investment Note 快轉到 GitHub 最新（只 fast-forward，本機有分岔或未提交重疊就停），不會重新生成 AI 簡報，也不會推送任何東西。"}</p>
+      <p>{DEMO_MODE ? "簡報、研究、日期與行情全由合成資料提供。更新資料只重讀範例，不連接帳戶或外部資料。" : "簡報、研究和日期讀取本機 Investment Note；行情向 Yahoo Finance 查詢。「刷新盤面」會先把本機 Investment Note 快轉到 GitHub 最新（只 fast-forward，本機有分岔或未提交重疊就停），不會重新生成正式簡報；若 Investment Note 提供已核實且明示可處理的財報結果，可能送出結果 PR 供審查，但不會自動合併。"}</p>
       <p>每週觀察：{query.data?.weekly_watch.date ?? "尚未取得日期"}。目前只提供日期，無法據此確認本週回顧是否完成。</p>
       <p>投資論點的自動檢查尚未接入；没有提醒不代表論點已通過檢查。</p>
       {watch.data ? <><p>已讀 {watch.data.watch.coverage.scanned_files} 份相關來源；{watch.data.watch.coverage.missing_catalysts.length} 份未填下次事件日期。未填日期不算讀取故障。</p>{watch.data.watch.coverage.errors.map((error, index) => <p key={index}>{error.path}：{error.message}</p>)}{watch.data.watch.coverage.omissions.length ? <p>另有 {watch.data.watch.coverage.omissions.length} 份相關來源未納入：{watch.data.watch.coverage.omissions.slice(0, 5).map(item => `${item.path}（${item.reason}）`).join("、")}</p> : null}</> : null}
