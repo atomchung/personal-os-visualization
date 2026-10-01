@@ -31,7 +31,7 @@ test("ResearchWatch and InvestmentHistory move producer metadata into a collapse
     assert.match(researchWatchHtml, /Watch producer：synthetic-demo/)
     assert.match(researchWatchHtml, /source_cutoff：unknown/)
     assert.match(researchWatchHtml, new RegExp(watch.limitations[0]))
-    assert.match(researchWatchHtml, /部分來源讀取不完整（1 項），展開看明細/)
+    assert.match(researchWatchHtml, /來源涵蓋與登記限制（1 項），展開看明細/)
 
     const historyHtml = withClient(createElement(InvestmentHistory, { data: investmentHistory }))
     assert.match(historyHtml, /資料來源與讀取狀況/)
@@ -44,7 +44,7 @@ test("ResearchWatch and InvestmentHistory move producer metadata into a collapse
     const readyWatch = { ...watch, state: "ready" as const, limitations: [] }
     const readyHtml = withClient(createElement(ResearchWatch, { data: readyWatch }))
     assert.match(readyHtml, /資料來源與讀取狀況/)
-    assert.doesNotMatch(readyHtml, /部分來源讀取不完整/)
+    assert.doesNotMatch(readyHtml, /來源涵蓋與登記限制/)
   } finally {
     await server.close()
     if (previousLocation) Object.defineProperty(globalThis, "location", previousLocation)

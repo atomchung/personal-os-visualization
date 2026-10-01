@@ -84,10 +84,10 @@ export function ResearchWatch({data,brief}: {data: InvestmentWatch; brief?:Inves
   const window=watchDateWindow(data.generated_at)
   const events=window?buildTimeline(data,brief,window.start,window.end):[]
   const months=window?data.watch.catalysts.filter(e=>e.date_precision==="month"&&e.date!==null&&e.date>=window.start.slice(0,7)&&e.date<=window.end.slice(0,7)):[]
-  return <section className="flex min-w-0 flex-col gap-3" aria-label="接下來會改變判斷的事情">
-    <SectionHeading>接下來會改變判斷的事情</SectionHeading><p className="text-body text-ink-3">{window?`日期篩選範圍 ${window.start} 至 ${window.end}；目前可讀 Watch 登記日期與簡報的未來 7 天事項。這不是完整 30 天催化劑覆蓋；缺少事件不代表沒有催化劑。`:"無法由 Watch producer timestamp 確定日期範圍；目前不推定未來日期事件。"}</p>
+  return <section className="flex min-w-0 flex-col gap-3" aria-label="來源登記的日期與觀察事項">
+    <SectionHeading>來源登記的日期與觀察事項</SectionHeading><p className="text-body text-ink-3">{window?`日期篩選範圍 ${window.start} 至 ${window.end}；目前可讀 Watch 登記日期與簡報的未來 7 天事項。這不是完整 30 天催化劑覆蓋；缺少事件不代表沒有催化劑。`:"無法由 Watch producer timestamp 確定日期範圍；目前不推定未來日期事件。"}</p>
     <p className="text-caption text-ink-3">{RESEARCH_EVENT_LINKAGE_COPY}</p>
-    {data.limitations.length>0?<p role="status" className="text-caption text-ink-3">部分來源讀取不完整（{data.limitations.length} 項），展開看明細</p>:null}
+    {data.limitations.length>0?<p role="status" className="text-caption text-ink-3">來源涵蓋與登記限制（{data.limitations.length} 項），展開看明細</p>:null}
     {!window?<p role="status" className="text-body text-warn">generated_at 未提供可驗證的日期或時區時間；Watch 日期事件範圍未知，不能當作空清單。</p>:null}
     {window&&events.length===0&&(data.state==="ready"||data.state==="empty")?<p className="text-body text-ink-3">Watch 與簡報來源已讀取；目前沒有列出這段期間的日期事件。</p>:null}
     {window&&events.length===0&&data.state!=="ready"&&data.state!=="empty"?<p className="text-body text-warn">目前沒有可確認的日期事件；來源狀態不完整時，不把空列表當成沒有事件。</p>:null}
