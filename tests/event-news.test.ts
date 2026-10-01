@@ -12,7 +12,7 @@ test("event cards preserve ticker effects, candidate status, checks and degraded
   try {
     const { EventNews } = await server.ssrLoadModule("/src/components/investment/EventNews.tsx")
     const { FutureContent } = await server.ssrLoadModule("/src/components/investment/InvestmentNarrative.tsx")
-    const source = { path: "wiki/SYNTH/index.md", line: 4 }
+    const source = { path: "wiki/SYNTH/index.md", line: 4, source_cutoff: "2026-09-30T08:09:00+08:00" }
     const checks = [{ scope: "SYNTH", check: "公司執行檢查", state: "registered", result_state: "unknown", source }, { scope: "POOL", check: "共享供需檢查", state: "registered", result_state: "unknown", source }]
     const event = { key: "earnings", story_id: "earnings", title: "合成財報結果", state: "conflict", ticker_link_state: "linked", thesis_link_state: "candidate", affected_tickers: ["SYNTH", "ETF"], ticker_effects: [{ ticker: "SYNTH", effect: "公司影響", state: "candidate", sources: [source] }], thesis_effects: [{ narrative_id: "synthetic-demand", thesis_ref: null, direction: "supports", reason: "新增需求證據", state: "candidate", sources: [source] }], canonical_claim_effects: [], occurrences: [{ kind: "brief", title: "合成財報結果", market_reaction: null, interpretation: null, impact: "原文影響", source }], checkpoint: { state: "linked", story_id: "earnings", checks }, limitations: [] }
     const html = renderToStaticMarkup(createElement(EventNews, { projection: { state: "partial", items: [event], limitations: [] } }))
@@ -31,7 +31,8 @@ test("event cards preserve ticker effects, candidate status, checks and degraded
       checks: scopedResults.map(result => ({ scope: result.scope, check: `合成 ${result.scope} 檢查`, state: "registered", result_state: result.outcome, source, result })),
       event_result: { state: "verified", schema_version: 1, story_id: "earnings", status: "result_received",
         verification_state: "verified", source_type: "primary", source_url: "https://example.com/synthetic-result",
-        source_date: "2026-09-30", verified_at: "2026-09-30T10:00:00+08:00", check_results: scopedResults, limitations: [] },
+        source_date: "2026-09-29", verified_at: "2026-09-30T11:19:00+08:00", check_results: scopedResults,
+        source: { path: "synthetic/event-results/earnings.json", line: 7, source_revision: `sha256:${"1".repeat(64)}` }, limitations: [] },
     } }
     const renderResults = (value: NewsEvent, extra: NewsEvent[] = []) => renderToStaticMarkup(createElement(EventNews, { projection: { state: "ready", items: [value, ...extra], limitations: [] } }))
     const resultHtml = renderResults(verifiedEvent)
@@ -43,6 +44,15 @@ test("event cards preserve ticker effects, candidate status, checks and degraded
     for (const result of scopedResults) assert.ok(resultHtml.includes(result.summary))
     assert.match(resultHtml, /後續事件 · synthetic-product-qualification/)
     assert.match(resultHtml, /class="break-all">後續事件 · synthetic-product-qualification/)
+    assert.match(resultHtml, /href="https:\/\/example\.com\/synthetic-result"[^>]*>查看結果一手來源/)
+    assert.match(resultHtml, /一手來源日期 2026-09-29/)
+    assert.match(resultHtml, /結果核實時間 2026\/09\/30 11:19 台北/)
+    assert.match(resultHtml, /synthetic\/event-results\/earnings\.json:7/)
+    assert.ok(resultHtml.includes(`結果來源修訂：sha256:${"1".repeat(64)}`))
+    assert.match(resultHtml, /來源資訊截至 2026\/09\/30 08:09 台北/)
+    const checkpointDetails = resultHtml.slice(resultHtml.indexOf("<details"), resultHtml.indexOf("</details>"))
+    for (const label of ["查看結果一手來源", "一手來源日期", "結果核實時間", "結果來源修訂"]) assert.ok(checkpointDetails.includes(label))
+    assert.doesNotMatch(resultHtml, /來源資訊截至 2026\/09\/30 11:19/)
     assert.doesNotMatch(resultHtml, /結果尚未逐項驗證|結果來源部分可用|等待來源回報/)
 
     const followUpEvent: NewsEvent = { ...event, key: "qualification", story_id: "synthetic-product-qualification", title: "合成產品量產認證", checkpoint: { state: "unlinked", story_id: null, checks: [] } }
@@ -52,6 +62,20 @@ test("event cards preserve ticker effects, candidate status, checks and degraded
     const ambiguousTitle = { ...followUpEvent, key: "qualification-other", title: "另一份不一致標題" }
     assert.match(renderResults(verifiedEvent, [followUpEvent, ambiguousTitle]), /後續事件 · synthetic-product-qualification/)
     assert.doesNotMatch(renderResults(verifiedEvent, [followUpEvent, ambiguousTitle]), /後續事件 · (合成產品量產認證|另一份不一致標題)/)
+    for (const outcome of ["resolved", "no_new_disclosure"] as const) {
+      const result = { ...scopedResults[0], outcome }
+      const noFollowUp = renderResults({ ...verifiedEvent, checkpoint: { ...verifiedEvent.checkpoint,
+        checks: [{ ...verifiedEvent.checkpoint.checks[0], result_state: outcome, result }],
+        event_result: { ...verifiedEvent.checkpoint.event_result!, check_results: [result] },
+      } }, [followUpEvent])
+      assert.ok(noFollowUp.includes(result.summary))
+      assert.doesNotMatch(noFollowUp, /後續事件 ·|後續事件身份未提供|另有後續驗證點/)
+    }
+    const unsafeLink = renderResults({ ...verifiedEvent, checkpoint: { ...verifiedEvent.checkpoint,
+      event_result: { ...verifiedEvent.checkpoint.event_result!, source_url: "javascript:synthetic-only" },
+    } })
+    assert.doesNotMatch(unsafeLink, /href="javascript:/)
+    assert.match(unsafeLink, /結果一手來源連結未提供或無法開啟/)
 
     const partial = structuredClone(verifiedEvent)
     partial.checkpoint.event_result!.state = "partial"
@@ -59,6 +83,7 @@ test("event cards preserve ticker effects, candidate status, checks and degraded
     const partialHtml = renderResults(partial)
     assert.match(partialHtml, /結果來源部分可用，尚未確認完成/)
     assert.doesNotMatch(partialHtml, /原事件結果已核實|合成共享判準已完成查核|後續事件 ·/)
+    assert.doesNotMatch(partialHtml, /查看結果一手來源|結果核實時間|結果來源修訂|synthetic\/event-results/)
     for (const changed of [
       { ...verifiedEvent.checkpoint, story_id: "another-explicit-story" },
       { ...verifiedEvent.checkpoint, event_result: { ...verifiedEvent.checkpoint.event_result!, story_id: "another-explicit-story" } },

@@ -27,14 +27,32 @@ function hasVerifiedResult(event: NewsEvent): boolean {
     && proof.verification_state === "verified" && proof.source_type === "primary"
 }
 
+function resultSourceUrl(value: string | undefined): string | null {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === "https:" && !url.username && !url.password ? url.href : null
+  } catch {
+    return null
+  }
+}
+
 function CheckpointResults({ event, events }: { event: NewsEvent; events: NewsEvent[] }) {
   const checkpoint = event.checkpoint
   const sameEvent = checkpoint.state === "linked" && !!event.story_id && checkpoint.story_id === event.story_id
   const proof = checkpoint.event_result
   const verified = hasVerifiedResult(event)
+  const sourceUrl = resultSourceUrl(proof?.source_url)
   return <details className="text-caption text-ink-3">
     <summary className="cursor-pointer py-1">原先登記的驗證點 · {sameEvent ? "同一事件" : "來源關聯待釐清"}</summary>
     {verified ? <p className="pb-2">原事件結果已核實；個別後續驗證點另列。</p> : checkpoint.result_state === "partial" || proof?.state === "partial" ? <p className="pb-2">結果來源部分可用，尚未確認完成。</p> : null}
+    {verified && proof ? <div className="flex min-w-0 flex-col gap-1 pb-2">
+      {sourceUrl ? <a href={sourceUrl} target="_blank" rel="noreferrer" className="w-fit text-accent underline underline-offset-2">查看結果一手來源 ↗</a> : <p>結果一手來源連結未提供或無法開啟。</p>}
+      <p>一手來源日期 {sourceTimestamp(proof.source_date)}</p>
+      <p>結果核實時間 {sourceTimestamp(proof.verified_at)}</p>
+      <EventSources sources={[proof.source ?? { path: null }]} />
+      {proof.source?.source_revision ? <p className="break-all">結果來源修訂：{proof.source.source_revision}</p> : null}
+    </div> : null}
     <ul className="flex min-w-0 flex-col gap-3">{checkpoint.checks.map((check, index) => {
       const result = check.result
       const proofChecks = proof?.check_results?.filter(item => item.scope === check.scope) ?? []
@@ -43,7 +61,7 @@ function CheckpointResults({ event, events }: { event: NewsEvent; events: NewsEv
         && check.result_state === result.outcome && Object.hasOwn(CHECK_OUTCOMES, result.outcome)
         && typeof result.summary === "string" && result.summary.trim() && proofCheck?.outcome === result.outcome
         && proofCheck.summary === result.summary && proofCheck.follow_up_story_id === result.follow_up_story_id ? result : null
-      const followUp = outcome?.follow_up_story_id
+      const followUp = outcome?.outcome === "follow_up" ? outcome.follow_up_story_id : undefined
       const titles = [...new Set(events.filter(item => item.story_id === followUp).map(item => item.title.trim()).filter(Boolean))]
       const followUpTitle = followUp && titles.length === 1 ? titles[0] : null
       return <li key={index} className="flex min-w-0 flex-col gap-1">
