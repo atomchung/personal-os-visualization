@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createServer, type ViteDevServer } from "vite"
 import { investment, investmentNarrative } from "./fixtures/extended-ui.ts"
+import { investment as syntheticInvestment } from "../src/demo/fixtures.ts"
 import { layerEvidenceGroups } from "../src/lib/investmentFormat.ts"
 import type { InvestmentNarrativeEvidenceLayer } from "../src/lib/investment.ts"
 let server: ViteDevServer
@@ -45,6 +46,45 @@ test("a failed reread keeps the last successful action visible and warns that it
   assert.match(html, /收盤前再看一次量能是否延續/)
   assert.match(html, /上次讀取的判斷（目前未確認）/)
   assert.match(html, /合成上次判斷/)
+})
+
+test("incomplete Today data keeps the current formal judgment and uses plain status wording", async () => {
+  const { TodayNextSteps } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  for (const state of ["partial", "unavailable"] as const) {
+    const client = new QueryClient()
+    const html = renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(TodayNextSteps, {
+      b: { ...investment.brief, state: "current" }, today: { ...investment.today, state },
+    })))
+    assert.match(html, state === "partial" ? /今日資料只更新了一部分/ : /今日更新資料目前無法取得/)
+    assert.match(html, /空白欄位不能確認沒有新行動/)
+    assert.ok(html.includes(investment.brief.judgment!.judgment))
+    assert.doesNotMatch(html, /今日更新狀態為/)
+    client.clear()
+  }
+})
+
+test("a missing admissible receipt never claims no scan ran and keeps a failed scan visible", async () => {
+  const { InvestmentPage } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  const data = structuredClone(syntheticInvestment)
+  const tw = data.today!.intraday_refresh!.markets.tw
+  tw.state = "not_requested"
+  tw.freshness = "baseline"
+  tw.latest_receipt = null
+  tw.last_successful_refresh = null
+  tw.last_successful_cutoff = null
+  data.today!.intraday_refresh!.limitations = ["Synthetic receipt does not bind to its formal baseline."]
+  const client = new QueryClient()
+  client.setQueryData(["investment"], data)
+  client.setQueryData(["investment-refresh-status", "news"], {
+    state: "failed", market_scope: "tw", scan_mode: "quick", message: "合成來源覆蓋未完成，已保留上一版。",
+  })
+  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(InvestmentPage)))
+  assert.match(html, /台股：尚無可採用的盤中更新；沿用正式簡報/)
+  assert.match(html, /台股消息快掃更新失敗/)
+  assert.match(html, /美股：部分來源完成 · 本次未能更新資料截止時間/)
+  assert.match(html, /Synthetic receipt does not bind to its formal baseline/)
+  assert.doesNotMatch(html, /尚未執行；沿用正式簡報/)
+  client.clear()
 })
 
 test("stale and failed-read no-change rows are labeled as prior brief judgments", async () => {

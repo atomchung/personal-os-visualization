@@ -60,23 +60,22 @@ function intradayResultLabel(result: string | undefined): string {
     case "partial": return "部分來源完成"
     case "failed": return "刷新失敗"
     case "unavailable": return "來源不可用"
-    default: return result || "結果未提供"
+    default: return "結果尚未確認"
   }
 }
 
 function intradayFreshnessLabel(freshness: string | undefined): string {
   switch (freshness) {
-    case "baseline": return "沿用正式簡報基準"
-    case "fresh": return "截止已前移"
-    case "stale": return "未前移成功截止"
-    case "unknown": return "新鮮度未知"
-    default: return "新鮮度未提供"
+    case "baseline": return "沿用正式簡報"
+    case "fresh": return "資料截止時間已更新"
+    case "stale": return "本次未能更新資料截止時間"
+    default: return "資料截止時間尚未確認"
   }
 }
 
 function intradayMarketSummary(market: InvestmentIntradayMarketProjection | undefined): string {
   if (!market) return "刷新狀態未提供"
-  if (!market.latest_receipt && market.state === "not_requested") return "尚未執行；沿用正式簡報基準"
+  if (!market.latest_receipt && market.state === "not_requested") return "尚無可採用的盤中更新；沿用正式簡報"
   const result = market.latest_receipt?.result ?? market.state
   return `${intradayResultLabel(result)} · ${intradayFreshnessLabel(market.freshness)}`
 }
@@ -100,8 +99,8 @@ function intradayMarketDegraded(market: InvestmentIntradayMarketProjection | und
 function TodayIntradayReceipts({ refresh, readFailed }: { refresh?: InvestmentIntradayRefresh; readFailed: boolean }) {
   if (!refresh) return <section aria-label="台美盤中刷新回執" className="flex min-w-0 flex-col gap-2 border-y border-line-soft py-2">
     <p role="status" className="text-caption text-warn">{readFailed
-      ? "本次簡報重讀失敗；上次成功讀取的 Today 沒有台美分市場增量回執，無法確認目前狀態、cutoff 或費用金額。"
-      : "Today 讀回未提供台美分市場增量回執；各自 cutoff、執行狀態與費用金額目前無法確認。"}</p>
+      ? "本次簡報讀取失敗；上次內容沒有盤中更新回報，目前狀態與資料截止時間尚未確認。"
+      : "盤中更新回報目前無法取得；各市場的資料截止時間與執行狀態尚未確認。"}</p>
   </section>
   const markets = (["tw", "us"] as const).map(key => [key, refresh.markets[key]] as const)
   const degraded = markets.some(([, value]) => intradayMarketDegraded(value))
@@ -390,7 +389,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
         {judgmentTime.sourceCutoffLine ? <p>{judgmentTime.sourceCutoffLine}</p> : null}
         {judgmentTime.laterScanLine ? <p>{judgmentTime.laterScanLine}</p> : null}
       </div> : null}
-      {today?.state === "partial" || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">今日更新狀態為 {today.state}；空白欄位不能確認沒有新行動。</p> : null}
+      {today?.state === "partial" || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">{today.state === "partial" ? "今日資料只更新了一部分" : "今日更新資料目前無法取得"}；空白欄位不能確認沒有新行動。</p> : null}
       {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
       {readFailed ? <p role="status" className="text-body text-warn">本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動，是否已有新版本尚未確認。</p> : null}
       {judgment ? <div role="group" aria-label="主要下一步" className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
