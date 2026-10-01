@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import { createServer } from "vite"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
+import type { EventCheckResult, NewsEvent } from "../src/lib/investment.ts"
 
 test("event cards preserve ticker effects, candidate status, checks and degraded states", async () => {
   const previousLocation = Object.getOwnPropertyDescriptor(globalThis, "location")
@@ -20,6 +21,67 @@ test("event cards preserve ticker effects, candidate status, checks and degraded
     assert.match(html, /來源影響有分歧/)
     assert.match(html, /結果尚未逐項驗證/)
     assert.match(html, /原文影響/)
+    const scopedResults: EventCheckResult[] = [
+      { scope: "SYNTH", outcome: "follow_up", summary: "合成本季供應揭露已完成，產品認證仍需下一個事件。", follow_up_story_id: "synthetic-product-qualification" },
+      { scope: "POOL", outcome: "resolved", summary: "合成共享判準已完成查核。" },
+      { scope: "QUIET", outcome: "no_new_disclosure", summary: "合成來源沒有新增項目揭露。" },
+    ]
+    const verifiedEvent: NewsEvent = { ...event, state: "ready", checkpoint: {
+      state: "linked", story_id: "earnings", result_state: "resolved",
+      checks: scopedResults.map(result => ({ scope: result.scope, check: `合成 ${result.scope} 檢查`, state: "registered", result_state: result.outcome, source, result })),
+      event_result: { state: "verified", schema_version: 1, story_id: "earnings", status: "result_received",
+        verification_state: "verified", source_type: "primary", source_url: "https://example.com/synthetic-result",
+        source_date: "2026-09-30", verified_at: "2026-09-30T10:00:00+08:00", check_results: scopedResults, limitations: [] },
+    } }
+    const renderResults = (value: NewsEvent, extra: NewsEvent[] = []) => renderToStaticMarkup(createElement(EventNews, { projection: { state: "ready", items: [value, ...extra], limitations: [] } }))
+    const resultHtml = renderResults(verifiedEvent)
+    assert.match(resultHtml, /原事件結果已核實/)
+    assert.ok(resultHtml.indexOf("原事件結果已核實") < resultHtml.indexOf("<details"), "parent verification is visible before opening details")
+    assert.match(resultHtml, /檢查已完成/)
+    assert.match(resultHtml, /另有後續驗證點/)
+    assert.match(resultHtml, /本次沒有新增揭露/)
+    for (const result of scopedResults) assert.ok(resultHtml.includes(result.summary))
+    assert.match(resultHtml, /後續事件 · synthetic-product-qualification/)
+    assert.match(resultHtml, /class="break-all">後續事件 · synthetic-product-qualification/)
+    assert.doesNotMatch(resultHtml, /結果尚未逐項驗證|結果來源部分可用|等待來源回報/)
+
+    const followUpEvent: NewsEvent = { ...event, key: "qualification", story_id: "synthetic-product-qualification", title: "合成產品量產認證", checkpoint: { state: "unlinked", story_id: null, checks: [] } }
+    assert.match(renderResults(verifiedEvent, [followUpEvent]), /後續事件 · 合成產品量產認證 · synthetic-product-qualification/)
+    const unrelatedEvent = { ...followUpEvent, story_id: "different-explicit-story", title: "不應使用的相似標題" }
+    assert.doesNotMatch(renderResults(verifiedEvent, [unrelatedEvent]), /後續事件 · 不應使用/)
+    const ambiguousTitle = { ...followUpEvent, key: "qualification-other", title: "另一份不一致標題" }
+    assert.match(renderResults(verifiedEvent, [followUpEvent, ambiguousTitle]), /後續事件 · synthetic-product-qualification/)
+    assert.doesNotMatch(renderResults(verifiedEvent, [followUpEvent, ambiguousTitle]), /後續事件 · (合成產品量產認證|另一份不一致標題)/)
+
+    const partial = structuredClone(verifiedEvent)
+    partial.checkpoint.event_result!.state = "partial"
+    partial.checkpoint.event_result!.verification_state = "partial"
+    const partialHtml = renderResults(partial)
+    assert.match(partialHtml, /結果來源部分可用，尚未確認完成/)
+    assert.doesNotMatch(partialHtml, /原事件結果已核實|合成共享判準已完成查核|後續事件 ·/)
+    for (const changed of [
+      { ...verifiedEvent.checkpoint, story_id: "another-explicit-story" },
+      { ...verifiedEvent.checkpoint, event_result: { ...verifiedEvent.checkpoint.event_result!, story_id: "another-explicit-story" } },
+      { ...verifiedEvent.checkpoint, event_result: { ...verifiedEvent.checkpoint.event_result!, state: "unknown" as const } },
+      { ...verifiedEvent.checkpoint, result_state: "partial" },
+    ]) {
+      const degraded = renderResults({ ...verifiedEvent, checkpoint: changed })
+      assert.match(degraded, /結果尚未逐項驗證/)
+      assert.doesNotMatch(degraded, /原事件結果已核實|合成共享判準已完成查核|後續事件 ·/)
+    }
+    for (const changed of [
+      { ...verifiedEvent.checkpoint.checks[1], result_state: "unknown" },
+      { ...verifiedEvent.checkpoint.checks[1], state: "unknown" },
+      { ...verifiedEvent.checkpoint.checks[1], result: { ...scopedResults[1], scope: "OTHER" } },
+      { ...verifiedEvent.checkpoint.checks[1], result: { ...scopedResults[1], summary: "不是此 scope proof 的摘要" } },
+    ]) {
+      const unmatched = renderResults({ ...verifiedEvent, checkpoint: { ...verifiedEvent.checkpoint, checks: [changed] } })
+      assert.match(unmatched, /結果尚未逐項驗證/)
+      assert.doesNotMatch(unmatched, /合成共享判準已完成查核|不是此 scope proof 的摘要/)
+    }
+    const missingScope = renderResults({ ...verifiedEvent, checkpoint: { ...verifiedEvent.checkpoint, checks: [checks[0], ...verifiedEvent.checkpoint.checks] } })
+    assert.match(missingScope, /原事件結果已核實/)
+    assert.match(missingScope, /結果尚未逐項驗證/)
     const row = { story_id: "earnings", title: "合成下一季財報", state: "ready", date: "2026-09-30", date_label: "2026-09-30", date_precision: "day", window_membership: "within", source_qualifiers: ["一手"], affected_tickers: ["SYNTH", "ETF"], affected_scopes: ["POOL"], checks, sources: [source], limitations: [] }
     const future = renderToStaticMarkup(createElement(FutureContent, { projection: { state: "partial", window_start: "2026-09-27", window_end: "2026-10-27", items: [row], uncertain_items: [{ ...row, story_id: "uncertain", title: "未確認月份", state: "unlinked", date: null, date_label: "2026-10", date_precision: "month", window_membership: "possible" }], past_items: [{ ...row, title: "已過事件" }], coverage_gaps: [], limitations: [] } }))
     assert.match(future, /接下來會改變判斷的事情/)

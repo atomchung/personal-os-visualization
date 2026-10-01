@@ -467,11 +467,25 @@ export type InvestmentCatalysts30d = {
   limitations: string[]
 }
 export type EventSource = { path: string | null; line?: number | null; raw?: string; at?: string | null; source_cutoff?: string | null; source_revision?: string | null }
+export type EventCheckResult = {
+  scope: string
+  outcome: "resolved" | "no_new_disclosure" | "follow_up"
+  summary: string
+  follow_up_story_id?: string
+}
+/** Producer-validated result proof; unknown/partial records keep missing fields explicit. */
+export type EventResultProof = {
+  state: "verified" | "partial" | "unverified" | "unknown"
+  schema_version?: 1; story_id?: string; status?: "result_received"
+  verification_state?: "verified" | "partial" | "unverified"; source_type?: "primary"
+  source_url?: string; source_date?: string; verified_at?: string
+  check_results?: EventCheckResult[]; source?: EventSource; limitations: string[]
+}
 export type FutureCheckpoint = {
   story_id: string | null; title: string; state: string
   date: string | null; date_label: string | null; date_precision: string; window_membership: string
   source_qualifiers?: string[]; affected_tickers: string[]; affected_scopes: string[]
-  checks: { scope: string; check: string | null; state: string; result_state: string; source: EventSource }[]
+  checks: { scope: string; check: string | null; state: string; result_state: string; source: EventSource; result?: EventCheckResult }[]
   sources: EventSource[]; limitations: string[]
 }
 export type FutureCheckpoints = {
@@ -486,7 +500,7 @@ export type NewsEvent = {
   thesis_effects: { narrative_id: string | null; thesis_ref: string | null; direction: string; reason: string | null; sources: EventSource[]; state: string }[]
   canonical_claim_effects: { evidence_id: string; claim_id: string; direction: string; reason: string; source?: EventSource }[]
   occurrences: { kind: string; title: string; market_reaction: string | null; interpretation: string | null; impact: string | null; source: EventSource }[]
-  checkpoint: { state: string; story_id: string | null; checks: FutureCheckpoint["checks"]; sources?: EventSource[] }
+  checkpoint: { state: string; story_id: string | null; checks: FutureCheckpoint["checks"]; sources?: EventSource[]; result_state?: string; event_result?: EventResultProof }
   limitations: string[]
 }
 export type NewsEvents = {
