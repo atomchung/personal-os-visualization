@@ -55,12 +55,12 @@ export function EventNews({ projection }: { projection: NewsEvents }) {
 function OverdueCheckpoints({ items }: { items: InvestmentOverdueCheckpoint[] }) {
   return <section aria-label="已到期檢查點" className="flex min-w-0 flex-col gap-3 border-t border-line-soft pt-3">
     <div className="flex min-w-0 flex-col gap-1">
-      <p className="text-body font-medium text-ink">已到期檢查點 · 尚無結果</p>
-      <p className="text-caption text-ink-3">仍待來源回報；不當作已完成的事件或新判斷。</p>
+      <p className="text-body font-medium text-ink">已到期檢查點 · 等待來源更新</p>
+      <p className="text-caption text-ink-3">這是來源回報狀態，無需手動確認；尚未確認的結果不當作已完成或新判斷。</p>
     </div>
     <ul className="flex min-w-0 flex-col gap-3">
       {items.map(item => <li key={item.story_id} className="flex min-w-0 flex-col gap-2 border-l-2 border-line-soft pl-3">
-        <div className="flex min-w-0 flex-wrap items-baseline gap-2"><p className="min-w-0 text-body font-medium text-ink"><InlineText text={item.title} /></p><Chip tone="warn">結果待確認</Chip><span className="text-caption text-ink-3">到期 {sourceTimestamp(item.due_date)}</span></div>
+        <div className="flex min-w-0 flex-wrap items-baseline gap-2"><p className="min-w-0 text-body font-medium text-ink"><InlineText text={item.title} /></p><Chip tone="warn">{item.result_state === "pending" ? "等待來源回報" : "來源結果未確認"}</Chip><span className="text-caption text-ink-3">到期 {sourceTimestamp(item.due_date)}</span></div>
         {item.checks.map((check, index) => <p key={`${check.scope}:${index}`} className="text-body text-ink-2">{check.scope} · {check.check || "來源未提供檢查條件"}</p>)}
         {item.affected_tickers.length || item.affected_scopes.length ? <p className="text-caption text-ink-3">涵蓋：{[...item.affected_tickers, ...item.affected_scopes].join("、")}</p> : null}
         <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">來源與事件身份</summary><ul className="flex flex-col gap-1 pt-1">{item.sources.map((source, index) => <li key={`${source.path ?? "source"}:${index}`} className="break-all">{source.path ?? "來源位置未提供"}{source.line ? `:${source.line}` : ""}{source.raw ? <p className="pt-1"><InlineText text={source.raw} /></p> : null}</li>)}</ul><p className="pt-1">story ID：{item.story_id}</p>{!item.sources.length ? <p>來源位置未提供。</p> : null}{item.limitations.map((note, index) => <p key={`limitation:${index}`} className="text-warn"><InlineText text={note} /></p>)}</details>

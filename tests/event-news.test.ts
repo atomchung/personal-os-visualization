@@ -30,12 +30,23 @@ test("event cards preserve ticker effects, candidate status, checks and degraded
     const overdue = renderToStaticMarkup(createElement(EventNews, { projection: {
       state: "partial", items: [], limitations: [], overdue_checkpoints: [{
         story_id: "synthetic-due", title: "合成到期事件", state: "result_pending", result_state: "pending",
-        due_date: "2026-09-29", affected_tickers: [], affected_scopes: [], checks: [], sources: [],
+        due_date: "2026-09-29", affected_tickers: ["SYNTH"], affected_scopes: ["POOL"], checks, sources: [],
         limitations: ["合成來源限制"],
+      }, {
+        story_id: "synthetic-unknown", title: "合成結果來源不完整", state: "result_pending", result_state: "unknown",
+        due_date: "2026-09-29", affected_tickers: [], affected_scopes: [], checks: [], sources: [],
+        limitations: ["來源時間未提供，無法確認是否已有結果。"],
       }],
     } }))
     assert.match(overdue, /synthetic-due/)
     assert.match(overdue, /合成來源限制/)
+    assert.match(overdue, /等待來源回報/)
+    assert.match(overdue, /來源結果未確認/)
+    assert.match(overdue, /無需手動確認/)
+    assert.match(overdue, /公司執行檢查/)
+    assert.match(overdue, /共享供需檢查/)
+    assert.match(overdue, /來源時間未提供/)
+    assert.doesNotMatch(overdue, /已到期檢查點 · 尚無結果|>結果待確認</)
     const { uniqueMarketObservations } = await server.ssrLoadModule("/src/components/investment/MarketObservations.tsx")
     const first = { information_kind: "market_observation", market: "tw", event: "Synthetic index reading",
       observation_value: "0.6%", observation_as_of: "2026-09-30T09:00:00+08:00", source_path: "synthetic/reading.md",
