@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardSection, Field, FieldList, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { DEMO_MODE } from "@/lib/transport"
-import { layerEvidenceGroups, layerGapLine, layerReadingCaption, layerReadingText, layerStatusLineFor, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeDisplayState, narrativeSignalSections, narrativeSummaryLines, sourceTimestamp } from "@/lib/investmentFormat"
+import { filterLayerEntityGroups, layerEntityEvidenceGroups, layerEvidenceGroups, layerGapLine, layerReadingCaption, layerReadingText, layerStatusLineFor, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeDisplayState, narrativeSignalSections, narrativeSummaryLines, paginateLayerEntityGroups, sourceTimestamp } from "@/lib/investmentFormat"
 import { catalystDateGroups, isEventIdentityLimitation, nonExactDateReason, splitNonExactByDateInfo, translateLegacyLimitation, withoutExpiredCatalystGaps } from "@/lib/investmentToday"
 import {
   getInvestmentNarrative,
@@ -14,6 +15,7 @@ import {
   type InvestmentNarrativeDirectionalSignal,
   type InvestmentNarrativeEvidenceLayer,
   type InvestmentNarrativeLayerEvidence,
+  type InvestmentNarrativeLayerPlayer,
   type InvestmentNarrativeLayerRow,
   type InvestmentNarrativeRecordedChange,
   type InvestmentNarrativeSource,
@@ -24,23 +26,35 @@ import { EventSources } from "./EventNews"
 
 type DisplayState = InvestmentNarrativeState | "unavailable"
 
-const STATE_COPY: Record<DisplayState, { label: string; tone: "ok" | "warn" | "bad" | "mute" }> = {
-  ready: { label: "資料欄位齊備", tone: "mute" },
-  partial: { label: "資料部分可用", tone: "warn" },
-  stale: { label: "來源較舊", tone: "warn" },
-  drift: { label: "來源關聯不一致", tone: "bad" },
-  unknown: { label: "資料狀態未知", tone: "mute" },
-  unavailable: { label: "目前無法取得", tone: "warn" },
+const STATE_COPY: Record<DisplayState, { label: string }> = {
+  ready: { label: "資料欄位齊備" },
+  partial: { label: "資料部分可用" },
+  stale: { label: "來源較舊" },
+  drift: { label: "來源關聯不一致" },
+  unknown: { label: "資料狀態未知" },
+  unavailable: { label: "目前無法取得" },
+}
+
+const STATE_VISUAL: Record<DisplayState, { icon: string; className: string }> = {
+  ready: { icon: "✓", className: "border-ok bg-ok/10" },
+  partial: { icon: "◐", className: "border-warn bg-warn/10" },
+  stale: { icon: "↻", className: "border-warn bg-warn/10" },
+  drift: { icon: "!", className: "border-bad bg-bad/10" },
+  unknown: { icon: "?", className: "border-info bg-info/10" },
+  unavailable: { icon: "×", className: "border-warn bg-warn/10" },
 }
 
 function StateChip({ state }: { state: DisplayState }) {
   const copy = STATE_COPY[state]
-  return <Chip tone={copy.tone}>{copy.label}</Chip>
+  const visual = STATE_VISUAL[state]
+  return <span className={`inline-flex items-center gap-1 rounded-sm border-l-4 px-2 py-1 text-caption font-semibold text-ink ${visual.className}`}>
+    <span aria-hidden="true" className="font-bold">{visual.icon}</span>{copy.label}
+  </span>
 }
 
 function StateNote({ state, reason }: { state: InvestmentNarrativeState; reason?: string | null }) {
   if (state === "ready" && !reason) return null
-  return <p className={`text-caption leading-relaxed ${state === "drift" || state === "stale" || state === "partial" ? "text-warn" : "text-ink-3"}`}>
+  return <p className={`border-l-2 pl-2 text-caption leading-relaxed text-ink-2 ${state === "drift" || state === "stale" || state === "partial" ? "border-warn" : "border-line"}`}>
     {reason || STATE_COPY[state].label}
   </p>
 }
@@ -78,7 +92,7 @@ function publicSourceUrl(value: string | null | undefined) {
 }
 
 function evidenceValue(item: InvestmentNarrativeLayerEvidence) {
-  if (item.numeric_state === "not_applicable") return "數值不適用"
+  if (item.numeric_state === "not_applicable") return "來源標示：未使用數值欄位（不代表為 0）"
   if (item.numeric_state !== "known" || item.numeric_value === null || !item.unit) return "數值未知"
   const unitCopy: Record<string, string> = {
     percent: "%",
@@ -119,7 +133,7 @@ function EvidenceRow({ item }: { item: InvestmentNarrativeLayerEvidence }) {
     <p className="text-body font-medium text-ink-2">{item.player}{ticker} · {evidenceValue(item)} · 來源日期 {sourceTimestamp(item.source_date)}</p>
     {item.explanation ? <p className="text-body leading-relaxed text-ink-2"><InlineText text={item.explanation} /></p> : <p className="text-caption text-ink-3">來源說明未提供。</p>}
     <p className="text-caption text-ink-3">{evidenceSourceType(item.source_type)} · 適用日期 {sourceTimestamp(item.as_of)} · {freshnessLabel(item.freshness)}{item.recorded_at ? ` · 記錄於 ${sourceTimestamp(item.recorded_at)}` : ""}</p>
-    {sourceUrl ? <a href={sourceUrl} target="_blank" rel="noreferrer" className="w-fit text-caption text-accent underline underline-offset-2">查看公開來源 ↗</a> : <p className="text-caption text-warn">沒有可安全開啟的公開來源連結。</p>}
+    {sourceUrl ? <a href={sourceUrl} target="_blank" rel="noreferrer" className="w-fit text-caption text-ink underline decoration-accent decoration-2 underline-offset-2">查看公開來源 ↗</a> : <p className="text-caption text-ink-2">沒有可安全開啟的公開來源連結。</p>}
     {item.limitations.length ? <p className="text-caption text-ink-3">限制：{item.limitations.join("；")}</p> : null}
   </li>
 }
@@ -167,59 +181,125 @@ function IntegrityRows({ title, rows }: { title: string; rows: InvestmentNarrati
 }
 
 
+function EntityEvidenceDisclosure({ group }: { group: ReturnType<typeof layerEntityEvidenceGroups>["groups"][number] }) {
+  const names = [...new Set([
+    ...group.players.map(player => player.player),
+    ...group.evidence.map(item => item.player),
+  ].filter(Boolean))]
+  const tickers = [...new Set(group.evidence.map(item => item.entity_ticker).filter((ticker): ticker is string => Boolean(ticker)))]
+  const supporting = group.evidence.filter(item => item.polarity === "supports")
+  const challenging = group.evidence.filter(item => item.polarity === "challenges")
+  const unknown = group.evidence.filter(item => item.polarity === "unknown")
+  const label = names.length ? names.join(" / ") : "玩家名稱未提供"
+  return <details className="rounded-sm border border-line-soft px-3 py-2 text-caption text-ink-2">
+    <summary className="cursor-pointer font-medium text-ink">
+      {label}{tickers.length ? ` · ${tickers.join(" / ")}` : ""} · {group.evidence.length} 筆明確連結證據
+    </summary>
+    <div className="flex min-w-0 flex-col gap-2 pt-2">
+      <p>來源玩家 ID：{group.entityId}</p>
+      {group.players.length ? <ul className="flex flex-col gap-1">{group.players.map((player, index) => <li key={`${player.entity_id}:${player.recorded_at ?? ""}:${index}`}>
+        {player.player}{player.recorded_at ? ` · 列入日期 ${sourceTimestamp(player.recorded_at)}` : ""}
+        {player.source ? <ul><SourceReference source={player.source} /></ul> : null}
+      </li>)}</ul> : null}
+      {group.evidence.length ? <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+        <EvidenceGroup title="來源標為支持" items={supporting} emptyLabel="來源沒有把證據明確標為支持。" />
+        <EvidenceGroup title="來源標為挑戰" items={challenging} emptyLabel="來源沒有把證據明確標為挑戰。" />
+        {unknown.length ? <EvidenceGroup title="來源未標明方向" items={unknown} emptyLabel="" /> : null}
+      </div> : <p className="text-caption leading-relaxed text-ink-2">來源目前沒有把公開證據明確連到此玩家 ID。</p>}
+    </div>
+  </details>
+}
+
+function EntityEvidenceExplorer({ layer }: { layer: InvestmentNarrativeEvidenceLayer }) {
+  const [query, setQuery] = useState("")
+  const [requestedPage, setRequestedPage] = useState(1)
+  const { groups, unlinkedPlayers, unlinkedEvidence } = layerEntityEvidenceGroups(layer)
+  const filtered = filterLayerEntityGroups(groups, query)
+  const page = paginateLayerEntityGroups(filtered, requestedPage)
+  const firstVisible = page.total ? (page.page - 1) * page.pageSize + 1 : 0
+  const lastVisible = Math.min(page.page * page.pageSize, page.total)
+  const groupedEvidence = layerEvidenceGroups(layer)
+  return <div className="flex min-w-0 flex-col gap-2">
+    <p className="text-caption leading-relaxed text-ink-2">只依來源提供的玩家 ID 分組；名稱相同但 ID 不同的項目會分開顯示。方向與來源說明照原始證據列保留。</p>
+    {groups.length ? <>
+      <label className="flex min-w-0 flex-col gap-1 text-caption font-medium text-ink-2">
+        搜尋玩家、代碼或證據
+        <input type="search" value={query} onChange={event => { setQuery(event.target.value); setRequestedPage(1) }} autoComplete="off" className="min-h-9 rounded-sm border border-line bg-paper px-3 text-body font-normal text-ink focus-visible:outline-2 focus-visible:outline-sys-blue" />
+      </label>
+      <p role="status" className="text-caption text-ink-2">符合 {page.total} 位；目前顯示 {firstVisible}–{lastVisible} 位 · 第 {page.page} / {page.pageCount} 頁</p>
+      {page.items.length ? <ul className="flex min-w-0 flex-col gap-2">{page.items.map(group => <li key={group.entityId}><EntityEvidenceDisclosure group={group} /></li>)}</ul> : <p className="text-caption text-ink-2">找不到符合項目；清除搜尋字詞可看完整清單。</p>}
+      {page.pageCount > 1 ? <nav aria-label="玩家搜尋結果分頁" className="flex items-center justify-between gap-2">
+        <Button disabled={page.page <= 1} onClick={() => setRequestedPage(current => Math.max(1, current - 1))}>上一頁</Button>
+        <span className="text-caption text-ink-2">第 {page.page} / {page.pageCount} 頁</span>
+        <Button disabled={page.page >= page.pageCount} onClick={() => setRequestedPage(current => Math.min(page.pageCount, current + 1))}>下一頁</Button>
+      </nav> : null}
+    </> : <p className="text-caption leading-relaxed text-ink-2">來源尚未列出含明確玩家 ID 的資料；未連結資料另列於下方。</p>}
+    {groupedEvidence.legacySupporting.length || groupedEvidence.legacyOpposing.length || groupedEvidence.legacyUnknown.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
+      <summary className="cursor-pointer py-1">舊版方向文字記錄</summary>
+      <div className="flex flex-col gap-1 pt-1">
+        {groupedEvidence.legacySupporting.length ? <p>支持記錄：{groupedEvidence.legacySupporting.join("；")}</p> : null}
+        {groupedEvidence.legacyOpposing.length ? <p>挑戰記錄：{groupedEvidence.legacyOpposing.join("；")}</p> : null}
+        {groupedEvidence.legacyUnknown.length ? <p>方向未明記錄：{groupedEvidence.legacyUnknown.join("；")}</p> : null}
+      </div>
+    </details> : null}
+    {unlinkedEvidence.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
+      <summary className="cursor-pointer py-1">未連結玩家 ID 的證據 · {unlinkedEvidence.length} 筆</summary>
+      <p className="py-1">這些證據保留在原層級，但來源未提供可用玩家 ID。</p>
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+        <EvidenceGroup title="來源標為支持" items={unlinkedEvidence.filter(item => item.polarity === "supports")} emptyLabel="尚無明確列出的支持證據。" />
+        <EvidenceGroup title="來源標為挑戰" items={unlinkedEvidence.filter(item => item.polarity === "challenges")} emptyLabel="尚無明確列出的挑戰證據。" />
+        {unlinkedEvidence.some(item => item.polarity === "unknown") ? <EvidenceGroup title="來源未標明方向" items={unlinkedEvidence.filter(item => item.polarity === "unknown")} emptyLabel="" /> : null}
+      </div>
+    </details> : null}
+    {unlinkedPlayers.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
+      <summary className="cursor-pointer py-1">未提供玩家 ID 的玩家列 · {unlinkedPlayers.length} 筆</summary>
+      <ul className="flex flex-col gap-2 pt-2">{unlinkedPlayers.map((player: InvestmentNarrativeLayerPlayer, index: number) => <li key={`${player.player}:${player.recorded_at ?? ""}:${index}`}>
+        {player.player} · ID 未提供{player.recorded_at ? ` · 列入日期 ${sourceTimestamp(player.recorded_at)}` : ""}
+        {player.source ? <ul><SourceReference source={player.source} /></ul> : null}
+      </li>)}</ul>
+    </details> : null}
+  </div>
+}
+
+
 function LayerEvidenceCard({ layer }: { layer: InvestmentNarrativeEvidenceLayer }) {
-  const { evidence, supporting, challenging, unknown: unknownEvidence, legacySupporting, legacyOpposing, legacyUnknown } = layerEvidenceGroups(layer)
-  const players = layer.players ?? []
+  const { groups } = layerEntityEvidenceGroups(layer)
+  const layerGroups = layerEvidenceGroups(layer)
+  const linkedChallenges = layerGroups.challenging.length + layerGroups.legacyOpposing.length
   const state: InvestmentNarrativeState = layer.state === "conflict" ? "drift" : layer.state ?? "unknown"
-  const coverage = layer.opposing_coverage
   const reading = layerReadingText(layer)
   const gaps = layer.gaps ?? []
   return <li className="flex min-w-0 flex-col gap-3 border-t border-line-soft py-4 first:border-0 first:pt-0 last:pb-0">
-    <div className="flex min-w-0 flex-col gap-3">
-      <div className="flex min-w-0 flex-col gap-1">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <h4 className="text-body font-semibold text-ink">{layer.layer_id} · {layer.label}</h4>
-          <StateChip state={state} />
-        </div>
-        {reading && layer.current_reading ? <>
-          <p className="text-body leading-relaxed text-ink-2">{reading}</p>
-          <p className="text-caption leading-relaxed text-ink-3">{layerReadingCaption(layer.current_reading)}</p>
-        </> : <p className="text-caption leading-relaxed text-ink-2">{layerStatusLineFor(layer)}</p>}
-        {gaps.length ? <ul aria-label="這層還缺什麼" className="flex min-w-0 flex-col gap-1">{gaps.map(gap => <li key={gap.gap_id} className="text-caption leading-relaxed text-ink-2">{layerGapLine(gap)}</li>)}</ul> : null}
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <h4 className="text-body font-semibold text-ink">{layer.layer_id} · {layer.label}</h4>
+        <StateChip state={state} />
       </div>
-      <div className="flex min-w-0 flex-col gap-2">
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="text-caption font-medium text-ink-2">明確證據方向</p>
-          <p className="text-caption leading-relaxed text-ink-3">{DIRECTION_COPY[layer.direction_state]}</p>
-        </div>
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="text-caption font-medium text-ink-2">明確連結的玩家</p>
-          {players.length ? <ul className="list-disc pl-5 text-body leading-relaxed text-ink-2">{players.map(player => <li key={player.entity_id}>{player.player}</li>)}</ul> : <p className="text-caption leading-relaxed text-ink-3">尚未建立玩家關係；不從背景文字推測。</p>}
-        </div>
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-          <EvidenceGroup title="支持此層的公開證據" items={supporting} emptyLabel="尚無明確連結的支持證據。" />
-          <EvidenceGroup title="挑戰此層的公開證據" items={challenging} emptyLabel="尚無明確連結的挑戰證據。" />
-        </div>
-        {unknownEvidence.length ? <EvidenceGroup title="方向未明的證據" items={unknownEvidence} emptyLabel="" /> : null}
-        {legacySupporting.length || legacyOpposing.length ? <div className="flex flex-col gap-2">
-          {legacySupporting.length ? <p className="text-caption text-ink-3">既有支持記錄：{legacySupporting.map((item, index) => <span key={index}>{index ? "；" : ""}<InlineText text={item} /></span>)}</p> : null}
-          {legacyOpposing.length ? <p className="text-caption text-ink-3">既有挑戰記錄：{legacyOpposing.map((item, index) => <span key={index}>{index ? "；" : ""}<InlineText text={item} /></span>)}</p> : null}
-        </div> : null}
-        {legacyUnknown.length ? <p className="text-caption text-ink-3">既有方向未明的記錄：{legacyUnknown.map((item, index) => <span key={index}>{index ? "；" : ""}<InlineText text={item} /></span>)}</p> : null}
-        {layer.unknown_reason ? <StateNote state={state} reason={layer.unknown_reason} /> : null}
-      </div>
+      {reading && layer.current_reading ? <>
+        <p className="text-body leading-relaxed text-ink-2">{reading}</p>
+        <p className="text-caption leading-relaxed text-ink-2">{layerReadingCaption(layer.current_reading)}</p>
+      </> : null}
+      <p className="text-caption leading-relaxed text-ink-2">{layerStatusLineFor(layer)} · 明確連結玩家 {groups.length} 位</p>
+      {gaps.length ? <ul aria-label="這層還缺什麼" className="flex min-w-0 flex-col gap-1">{gaps.map(gap => <li key={gap.gap_id} className="text-caption leading-relaxed text-ink-2">{layerGapLine(gap)}</li>)}</ul> : null}
+      {layer.unknown_reason ? <StateNote state={state} reason={layer.unknown_reason} /> : null}
     </div>
     <details className="text-caption text-ink-3">
-      <summary className="cursor-pointer py-1">這層的背景與來源</summary>
+      <summary className="cursor-pointer py-1">玩家與公開證據 · {groups.length} 位明確連結玩家</summary>
+      <div className="flex flex-col gap-3 pt-2">
+        <EntityEvidenceExplorer layer={layer} />
+      </div>
+    </details>
+    <details className="text-caption text-ink-3">
+      <summary className="cursor-pointer py-1">來源狀態、缺口與背景</summary>
       <div className="flex flex-col gap-2 pt-2">
         <IntegrityRows title="來源標示為衝突的資料" rows={layer.conflicts ?? []} />
         <IntegrityRows title="無法安全連結的證據資料" rows={layer.unlinked_evidence ?? []} />
         <IntegrityRows title="無法安全連結的玩家關係" rows={layer.unlinked_players ?? []} />
         <p>方向性資料狀態：{DIRECTION_COPY[layer.direction_state]}{layer.unknown_reason ? ` · ${layer.unknown_reason}` : ""}</p>
-        <p>反方證據連結：{challenging.length ? `明確連結 ${challenging.length} 項` : "目前沒有明確連結的反方證據"}{layer.link_state === "unlinked" ? "；此層證據關係未連結" : ""}。</p>
-        <p>反方涵蓋：{coverage?.state === "sufficient" ? "檢查記錄標示涵蓋充分" : coverage?.state === "insufficient" ? "檢查涵蓋不足" : coverage?.state === "unavailable" ? "檢查來源不可用" : coverage?.state === "unknown" ? "涵蓋狀態未知" : "未提供檢查記錄，涵蓋狀態未知"}。</p>
-        {coverage?.reason ? <p>{coverage.reason}</p> : null}
-        {coverage ? <div className="flex flex-col gap-1"><p>反方檢查日期：{sourceTimestamp(coverage.checked_at)} · 範圍：{coverage.scope || "未提供"}</p><ul><SourceReference source={coverage.source} /></ul></div> : null}
+        <p>反方證據連結：{linkedChallenges ? `明確連結 ${linkedChallenges} 項` : "來源未列出明確連結的反方證據"}{layer.link_state === "unlinked" ? "；此層證據關係未連結" : ""}。</p>
+        <p>反方涵蓋：{layer.opposing_coverage?.state === "sufficient" ? "檢查記錄標示涵蓋充分" : layer.opposing_coverage?.state === "insufficient" ? "檢查涵蓋不足" : layer.opposing_coverage?.state === "unavailable" ? "檢查來源不可用" : layer.opposing_coverage?.state === "unknown" ? "涵蓋狀態未知" : "未提供檢查記錄，涵蓋狀態未知"}。</p>
+        {layer.opposing_coverage?.reason ? <p>{layer.opposing_coverage.reason}</p> : null}
+        {layer.opposing_coverage ? <div className="flex flex-col gap-1"><p>反方檢查日期：{sourceTimestamp(layer.opposing_coverage.checked_at)} · 範圍：{layer.opposing_coverage.scope || "未提供"}</p><ul><SourceReference source={layer.opposing_coverage.source} /></ul></div> : null}
         {layer.current_reading ? <div className="flex min-w-0 flex-col gap-1">
           <p className="font-medium text-ink-2">目前認知的來源與限制</p>
           <p>來源狀態：{layer.current_reading.state} · 整理者：{layer.current_reading.authored_by || "未提供"}</p>
@@ -237,7 +317,7 @@ function LayerEvidenceCard({ layer }: { layer: InvestmentNarrativeEvidenceLayer 
         <p><span className="font-medium text-ink-2">證據例：</span>{layer.evidence_examples || "來源未提供"}</p>
         <p><span className="font-medium text-ink-2">可證明範圍：</span>{layer.what_it_proves || "來源未提供"}</p>
         <p>證據日期：{sourceTimestamp(layer.source_date)} · 文件更新：{sourceTimestamp(layer.document_updated)}</p>
-        <ul className="flex flex-col gap-1"><SourceReference source={layer.source} />{players.map((player, index) => <SourceReference key={`${player.entity_id}:${index}`} source={player.source} />)}{evidence.map((item, index) => <SourceReference key={`${item.evidence_id}:${index}`} source={item.source} />)}</ul>
+        <ul className="flex flex-col gap-1"><SourceReference source={layer.source} />{(layer.players ?? []).map((player, index) => <SourceReference key={`${player.entity_id}:${index}`} source={player.source} />)}{layerEvidenceGroups(layer).evidence.map((item, index) => <SourceReference key={`${item.evidence_id}:${index}`} source={item.source} />)}</ul>
       </div>
     </details>
   </li>
@@ -490,7 +570,7 @@ function NarrativeContent({ data, narrative, readable }: { data: InvestmentNarra
     <CardSection as="article" density="normal" className="flex min-w-0 flex-col gap-3">
       <SubsectionHeading>五層詳細證據</SubsectionHeading>
       <p className="text-caption leading-relaxed text-ink-3">方向、支持／挑戰資料、對應關係與反方檢查狀態分開呈現；沒有明確連結不代表沒有相關證據。</p>
-      <div className="flex min-w-0 flex-col gap-1" aria-label="五層證據覆蓋狀態"><p className="text-caption font-medium text-ink-2">證據覆蓋：{STATE_COPY[evidence.state].label}</p><StateReasonDetails reason={evidence.reason} /></div>
+      <div role="group" aria-label="五層證據覆蓋狀態" className="flex min-w-0 flex-col gap-1"><p className="text-caption font-medium text-ink-2">證據覆蓋：{STATE_COPY[evidence.state].label}</p><StateReasonDetails reason={evidence.reason} /></div>
       {evidence.scorecard_update?.status === "evidence_pending_review" ? <p role="status" className="text-caption leading-relaxed text-warn">新證據尚待論點覆核；最近一次明確覆核日為 {sourceTimestamp(evidence.scorecard_update.updated_at)}。新增資料不代表論點已確認或改變。</p> : null}
       {evidence.layers.length ? <ol className="flex min-w-0 flex-col">{evidence.layers.map(layer => <LayerEvidenceCard key={layer.layer_id} layer={layer} />)}</ol> : <p className="text-body text-ink-3">來源尚未提供可辨識的五層結構。</p>}
       {unlinkedEvidence.length || unlinkedPlayers.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
