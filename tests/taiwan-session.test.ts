@@ -1,5 +1,9 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { createServer } from "vite"
+import { createElement } from "react"
+import { renderToStaticMarkup } from "react-dom/server"
+import { market as syntheticMarket, pulse as syntheticPulse } from "./fixtures/extended-ui.ts"
 
 import { classifyTwSession, primaryTwBlock, shouldPollTwPulse, twSessionLabel } from "../src/lib/investmentFormat.ts"
 
@@ -236,5 +240,85 @@ test("shouldPollTwPulse: closed_before_daily always polls; open, unknown, and a 
   // safe (false), not throw from `.toISOString()` inside the function.
   for (const now of [Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_VALUE]) {
     assert.equal(shouldPollTwPulse({ sessionState: "closed_with_daily", pulseState: "partial", pulseAsOf: "2026-09-28", now }), false)
+  }
+})
+
+
+test("Taiwan market presentation separates intraday quotes from daily snapshot cutoffs and preserves missing or stale states", async () => {
+  const previousLocation = Object.getOwnPropertyDescriptor(globalThis, "location")
+  Object.defineProperty(globalThis, "location", { value: { origin: "http://localhost", hostname: "localhost" }, configurable: true })
+  const server = await createServer({ server: { middlewareMode: true }, appType: "custom" })
+  try {
+    const { TaiwanMarketPresentation } = await server.ssrLoadModule("/src/components/investment/MarketPulse.tsx")
+    const daily = {
+      ...structuredClone(syntheticPulse),
+      as_of: "2026-09-25",
+      generated_at: "2026-09-25T14:00:00+08:00",
+      source_cutoff: "2026-09-25T13:30:00+08:00",
+      source_dates: { twse: "2026-09-25", tpex: "2026-09-25" },
+      state: "partial" as const,
+      breadth: { ...structuredClone(syntheticPulse.breadth), tpex: { ...syntheticPulse.breadth.tpex, up: null } },
+    }
+    const baseQuote = {
+      ...structuredClone(syntheticMarket.items.find(item => item.market === "tw")!),
+      symbol: "^TWII",
+      label: "加權指數",
+      value: 22500,
+      change: 120,
+      change_percent: 0.54,
+      quoted_at: "2026-09-28T03:15:00Z",
+      state: "available" as const,
+      source_url: "https://finance.yahoo.com/quote/%5ETWII",
+    }
+    const render = (props: Record<string, unknown>) => renderToStaticMarkup(createElement(TaiwanMarketPresentation, props))
+
+    const open = render({
+      pulse: daily, pulseError: false, pulsePending: false, twii: baseQuote,
+      indexError: false, indexPending: false, sessionState: "open",
+    })
+    const openPrimary = open.slice(0, open.indexOf("<details"))
+    assert.match(openPrimary, /盤中即時指數/)
+    assert.match(openPrimary, /22,500/)
+    assert.doesNotMatch(openPrimary, /21,880/)
+    assert.match(open, /Yahoo Finance/)
+    assert.match(open, /2026\/09\/28 11:15 台北/)
+    assert.match(open, /日線市場快照 · 截止 2026\/09\/25 13:30 台北/)
+    assert.match(open, /TWSE 2026-09-25 · TPEx 2026-09-25/)
+    assert.match(open, /部分/)
+    assert.match(open, /來源未提供盤中數值|較早報價|報價可能延遲/)
+
+    const staleQuote = { ...baseQuote, value: 22100, quoted_at: "2026-09-25T05:15:00Z", state: "stale" as const }
+    const closed = render({
+      pulse: daily, pulseError: false, pulsePending: false, twii: staleQuote,
+      indexError: false, indexPending: false, sessionState: "closed_with_daily",
+    })
+    const closedPrimary = closed.slice(0, closed.indexOf("<details"))
+    assert.match(closedPrimary, /日線市場快照/)
+    assert.match(closedPrimary, /21,880/)
+    assert.doesNotMatch(closedPrimary, /22,100/)
+    assert.match(closed, /盤中即時指數 · Yahoo Finance · 2026\/09\/25 13:15 台北/)
+    assert.match(closed, /較早報價；以下保留來源提供的數值與時間/)
+
+    const missingLive = render({
+      pulse: daily, pulseError: false, pulsePending: false, twii: undefined,
+      indexError: false, indexPending: false, sessionState: "open",
+    })
+    const missingLivePrimary = missingLive.slice(0, missingLive.indexOf("<details"))
+    assert.match(missingLivePrimary, /盤中即時指數/)
+    assert.match(missingLivePrimary, /盤中報價未取得/)
+    assert.doesNotMatch(missingLivePrimary, /21,880/)
+    assert.match(missingLive, /日線市場快照 · 截止/)
+
+    const missingDaily = render({
+      pulse: undefined, pulseError: true, pulsePending: false, twii: baseQuote,
+      indexError: false, indexPending: false, sessionState: "open",
+    })
+    assert.match(missingDaily, /盤中即時指數/)
+    assert.match(missingDaily, /台股市場脈搏這次無法取得；保留缺值，不以空清單代替/)
+    assert.doesNotMatch(missingDaily, /沒有新變化|沒有變化/)
+  } finally {
+    await server.close()
+    if (previousLocation) Object.defineProperty(globalThis, "location", previousLocation)
+    else Reflect.deleteProperty(globalThis, "location")
   }
 })
