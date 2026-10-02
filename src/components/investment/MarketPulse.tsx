@@ -131,7 +131,7 @@ function TaiwanIndexIntraday({ twii, isError, isPending }: {
 }) {
   const change = twii?.change ?? null
   const statuses: string[] = []
-  if (isError) statuses.push(twii ? "更新失敗，保留來源上次報價" : "讀取失敗，盤中報價不可用")
+  if (isError) statuses.push(twii ? "更新失敗，顯示上次數值" : "讀取失敗，盤中報價不可用")
   if (!twii && !isError) statuses.push(isPending ? "讀取中…" : "盤中報價未取得")
   if (twii?.state === "stale") statuses.push("較早報價；以下保留來源提供的數值與時間")
   else if (twii && (twii.state === "unavailable" || twii.value == null)) statuses.push("來源未提供盤中數值")
