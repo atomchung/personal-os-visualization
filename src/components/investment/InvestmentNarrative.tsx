@@ -4,7 +4,7 @@ import { Card, CardSection, Field, FieldList, SectionHeading, SubsectionHeading 
 import { Chip } from "@/components/ui/chip"
 import { DEMO_MODE } from "@/lib/transport"
 import { layerEvidenceGroups, layerGapLine, layerReadingCaption, layerReadingText, layerStatusLineFor, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeDisplayState, narrativeSignalSections, narrativeSummaryLines, sourceTimestamp } from "@/lib/investmentFormat"
-import { catalystDateGroups, foldBReason, isEventIdentityLimitation, nonExactDateReason, splitNonExactByDateInfo, translateLegacyLimitation, withoutExpiredCatalystGaps } from "@/lib/investmentToday"
+import { catalystDateGroups, isEventIdentityLimitation, nonExactDateReason, splitNonExactByDateInfo, translateLegacyLimitation, withoutExpiredCatalystGaps } from "@/lib/investmentToday"
 import {
   getInvestmentNarrative,
   type InvestmentCatalystItem,
@@ -311,10 +311,11 @@ export function CatalystFoldBRow({ item }: { item: InvestmentCatalystItem }) {
   </li>
 }
 
-function FutureRow({ item }: { item: FutureCheckpoint }) {
+function FutureRow({ item, showIdentity = false }: { item: FutureCheckpoint; showIdentity?: boolean }) {
   return <li className="flex min-w-0 flex-col gap-2 border-t border-line-soft py-3 first:border-0 first:pt-0">
     <p className="text-body font-medium leading-relaxed text-ink-2">{item.date ?? item.date_label ?? "日期未確認"} · <InlineText text={item.title} /></p>
     <p className="text-caption text-ink-3">影響：{[...item.affected_tickers, ...item.affected_scopes].join("、") || "來源未提供"}{item.source_qualifiers?.length ? ` · ${item.source_qualifiers.join("、")}` : ""}</p>
+    {showIdentity ? <p className="break-all text-caption text-ink-3">來源事件 story_id：{item.story_id ?? "未提供"}</p> : null}
     {item.state === "conflict" ? <p className="text-caption text-warn">同一事件有不同日期來源；尚未選定日期。</p> : item.state === "unlinked" ? <p className="text-caption text-ink-3">來源尚未登記事件關聯，保留為獨立項目。</p> : item.state !== "ready" ? <p className="text-caption text-warn">事件資料尚未確認。</p> : null}
     {item.checks.length ? <ul className="flex min-w-0 flex-col gap-2">{item.checks.map((check, index) => <li key={index} className="text-body leading-relaxed text-ink-2"><span className="font-medium">{check.scope}：</span><InlineText text={check.check ?? "檢查條件未提供"} /></li>)}</ul> : null}
     <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">來源與登記原文 · {item.sources.length}</summary><EventSources sources={item.sources} /></details>
@@ -332,27 +333,21 @@ function FutureFoldARow({ item }: { item: FutureCheckpoint }) {
   </li>
 }
 
-/** Fold B ("資料待整理"): one plain line per row, secondary style throughout
- * -- these rows do not belong on the reading list above, but are kept
- * visible rather than silently dropped. The event's own title always shows;
- * affected tickers are extra context after it, never a replacement for it. */
-function FoldBRow({ label, context, reason }: { label: string; context?: string | null; reason: string }) {
-  return <li className="text-caption leading-relaxed text-ink-3">{label}{context ? `（${context}）` : ""}：{reason}</li>
+/** A source-coverage record is a separate producer row from an event without
+ * a date. Keep its reason and any supplied source evidence together. */
+function FutureCoverageGapRow({ gap }: { gap: FutureCheckpoints["coverage_gaps"][number] }) {
+  return <li className="flex min-w-0 flex-col gap-1 border-t border-line-soft py-2 first:border-0 first:pt-0">
+    <p className="text-caption text-ink-3">來源覆蓋標的：{gap.ticker}</p>
+    <p className="text-caption leading-relaxed text-ink-3">來源缺口：<InlineText text={translateLegacyLimitation(gap.reason)} /></p>
+    {gap.source ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">缺口來源與原文</summary><EventSources sources={[gap.source]} /></details> : <p className="text-caption text-ink-3">來源證據未提供。</p>}
+  </li>
 }
 
 export function FutureContent({ projection, heading = "接下來會改變判斷的事情" }: { projection: FutureCheckpoints; heading?: string }) {
   const exact = projection.items.filter(item => item.date_precision === "day" && item.window_membership === "within")
   const nonExact = [...projection.items.filter(item => !exact.includes(item)), ...projection.uncertain_items]
   const { dated: foldA, undated: foldBEvents } = splitNonExactByDateInfo(nonExact)
-  const foldBRows = [
-    ...foldBEvents.map(item => ({
-      key: `event:${item.story_id ?? item.title}`,
-      label: item.title,
-      context: item.affected_tickers.length ? item.affected_tickers.join("、") : null,
-      reason: foldBReason(item.limitations),
-    })),
-    ...withoutExpiredCatalystGaps(projection.coverage_gaps).map((gap, index) => ({ key: `gap:${index}:${gap.ticker}`, label: gap.ticker, context: null as string | null, reason: translateLegacyLimitation(gap.reason) })),
-  ]
+  const foldBGaps = withoutExpiredCatalystGaps(projection.coverage_gaps)
   return <section aria-label={heading} className="flex min-w-0 flex-col gap-2">
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2"><SubsectionHeading>{heading}</SubsectionHeading><Chip tone={projection.state === "ready" ? "mute" : "warn"}>{projection.state === "ready" ? "來源完整" : projection.state === "unknown" ? "狀態未知" : "來源部分可用"}</Chip></div>
     <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4">
@@ -361,9 +356,13 @@ export function FutureContent({ projection, heading = "接下來會改變判斷�
       {exact.length > 3 ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">其他日期明確的事件 · {exact.length - 3}</summary><ul className="flex min-w-0 flex-col">{exact.slice(3).map((item, index) => <FutureRow key={item.story_id ?? `more:${index}`} item={item} />)}</ul></details> : null}
       {foldA.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">日期未定 · {foldA.length}</summary><ul className="flex min-w-0 flex-col">{foldA.map((item, index) => <FutureFoldARow key={item.story_id ?? `undated:${index}`} item={item} />)}</ul></details> : null}
       {projection.limitations.map((limitation, index) => <p key={index} className="text-caption text-ink-3">{limitation}</p>)}
-      {foldBRows.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">資料待整理 · {foldBRows.length}</summary>
-        <p className="py-2">這些登記沒有可用的日期或資料不完整，不影響上方清單；需要時到 Investment Note 更新。</p>
-        <ul className="flex min-w-0 flex-col gap-1">{foldBRows.map(row => <FoldBRow key={row.key} label={row.label} context={row.context} reason={row.reason} />)}</ul>
+      {foldBEvents.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">事件資料待確認 · {foldBEvents.length} 筆</summary>
+        <p className="py-2">以下是來源已登記、但尚無可用日期的事件紀錄。</p>
+        <ul className="flex min-w-0 flex-col">{foldBEvents.map((item, index) => <FutureRow key={`undated-event:${index}`} item={item} showIdentity />)}</ul>
+      </details> : null}
+      {foldBGaps.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">來源覆蓋缺口 · {foldBGaps.length} 項</summary>
+        <p className="py-2">以下逐項顯示來源回報的涵蓋狀態與可用證據。</p>
+        <ul className="flex min-w-0 flex-col">{foldBGaps.map((gap, index) => <FutureCoverageGapRow key={`coverage-gap:${index}`} gap={gap} />)}</ul>
       </details> : null}
     </Card>
   </section>
