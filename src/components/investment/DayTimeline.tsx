@@ -7,6 +7,7 @@ import { BRIEF_SESSION_LABELS, BRIEF_SESSION_SCHEDULES, type InvestmentBrief, ty
 import { marketObservationKey, MarketObservations } from "./MarketObservations"
 
 const EMPTY_MARKET_OBSERVATION_KEYS: ReadonlySet<string> = new Set()
+const EMPTY_UPDATE_REASONS: ReadonlyMap<string, string> = new Map()
 
 const CLOCK = new Intl.DateTimeFormat("zh-TW", {
   hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei",
@@ -29,11 +30,10 @@ function timelineAt(node: InvestmentTimelineNode): string {
 }
 
 function nodeTitle(node: InvestmentTimelineNode): string {
-  if (node.kind === "brief") return node.session ? BRIEF_SESSION_LABELS[node.session] ?? node.session : "定版簡報"
-  if (node.scan_mode === "quick" && node.market_scope === "tw") return "台股消息快掃"
-  if (node.scan_mode === "quick" && node.market_scope === "us") return "美股消息快掃"
-  if (node.scan_mode === "deep") return "持倉深度掃描"
-  return "盤中更新"
+  if (node.kind === "brief") return `正式簡報 · ${node.session ? BRIEF_SESSION_LABELS[node.session] ?? node.session : "版次未標示"}`
+  if (node.scan_mode === "quick") return "盤中補充觀察 · 快速掃描"
+  if (node.scan_mode === "deep") return "盤中補充觀察 · 深度掃描"
+  return "盤中補充觀察"
 }
 
 function nodeReceipt(node: InvestmentTimelineNode): string | null {
@@ -50,7 +50,10 @@ function nodeReceipt(node: InvestmentTimelineNode): string | null {
     : `${node.market_scope === "tw" ? "台股" : node.market_scope === "us" ? "美股" : "市場"}交易日 ${node.market_date}`
   const completed = node.scan_completed_at || node.observed_at
   const coverage = node.coverage_state === "partial" ? "部分來源" : node.coverage_state === "complete" ? "來源核對完成" : "覆蓋狀態未提供"
-  return `${date} · 完成 ${clock(completed)} 台北 · ${coverage}`
+  const provenance = [node.id ? `更新 ID ${node.id}` : "更新 ID 未提供", node.story_id ? `story_id ${node.story_id}` : null,
+    node.source_path ? `來源 ${node.source_path}` : null,
+    node.declared_decision_transition === undefined ? null : `來源標記：正式判斷${node.declared_decision_transition ? "有變" : "不變"}`].filter(Boolean).join(" · ")
+  return `${date} · 完成 ${clock(completed)} 台北 · ${coverage} · ${provenance}`
 }
 
 function nodeKey(node: InvestmentTimelineNode): string {
@@ -99,12 +102,13 @@ function EventRows({ events, linkedRows }: {
   </ul>
 }
 
-function NodeBody({ node, linkedRows, showBriefMarketObservations, showUpdateMarketObservations, hiddenMarketObservationKeys }: {
+function NodeBody({ node, linkedRows, showBriefMarketObservations, showUpdateMarketObservations, hiddenMarketObservationKeys, hiddenUpdateReasons }: {
   node: InvestmentTimelineNode
   linkedRows: Map<string, LinkedBriefRows>
   showBriefMarketObservations: boolean
   showUpdateMarketObservations: boolean
   hiddenMarketObservationKeys: ReadonlySet<string>
+  hiddenUpdateReasons: ReadonlyMap<string, string>
 }) {
   if (node.kind === "update" && node.information_kind === "market_observation") {
     const observation = node as InvestmentMarketObservation
@@ -115,7 +119,11 @@ function NodeBody({ node, linkedRows, showBriefMarketObservations, showUpdateMar
     ? (node.market_observations ?? []).filter(row => !hiddenMarketObservationKeys.has(marketObservationKey(row))) : []
   if (node.kind === "update") return <div className="flex min-w-0 flex-col gap-2">
     <p className="text-body leading-relaxed text-ink-2"><InlineText text={node.summary} /></p>
-    {node.portfolio_impact && node.portfolio_impact.trim() !== node.summary.trim() ? <div className="text-body leading-relaxed text-ink-2"><span className="text-ink-3">對持倉 · </span><TargetText text={node.portfolio_impact} /></div> : null}
+    {node.portfolio_impact && node.portfolio_impact.trim() !== node.summary.trim()
+      ? node.id && hiddenUpdateReasons.get(node.id) === node.portfolio_impact.trim()
+        ? <p className="text-caption text-ink-3">同一筆更新的原因已在上方行動列出。</p>
+        : <div className="text-body leading-relaxed text-ink-2"><span className="text-ink-3">對持倉 · </span><TargetText text={node.portfolio_impact} /></div>
+      : null}
     {node.action ? <details className="text-body leading-relaxed text-ink-2"><summary className="cursor-pointer text-caption text-ink-3">這筆更新的原始提醒</summary>
       <p className="pt-2"><span className="text-ink-3">當下 · </span><InlineText text={node.action} /></p>
     </details> : null}
@@ -127,7 +135,7 @@ function NodeBody({ node, linkedRows, showBriefMarketObservations, showUpdateMar
   </div>
 }
 
-function TimelineRow({ node, latest, open, showDay, showBriefMarketObservations, showUpdateMarketObservations, hiddenMarketObservationKeys, onToggle, linkedRows }: {
+function TimelineRow({ node, latest, open, showDay, showBriefMarketObservations, showUpdateMarketObservations, hiddenMarketObservationKeys, hiddenUpdateReasons, onToggle, linkedRows }: {
   node: InvestmentTimelineNode
   latest: boolean
   open: boolean
@@ -135,6 +143,7 @@ function TimelineRow({ node, latest, open, showDay, showBriefMarketObservations,
   showBriefMarketObservations: boolean
   showUpdateMarketObservations: boolean
   hiddenMarketObservationKeys: ReadonlySet<string>
+  hiddenUpdateReasons: ReadonlyMap<string, string>
   onToggle: () => void
   linkedRows: Map<string, LinkedBriefRows>
 }) {
@@ -161,7 +170,7 @@ function TimelineRow({ node, latest, open, showDay, showBriefMarketObservations,
       <p className="text-caption text-ink-3">{node.source_cutoff ? `資訊截至 ${sourceTimestamp(node.source_cutoff)}` : "資訊截止未記錄"}</p>
       {receipt ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">版本與來源時間</summary><p className="pt-1">{receipt}</p></details> : null}
       {open
-        ? <div className="min-w-0"><NodeBody node={node} linkedRows={linkedRows} showBriefMarketObservations={showBriefMarketObservations} showUpdateMarketObservations={showUpdateMarketObservations} hiddenMarketObservationKeys={hiddenMarketObservationKeys} /></div>
+        ? <div className="min-w-0"><NodeBody node={node} linkedRows={linkedRows} showBriefMarketObservations={showBriefMarketObservations} showUpdateMarketObservations={showUpdateMarketObservations} hiddenMarketObservationKeys={hiddenMarketObservationKeys} hiddenUpdateReasons={hiddenUpdateReasons} /></div>
         : lede ? <p className="min-w-0 truncate text-body text-ink-3"><InlineText text={lede} /></p> : null}
     </div>
   </li>
@@ -180,12 +189,13 @@ function TimelineRow({ node, latest, open, showDay, showBriefMarketObservations,
  * click away instead of repeating a full morning brief below the latest scan.
  * Defaults are recomputed when a new point arrives; user toggles are retained.
  */
-export function DayTimeline({ nodes, brief, showBriefMarketObservations = true, showUpdateMarketObservations = true, hiddenMarketObservationKeys = EMPTY_MARKET_OBSERVATION_KEYS }: {
+export function DayTimeline({ nodes, brief, showBriefMarketObservations = true, showUpdateMarketObservations = true, hiddenMarketObservationKeys = EMPTY_MARKET_OBSERVATION_KEYS, hiddenUpdateReasons = EMPTY_UPDATE_REASONS }: {
   nodes: InvestmentTimelineNode[]
   brief?: InvestmentBrief
   showBriefMarketObservations?: boolean
   showUpdateMarketObservations?: boolean
   hiddenMarketObservationKeys?: ReadonlySet<string>
+  hiddenUpdateReasons?: ReadonlyMap<string, string>
 }) {
   const [toggled, setToggled] = useState<ReadonlySet<string>>(() => new Set())
   const visibleNodes = nodes.filter(node => !(node.kind === "update" && node.information_kind === "market_observation"
@@ -229,6 +239,7 @@ export function DayTimeline({ nodes, brief, showBriefMarketObservations = true, 
           showBriefMarketObservations={showBriefMarketObservations}
           showUpdateMarketObservations={showUpdateMarketObservations}
           hiddenMarketObservationKeys={hiddenMarketObservationKeys}
+          hiddenUpdateReasons={hiddenUpdateReasons}
           linkedRows={node === latestBrief ? linkedRows : new Map()}
           open={toggled.has(key) ? !openByDefault : openByDefault}
           onToggle={() => setToggled(prev => {
