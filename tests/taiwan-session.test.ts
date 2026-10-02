@@ -284,7 +284,9 @@ test("Taiwan market presentation separates intraday quotes from daily snapshot c
     assert.match(open, /2026\/09\/28 11:15 台北/)
     assert.match(open, /日線市場快照 · 截止 2026\/09\/25 13:30 台北/)
     assert.match(open, /TWSE 2026-09-25 · TPEx 2026-09-25/)
-    assert.match(open, /部分/)
+    assert.doesNotMatch(openPrimary, /完整|部分|無法取得/)
+    const openDailySnapshot = open.slice(open.indexOf("<details"))
+    assert.match(openDailySnapshot, /aria-label="日線市場快照"[^>]*>[\s\S]*?部分/)
     assert.match(open, /來源未提供盤中數值|較早報價|報價可能延遲/)
 
     const staleQuote = { ...baseQuote, value: 22100, quoted_at: "2026-09-25T05:15:00Z", state: "stale" as const }
@@ -306,8 +308,32 @@ test("Taiwan market presentation separates intraday quotes from daily snapshot c
     const missingLivePrimary = missingLive.slice(0, missingLive.indexOf("<details"))
     assert.match(missingLivePrimary, /盤中即時指數/)
     assert.match(missingLivePrimary, /盤中報價未取得/)
+    assert.doesNotMatch(missingLivePrimary, /完整|部分|無法取得/)
     assert.doesNotMatch(missingLivePrimary, /21,880/)
     assert.match(missingLive, /日線市場快照 · 截止/)
+
+    const readyDaily = { ...daily, state: "ready" as const }
+    const missingQuoteWithReadyDaily = render({
+      pulse: readyDaily, pulseError: false, pulsePending: false, twii: undefined,
+      indexError: false, indexPending: false, sessionState: "closed_with_daily",
+    })
+    const readyDailyPrimary = missingQuoteWithReadyDaily.slice(0, missingQuoteWithReadyDaily.indexOf("<details"))
+    assert.match(readyDailyPrimary, /日線市場快照/)
+    const readyDailyHeading = readyDailyPrimary.slice(0, readyDailyPrimary.indexOf("<section"))
+    assert.doesNotMatch(readyDailyHeading, /完整|部分|無法取得/)
+    assert.match(missingQuoteWithReadyDaily, /aria-label="日線市場快照"[^>]*>[\s\S]*?完整/)
+    assert.match(missingQuoteWithReadyDaily, /盤中即時指數 · Yahoo Finance · 未提供/)
+    assert.match(missingQuoteWithReadyDaily.slice(missingQuoteWithReadyDaily.indexOf("盤中即時指數 · Yahoo Finance")), /盤中報價未取得/)
+
+    const unavailableDaily = { ...daily, state: "unavailable" as const }
+    const quoteWithUnavailableDaily = render({
+      pulse: unavailableDaily, pulseError: false, pulsePending: false, twii: baseQuote,
+      indexError: false, indexPending: false, sessionState: "open",
+    })
+    const unavailablePrimary = quoteWithUnavailableDaily.slice(0, quoteWithUnavailableDaily.indexOf("<details"))
+    assert.match(unavailablePrimary, /盤中即時指數/)
+    assert.doesNotMatch(unavailablePrimary, /完整|部分|無法取得/)
+    assert.match(quoteWithUnavailableDaily.slice(quoteWithUnavailableDaily.indexOf("<details")), /aria-label="日線市場快照"[^>]*>[\s\S]*?無法取得/)
 
     const missingDaily = render({
       pulse: undefined, pulseError: true, pulsePending: false, twii: baseQuote,

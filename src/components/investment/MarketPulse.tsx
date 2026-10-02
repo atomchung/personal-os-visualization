@@ -229,12 +229,14 @@ export function TaiwanMarketPresentation({ pulse, pulseError, pulsePending, twii
     ? "來源已確認方向"
     : direction.state === "needs_review" ? "漲跌方向待核對" : "漲跌方向未能確認"
   const b = pulse.breadth
+  const pulseCompleteness = pulse.state === "ready" ? "完整" : pulse.state === "partial" ? "部分" : "無法取得"
   const dailyBlock = <section aria-label="日線市場快照" className="flex min-w-0 flex-col gap-3">
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2 border-b border-line-soft pb-2">
       <div className="min-w-0">
         <h4 className="text-body font-medium text-ink">加權指數與市場廣度</h4>
         <p className="text-caption text-ink-3">TWSE／TPEx 日線快照 · 成交額與族群熱度</p>
       </div>
+      <Chip tone={pulse.state === "ready" ? "ok" : "warn"}>{pulseCompleteness}</Chip>
     </div>
     <div className="flex min-w-0 flex-col gap-1 text-caption text-ink-3">
       <p>快照日期 {sourceTimestamp(pulse.as_of)} · 資料截止 {sourceTimestamp(pulse.source_cutoff)}</p>
@@ -275,10 +277,7 @@ export function TaiwanMarketPresentation({ pulse, pulseError, pulsePending, twii
 
   return <div className="flex min-w-0 flex-col gap-4">
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
-      <div className="flex min-w-0 flex-wrap items-baseline gap-2">
-        <h3 className="text-body font-medium text-ink">{showIntradayPrimary ? "盤中即時指數" : "日線市場快照"}</h3>
-        <Chip tone={pulse.state === "ready" ? "ok" : "warn"}>{pulse.state === "ready" ? "完整" : pulse.state === "partial" ? "部分" : "無法取得"}</Chip>
-      </div>
+      <h3 className="text-body font-medium text-ink">{showIntradayPrimary ? "盤中即時指數" : "日線市場快照"}</h3>
       <span className="text-caption text-ink-3">{sessionLabel}</span>
     </div>
     {pulseError ? <p role="status" className="text-caption text-warn">台股市場脈搏更新失敗；以下保留上次快照與原始日期，不是本次更新。</p> : null}
