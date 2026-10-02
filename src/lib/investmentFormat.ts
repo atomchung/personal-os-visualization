@@ -759,15 +759,10 @@ export type TodayNextStep = {
   date: string | null
   source: string | null
   id: string | null
+  artifactId: string | null
+  storyId: string | null
+  declaredDecisionTransition: boolean | null
   origin: "update" | "brief"
-  /** Exact-copy source records remain separate and explicitly unlinked in the UI. */
-  sameTextRecords?: Array<{
-    origin: "update" | "brief"
-    id: string | null
-    date: string | null
-    source: string | null
-    reason: string | null
-  }>
 }
 
 function legacyActionKind(text: string): ActionItemKind {
@@ -798,25 +793,6 @@ export function currentTodayActionEntries(brief: InvestmentBrief, today?: Invest
     const ambiguousBriefId = entry.origin === "brief" && entry.id !== null && ambiguousBriefIds.has(entry.id)
     if (identity && seenIds.has(identity) && !ambiguousBriefId) return
     if (identity) seenIds.add(identity)
-    const sameText = entries.find(existing => existing.origin !== entry.origin && existing.text === entry.text)
-    if (sameText) {
-      const receipt = (value: TodayNextStep) => ({
-        origin: value.origin,
-        id: value.id,
-        date: value.date,
-        source: value.source,
-        reason: value.reason,
-      })
-      const duplicateRecords = [...(sameText.sameTextRecords ?? []), receipt(sameText)]
-      if (sameText.origin === "update" && entry.origin === "brief") {
-        const index = entries.indexOf(sameText)
-        entry.sameTextRecords = duplicateRecords
-        entries[index] = entry
-      } else {
-        sameText.sameTextRecords = [...duplicateRecords.slice(0, -1), receipt(entry)]
-      }
-      return
-    }
     entries.push(entry)
   }
   for (const update of today?.updates ?? []) {
@@ -830,6 +806,9 @@ export function currentTodayActionEntries(brief: InvestmentBrief, today?: Invest
       date: update.observed_at || null,
       source: update.source_path || null,
       id: update.id || null,
+      artifactId: null,
+      storyId: update.story_id || null,
+      declaredDecisionTransition: update.declared_decision_transition ?? null,
       origin: "update",
     })
   }
@@ -846,6 +825,9 @@ export function currentTodayActionEntries(brief: InvestmentBrief, today?: Invest
         date: item.date || brief.date,
         source: item.source || brief.source?.title || null,
         id: item.id || null,
+        artifactId: item.artifact_id || null,
+        storyId: null,
+        declaredDecisionTransition: null,
         origin: "brief",
       })
     }
@@ -861,6 +843,9 @@ export function currentTodayActionEntries(brief: InvestmentBrief, today?: Invest
         date: brief.date,
         source: brief.source?.title || null,
         id: null,
+        artifactId: null,
+        storyId: null,
+        declaredDecisionTransition: null,
         origin: "brief",
       })
     })
@@ -891,7 +876,7 @@ export function todayGlobalDecisionSummary(summary: string, steps: readonly { te
 }
 
 export function todayActionKindLabel(kind: ActionItemKind, origin: TodayNextStep["origin"], historicalBrief = false): string {
-  if (origin === "update") return "盤中提醒"
+  if (origin === "update") return "盤中補充觀察"
   if (historicalBrief && kind === "no_change") return "前版：不調整"
   if (kind === "action") return "現在行動"
   if (kind === "watch") return "等待／觀察"

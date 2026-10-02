@@ -368,6 +368,17 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
         ? <p>簡報未另列檢查點，且 30 天事件讀取失敗；下一檢查點未知。</p>
         : <p>下一個明確檢查點未知；來源沒有提供可確認的日期、事件或 checkpoint。</p>
   const status = (value: InvestmentActionItem["status"] | null) => value ? actionStatusLabel(value) : "狀態未提供"
+  const actionSourceLine = (item: (typeof steps)[number]) => {
+    const previous = readFailed ? "上次成功讀取的" : ""
+    const parts = item.origin === "update"
+      ? readFailed ? ["上次成功讀取的盤中補充觀察"] : ["盤中補充觀察"]
+      : [`${previous}${b.state === "stale" ? "沿用的" : "正式簡報"}行動`]
+    if (item.date) parts.push(`${item.origin === "update" ? "更新時間" : "記錄日期"} ${sourceTimestamp(item.date)}`)
+    if (item.origin === "update") parts.push(item.declaredDecisionTransition === null
+      ? "與正式判斷的關係未說明"
+      : item.declaredDecisionTransition ? "來源表示正式判斷有變" : "來源表示正式判斷不變")
+    return parts.join(" · ")
+  }
   // Headline (chips + text); a labelled reason field only when one exists --
   // never a placeholder for a missing one. Source/id detail moved below.
   const row = (item: (typeof steps)[number], isPrimary = false) => <li key={item.key} className={`flex min-w-0 flex-col gap-3 border-l-2 pl-3 ${isPrimary ? "border-accent" : "border-line-soft"}`}>
@@ -377,8 +388,16 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
       <p className="min-w-0 text-body font-medium leading-relaxed text-ink"><TargetText text={item.text} /></p>
     </div>
     {item.reason?.trim() ? <FieldList><Field label="行動原因"><InlineText text={item.reason.trim()} /></Field></FieldList> : null}
+    {actionSourceLine(item) ? <p className="text-caption text-ink-3">{actionSourceLine(item)}</p> : null}
   </li>
-  const sourceNotes = (readFailed ? cachedSteps : steps).filter(item => item.date || item.source || item.id || item.sameTextRecords?.length)
+  const sourceNotes = (readFailed ? cachedSteps : steps).filter(item => item.date || item.source || item.id || item.artifactId || item.storyId)
+  const renderSecondaryGroup = (origin: (typeof steps)[number]["origin"], label: string) => {
+    const items = secondary.filter(item => item.origin === origin)
+    return items.length ? <div role="group" aria-label={label} className="flex min-w-0 flex-col gap-2">
+      <p className="text-caption font-medium text-ink-2">{label}</p>
+      <ol className="flex min-w-0 flex-col gap-3">{items.map(item => row(item))}</ol>
+    </div> : null
+  }
   return <section className="flex min-w-0 flex-col gap-3" aria-label={actionSection.heading}>
     <SectionHeading>{actionSection.heading}</SectionHeading>
     <Card className="min-w-0 p-4 sm:p-5">
@@ -407,7 +426,10 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
         : decisionSummary ? <p className="text-body leading-relaxed text-ink-2">{b.state === "stale" ? "今天的判斷尚未取得。" : checkpoint ? "來源未列出獨立行動；行動狀態未明示，下一個已知檢查點如下。" : "來源未列出獨立行動；行動狀態與下一檢查點未明示。"}</p>
         : b.state === "current" ? <p className="text-body text-ink-3">{checkpoint ? "沒有可確認的下一步；來源未明示「今天不用動」，已知檢查點保留在來源明細。" : "沒有可確認的下一步；來源沒有明示「今天不用動」或下一檢查點。"}</p>
         : <p role="status" className="text-body text-warn">目前沒有可確認的下一步；資料缺失不代表今天不用動。</p>}
-      {secondary.length ? <ol className="flex min-w-0 flex-col gap-3" aria-label="其他行動">{secondary.map(item => row(item))}</ol> : null}
+      {secondary.length ? <div role="group" aria-label="其他行動" className="flex min-w-0 flex-col gap-3">
+        {renderSecondaryGroup("update", "盤中補充觀察")}
+        {renderSecondaryGroup("brief", "正式簡報其他行動")}
+      </div> : null}
       {remaining.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">來源另列 {remaining.length} 項</summary><ol className="mt-3 flex min-w-0 flex-col gap-3">{remaining.map(item => row(item))}</ol></details> : null}
       <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
         <summary className="cursor-pointer py-1">檢查點與來源</summary>
@@ -421,13 +443,14 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
           </div> : null}
           {sourceNotes.length ? <div className="flex min-w-0 flex-col gap-2">
             <p className="font-medium text-ink-2">{readFailed ? "上次成功讀取的行動（是否已有新版本尚未確認）" : "這項工作的來源"}</p>
-            <ul className="flex min-w-0 flex-col gap-2">{sourceNotes.map(item => <li key={item.key} className="flex min-w-0 flex-col gap-1"><p><TargetText text={item.text} /></p>{item.date ? <p>記錄日期：{sourceTimestamp(item.date)}</p> : null}{item.source ? <p className="break-all">來源：{item.source}</p> : null}{item.id ? <p className="break-all">ID：{item.id}</p> : null}{item.sameTextRecords?.length ? <><p>另有 {item.sameTextRecords.length} 筆來源紀錄文字完全相同；僅按原文相同收合，是否為同一件事未確認。</p><ul className="flex min-w-0 flex-col gap-1">{item.sameTextRecords.map((record, recordIndex) => <li key={`${record.origin}:${record.id ?? recordIndex}`} className="break-all">{record.origin === "brief" ? "簡報" : "盤中更新"}{record.date ? ` · ${sourceTimestamp(record.date)}` : " · 日期未提供"}{record.source ? ` · ${record.source}` : ""}{record.id ? ` · ID：${record.id}` : ""}{record.reason ? <p>該來源自己的理由：<InlineText text={record.reason} /></p> : null}</li>)}</ul></> : null}</li>)}</ul>
+            <ul className="flex min-w-0 flex-col gap-2">{sourceNotes.map(item => <li key={item.key} className="flex min-w-0 flex-col gap-1">{item.date ? <p>記錄日期：{sourceTimestamp(item.date)}</p> : null}{item.source ? <p className="break-all">來源：{item.source}</p> : null}{item.id ? <p className="break-all">ID：{item.id}</p> : null}{item.storyId ? <p className="break-all">story_id：{item.storyId}</p> : null}{item.artifactId ? <p className="break-all">artifact ID：{item.artifactId}</p> : null}</li>)}</ul>
           </div> : null}
           {judgment ? <div className="flex min-w-0 flex-col gap-1">
             <p className="font-medium text-ink-2">判斷依據</p>
             <p>簡報版次：{b.session ? BRIEF_SESSION_LABELS[b.session] ?? b.session : "版次未標示"}</p>
             {(judgment.provenance?.source_cutoff || b.source_cutoff) ? <p>判斷資料截至：{sourceTimestamp(judgment.provenance?.source_cutoff ?? b.source_cutoff)}</p> : null}
             {judgment.provenance?.validated_story_ids?.length ? <p className="break-all">已核對的事件 story_id：{judgment.provenance.validated_story_ids.join("、")}</p> : null}
+            {replacement?.source === "action_items" ? <p className="break-all">來源明示關聯 action ID：{judgment.same_action_id}</p> : null}
             {judgment.provenance?.artifact ? <p className="break-all">來源文件：{judgment.provenance.artifact}</p> : null}
             {judgment.provenance?.source_revision ? <p className="break-all">來源修訂：{judgment.provenance.source_revision}</p> : null}
             {judgment.provenance?.declared_unverified ? <p>來源自述、尚未逐項查核：{judgment.provenance.declared_unverified}</p> : null}
@@ -444,7 +467,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
   </section>
 }
 
-function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; newsStatus?: InvestmentRefreshStatus; onOpenThesis: () => void; readFailed: boolean }) {
+export function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; newsStatus?: InvestmentRefreshStatus; onOpenThesis: () => void; readFailed: boolean }) {
   const eventQuery = useQuery({ queryKey: ["investment-narrative"], queryFn: ({ signal }) => getInvestmentNarrative(signal), retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
   const news = eventQuery.isError ? null : eventQuery.data?.news_events
   const version = b.session ? BRIEF_SESSION_LABELS[b.session] : null
@@ -452,6 +475,12 @@ function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: { b: Inv
   // The producer's own cycle line. Empty from a producer too old to send it, in
   // which case the day still renders through the per-story cards below.
   const timeline = today?.timeline ?? []
+  const actionPlan = currentTodayActionPlan(b, today, !readFailed)
+  const hasVisibleJudgment = !readFailed && b.state === "current"
+    && Boolean(structuredBriefJudgmentReplacement(b)?.judgment ?? validatedBriefJudgment(b))
+  const visibleActionRows = hasVisibleJudgment ? actionPlan.slice(0, 2) : actionPlan.slice(0, 3)
+  const hiddenUpdateReasons = new Map(visibleActionRows.flatMap(item =>
+    item.origin === "update" && item.id && item.reason ? [[item.id, item.reason.trim()] as const] : []))
   const intradayMarketObservations = today?.intraday_refresh?.market_observations ?? []
   const intradayMarketObservationKeys = new Set(intradayMarketObservations.map(marketObservationKey))
   const timelineMarketObservationKeys = new Set(timeline.flatMap(node => node.kind === "brief"
@@ -498,12 +527,12 @@ function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: { b: Inv
       {formalMarketObservations.length ? <MarketObservations title="正式簡報與事件讀回的市場讀數" observations={formalMarketObservations} /> : null}
       {intradayMarketObservations.length ? <MarketObservations title="盤中增量市場讀數" observations={intradayMarketObservations} /> : null}
       {visibleTimeline.length ? news
-        ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">簡報版次與掃描時間軸</summary><DayTimeline nodes={visibleTimeline} brief={b} showBriefMarketObservations hiddenMarketObservationKeys={hiddenMarketObservationKeys} /></details>
+        ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">簡報版次與掃描時間軸</summary><DayTimeline nodes={visibleTimeline} brief={b} showBriefMarketObservations hiddenMarketObservationKeys={hiddenMarketObservationKeys} hiddenUpdateReasons={hiddenUpdateReasons} /></details>
         // One line for the whole cycle. The headline is not repeated above it:
         // it is the newest brief's own first line and already sits on that node,
         // and printing it separately is what made 今日基線 read as contradicting
         // the card underneath whenever an intraday update had moved on.
-        : <DayTimeline nodes={timeline} brief={b} hiddenMarketObservationKeys={hiddenMarketObservationKeys} />
+        : <DayTimeline nodes={timeline} brief={b} hiddenMarketObservationKeys={hiddenMarketObservationKeys} hiddenUpdateReasons={hiddenUpdateReasons} />
         : !news && stories.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
         {headline && headline !== decisionSummary ? <p className="p-4 text-body leading-relaxed text-ink-2 sm:p-5"><span className="font-medium text-ink">今日基線：</span><ReadingText text={headline} /></p> : null}
         {stories.map(story => <StoryCard key={story.key} story={story} b={b} />)}

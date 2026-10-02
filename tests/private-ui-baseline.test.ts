@@ -477,7 +477,7 @@ test("Today retains the same last-available brief across midnight and atomically
   ])
 })
 
-test("Today collapses exact cross-source copy without asserting that the records are linked", () => {
+test("Today keeps exact cross-source copy separate unless producer IDs explicitly link it", () => {
   const brief = structuredClone(investment.brief)
   const template = brief.action_items![0]
   const exactText = "等待同一個明確觸發點後再檢查。"
@@ -488,13 +488,13 @@ test("Today collapses exact cross-source copy without asserting that the records
   const today = { ...structuredClone(investment.today), updates: [{ ...update, id: "update-copy", action: exactText, portfolio_impact: "更新自己的理由" }] }
 
   const plan = todayActionPlan(brief, today)
-  assert.equal(plan.length, 1)
-  assert.equal(plan[0].origin, "brief", "the structured source retains its type and status")
-  assert.deepEqual(plan[0].sameTextRecords?.map(record => [record.origin, record.id, record.reason]), [
+  assert.equal(plan.length, 2, "identical wording from separate producer records does not imply a relationship")
+  assert.deepEqual(plan.map(item => [item.origin, item.id, item.reason]), [
     ["update", "update-copy", "更新自己的理由"],
+    ["brief", "ai:brief-copy", "簡報自己的理由"],
   ])
   const page = readFileSync(new URL("../src/components/investment/InvestmentPage.tsx", import.meta.url), "utf8")
-  assert.match(page, /文字完全相同；僅按原文相同收合，是否為同一件事未確認/)
+  assert.match(page, /盤中補充觀察/)
   assert.match(page, /沒有可確認的下一步；來源未明示「今天不用動」，已知檢查點保留在來源明細。/)
 })
 
