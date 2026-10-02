@@ -13,7 +13,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createServer, type ViteDevServer } from "vite"
 import { investment, investmentActions, investmentNarrative } from "./fixtures/extended-ui.ts"
-import type { InvestmentActions, InvestmentNarrative, InvestmentNarrativeEvidenceLayer } from "../src/lib/investment.ts"
+import type { InvestmentActions, InvestmentNarrative, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeLayerEvidence } from "../src/lib/investment.ts"
 import {
   firstSentence, layerGapLine, layerOpposingStatus, layerReadingCaption, layerReadingText, layerStatusLine, layerStatusLineFor,
   NARRATIVE_NEXT_CHECKPOINT_UNLINKED, NARRATIVE_SUMMARY_DRIFT, NARRATIVE_SUMMARY_STALE, NARRATIVE_SUMMARY_UNAVAILABLE,
@@ -305,6 +305,35 @@ test("我的判斷 opens with the 目前判斷 block, folds 長期論點 below i
   assert.match(html, /先看目前判斷與支持／挑戰訊號，再回看最近一次明確記錄與下一驗證點，最後展開五層來源證據。/)
 })
 
+test("layer cards keep status readable and fold searchable player evidence with its producer explanation", async () => {
+  const { InvestmentNarrativeSection } = await server.ssrLoadModule("/src/components/investment/InvestmentNarrative.tsx")
+  const payload = narrativePayload()
+  const layer = payload.narratives[0]!.thesis_evidence.layers[0]!
+  const evidence = layer.evidence![0]! as InvestmentNarrativeLayerEvidence
+  layer.players = [{ entity_id: evidence.entity_id, player: evidence.player, recorded_at: "2026-10-02", source: { path: "synthetic/players.md", line: 1 } }]
+  evidence.numeric_state = "not_applicable"
+  evidence.numeric_value = null
+  evidence.unit = null
+  evidence.source_url = "https://example.invalid/qualitative-evidence"
+  evidence.explanation = "Synthetic producer-authored explanation for a qualitative evidence row."
+
+  const html = withQueryData(createElement(InvestmentNarrativeSection, { enabled: false, onOpenHistory: () => undefined }), [[["investment-narrative"], payload]])
+  const detailsStart = html.indexOf(">玩家與公開證據 · 1 位明確連結玩家</summary>")
+  const parentDetailsStart = html.lastIndexOf("<details", detailsStart)
+  const parentDetailsClose = html.indexOf("</details>", detailsStart)
+  assert.ok(detailsStart > 0 && parentDetailsStart >= 0 && parentDetailsClose > detailsStart)
+  assert.doesNotMatch(html.slice(parentDetailsStart, detailsStart), /\bopen(?:="")?\b/, "the per-layer evidence detail starts folded")
+  assert.match(html, /<input type="search"[^>]*>/, "player and evidence search is available")
+  assert.match(html, /明確連結玩家 1 位/)
+  assert.match(html, /<span aria-hidden="true" class="font-bold">[✓◐↻!?×]<\/span>/, "state has a visible symbol as well as text and color")
+  assert.match(html, /border-l-4[^"]*text-ink[^"]*bg-(?:ok|warn|bad|info)\/10/, "status text uses high-contrast ink with a semantic color marker")
+  assert.match(html, /role="group" aria-label="五層證據覆蓋狀態"/)
+  assert.match(html, /來源標示：未使用數值欄位（不代表為 0）/)
+  assert.match(html, /Synthetic producer-authored explanation for a qualitative evidence row\./)
+  assert.match(html, /查看公開來源 ↗/)
+  assert.match(html, /class="w-fit text-caption text-ink underline decoration-accent decoration-2 underline-offset-2"/)
+})
+
 // Review block 1: a failed read keeps earlier data on the page, but 目前判斷 must not present it as current.
 test("after a failed read, the 目前判斷 block shows 目前無法取得 instead of the retained data", async () => {
   const { InvestmentNarrativeSection } = await server.ssrLoadModule("/src/components/investment/InvestmentNarrative.tsx")
@@ -319,7 +348,7 @@ test("after a failed read, the 目前判斷 block shows 目前無法取得 inste
   assert.doesNotMatch(current, /合成張力|Bound synthetic|支持 1 條/, "retained values stay out of the current block")
 })
 
-test("each evidence layer shows one status line under its title; the longer opposing notes live in its details", async () => {
+test("each evidence layer keeps one counted status line visible and folds the longer opposing notes", async () => {
   const { InvestmentNarrativeSection } = await server.ssrLoadModule("/src/components/investment/InvestmentNarrative.tsx")
   const payload = narrativePayload()
   payload.narratives[0].thesis_evidence.layers[3].opposing_coverage = { state: "unknown", checked_at: null, scope: null, reason: "沒有明確反方 evidence coverage receipt；空清單不代表沒有反方", source: null }
@@ -336,14 +365,14 @@ test("each evidence layer shows one status line under its title; the longer oppo
   chunks.forEach((chunk, index) => {
     const status = chunk.indexOf(expected[index])
     assert.ok(status > 0, `layer ${index} status line: ${expected[index]}`)
-    assert.ok(status < chunk.indexOf("明確證據方向"), "the status line sits directly under the title")
-    const details = chunk.indexOf("這層的背景與來源")
+    assert.ok(status < chunk.indexOf("玩家與公開證據"), "the counted status line stays in the visible summary before the player detail")
+    const details = chunk.indexOf("來源狀態、缺口與背景")
     for (const old of ["反方證據連結：", "反方涵蓋："]) {
       assert.ok(chunk.indexOf(old) > details, `${old} moved into the layer's details`)
     }
   })
   const receipt = chunks[3]
-  assert.ok(receipt.indexOf("沒有明確反方 evidence coverage receipt") > receipt.indexOf("這層的背景與來源"), "the receipt wording is detail-only")
+  assert.ok(receipt.indexOf("沒有明確反方 evidence coverage receipt") > receipt.indexOf("來源狀態、缺口與背景"), "the receipt wording is detail-only")
   assert.doesNotMatch(html, /反方檢查範圍與來源/, "no separate nested details on the main level")
 })
 
@@ -371,7 +400,7 @@ test("a layer reading is shown only when its text is usable, with an AI provenan
   assert.equal(layerGapLine({ ...syntheticGap, overdue: true }), "還缺：合成缺口｜合成季報・預計 2026-10・已過預計時間")
 })
 
-test("a layer with a reading shows it under the title in place of the status line; other layers keep the status line", async () => {
+test("a layer with a reading keeps the count status visible alongside it; other layers keep the same summary", async () => {
   const { InvestmentNarrativeSection } = await server.ssrLoadModule("/src/components/investment/InvestmentNarrative.tsx")
   const payload = narrativePayload()
   const layers = payload.narratives[0].thesis_evidence.layers
@@ -380,14 +409,14 @@ test("a layer with a reading shows it under the title in place of the status lin
   layers[2].current_reading = { ...syntheticReading, state: "conflict", text: null }
   const html = withQueryData(createElement(InvestmentNarrativeSection, { enabled: false, onOpenHistory: () => undefined }), [[["investment-narrative"], payload]])
   const chunks = html.split("<h4").slice(1)
-  const top = (chunk: string) => chunk.slice(0, chunk.indexOf("明確證據方向"))
+  const top = (chunk: string) => chunk.slice(0, chunk.indexOf("玩家與公開證據"))
   assert.match(top(chunks[1]), /合成層的目前認知。/)
   assert.match(top(chunks[1]), /AI 整理・2026-09-27・依據：合成依據（2026-09-20）/)
   assert.match(top(chunks[1]), /還缺：合成缺口｜合成季報・預計 2026-10/)
-  assert.doesNotMatch(top(chunks[1]), /支持 0 筆・挑戰 0 筆/, "the reading replaces the counted status line")
-  assert.match(top(chunks[2]), /支持 0 筆・挑戰 0 筆・反方：還沒查/, "an unusable reading falls back to the status line")
+  assert.match(top(chunks[1]), /支持 0 筆・挑戰 0 筆・反方：查得不完整/, "the count remains visible next to a usable reading")
+  assert.match(top(chunks[2]), /支持 0 筆・挑戰 0 筆・反方：還沒查/, "an unusable reading still shows the counted status")
   assert.match(top(chunks[0]), /支持 0 筆・挑戰 1 筆・反方：有反方證據/)
-  assert.ok(chunks[1].indexOf("反方涵蓋：") > chunks[1].indexOf("這層的背景與來源"), "opposing coverage stays in the details")
+  assert.ok(chunks[1].indexOf("反方涵蓋：") > chunks[1].indexOf("來源狀態、缺口與背景"), "opposing coverage stays in the details")
 })
 
 /* ---------- Q1: Today 「今天怎麼做」 ---------- */

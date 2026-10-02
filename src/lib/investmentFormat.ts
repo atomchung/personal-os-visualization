@@ -1,4 +1,4 @@
-import type { ActionItemKind, ActionItemStatus, InvestmentActionItem, InvestmentActions, InvestmentBrief, InvestmentBriefJudgment, InvestmentBriefJudgmentClass, InvestmentLayerGap, InvestmentLayerReading, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeLayerEvidence, InvestmentNarrativeLayerEvidenceItem, InvestmentNarrativeLayerRow, InvestmentNewsMarket, InvestmentRefreshStatus, InvestmentTodayView, InvestmentWork } from "./investment"
+import type { ActionItemKind, ActionItemStatus, InvestmentActionItem, InvestmentActions, InvestmentBrief, InvestmentBriefJudgment, InvestmentBriefJudgmentClass, InvestmentLayerGap, InvestmentLayerReading, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeLayerEvidence, InvestmentNarrativeLayerEvidenceItem, InvestmentNarrativeLayerPlayer, InvestmentNarrativeLayerRow, InvestmentNewsMarket, InvestmentRefreshStatus, InvestmentTodayView, InvestmentWork } from "./investment"
 
 const VALUE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const CHANGE_FORMAT = new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "exceptZero" })
@@ -289,6 +289,63 @@ export function layerEvidenceGroups(layer: Pick<InvestmentNarrativeEvidenceLayer
   }
 }
 
+export type LayerEntityEvidenceGroup = {
+  entityId: string
+  players: InvestmentNarrativeLayerPlayer[]
+  evidence: InvestmentNarrativeLayerEvidence[]
+}
+
+/** Group player and evidence rows only by the producer's exact entity_id.
+ * Names, tickers, dates and prose never create a relationship. */
+export function layerEntityEvidenceGroups(layer: Pick<InvestmentNarrativeEvidenceLayer, "players" | "evidence" | "supporting" | "opposing" | "challenging" | "unknown">) {
+  const groups = new Map<string, LayerEntityEvidenceGroup>()
+  const getGroup = (entityId: string) => {
+    let group = groups.get(entityId)
+    if (!group) {
+      group = { entityId, players: [], evidence: [] }
+      groups.set(entityId, group)
+    }
+    return group
+  }
+  const unlinkedPlayers: InvestmentNarrativeLayerPlayer[] = []
+  for (const player of layer.players ?? []) {
+    if (!player.entity_id.trim()) unlinkedPlayers.push(player)
+    else getGroup(player.entity_id).players.push(player)
+  }
+  const unlinkedEvidence: InvestmentNarrativeLayerEvidence[] = []
+  for (const item of layerEvidenceGroups(layer).evidence) {
+    if (!item.entity_id.trim()) unlinkedEvidence.push(item)
+    else getGroup(item.entity_id).evidence.push(item)
+  }
+  return { groups: [...groups.values()], unlinkedPlayers, unlinkedEvidence }
+}
+
+export const LAYER_ENTITY_PAGE_SIZE = 20
+
+/** Filter by producer-provided identity and record fields for direct lookup. */
+export function filterLayerEntityGroups(groups: LayerEntityEvidenceGroup[], query: string) {
+  const needle = query.trim().toLocaleLowerCase()
+  if (!needle) return groups
+  return groups.filter(group => [
+    group.entityId,
+    ...group.players.map(player => player.player),
+    ...group.evidence.flatMap(item => [item.player, item.entity_ticker ?? "", item.evidence_id, item.explanation]),
+  ].some(value => value.toLocaleLowerCase().includes(needle)))
+}
+
+export function paginateLayerEntityGroups<T>(items: T[], requestedPage: number, pageSize = LAYER_ENTITY_PAGE_SIZE) {
+  const size = Number.isFinite(pageSize) ? Math.max(1, Math.floor(pageSize)) : LAYER_ENTITY_PAGE_SIZE
+  const pageCount = Math.max(1, Math.ceil(items.length / size))
+  const page = Math.min(pageCount, Math.max(1, Math.floor(requestedPage) || 1))
+  return {
+    page,
+    pageCount,
+    pageSize: size,
+    total: items.length,
+    items: items.slice((page - 1) * size, page * size),
+  }
+}
+
 export type LayerOpposingStatus = "有反方證據" | "查過沒找到" | "查得不完整" | "還沒查"
 
 /** The opposing side of one layer in plain words, from two producer fields
@@ -314,7 +371,7 @@ export function layerStatusLine(
 }
 
 /** A layer's own status line, counting exactly the records its card lists. */
-export function layerStatusLineFor(layer: Pick<InvestmentNarrativeEvidenceLayer, "evidence" | "supporting" | "opposing" | "opposing_coverage">): string {
+export function layerStatusLineFor(layer: Pick<InvestmentNarrativeEvidenceLayer, "evidence" | "supporting" | "opposing" | "challenging" | "unknown" | "opposing_coverage">): string {
   const groups = layerEvidenceGroups(layer)
   return layerStatusLine({
     supports: groups.supporting.length + groups.legacySupporting.length,
