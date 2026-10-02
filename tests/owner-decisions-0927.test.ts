@@ -450,7 +450,7 @@ test("withoutExpiredCatalystGaps drops only the exact expired reason", () => {
   assert.equal(gaps.length, 5, "the input is not mutated")
 })
 
-test("FutureContent leaves expired registrations out of 資料待整理 and its count", async () => {
+test("FutureContent leaves expired registrations out of the source coverage gap count", async () => {
   const { FutureContent } = await server.ssrLoadModule("/src/components/investment/InvestmentNarrative.tsx")
   const projection = {
     state: "partial", window_start: "2026-09-27", window_end: "2026-10-27",
@@ -464,13 +464,16 @@ test("FutureContent leaves expired registrations out of 資料待整理 and its 
     limitations: [],
   }
   const html = renderToStaticMarkup(createElement(FutureContent, { projection }))
-  assert.match(html, /資料待整理 · 2/)
+  assert.match(html, /來源覆蓋缺口 · 2 項/)
   assert.doesNotMatch(html, /EXPA|EXPB|已過期/)
-  assert.match(html, /MISS（?[^<]*：next_catalyst 缺失/)
-  assert.match(html, /MARK[^<]*：next_catalyst 缺出處標記/)
+  assert.match(html, /來源覆蓋標的：MISS/)
+  assert.match(html, /來源缺口：next_catalyst 缺失/)
+  assert.match(html, /來源證據未提供。/)
+  assert.match(html, /來源覆蓋標的：MARK/)
+  assert.match(html, /來源缺口：next_catalyst 缺出處標記/)
 
   const onlyExpired = renderToStaticMarkup(createElement(FutureContent, { projection: { ...projection, coverage_gaps: projection.coverage_gaps.slice(0, 2) } }))
-  assert.doesNotMatch(onlyExpired, /資料待整理/, "a fold of only expired rows disappears")
+  assert.doesNotMatch(onlyExpired, /來源覆蓋缺口/, "a section of only expired rows disappears")
 })
 
 test("the catalysts_30d fallback leaves expired registrations out of 資料待整理 and its count", async () => {

@@ -152,7 +152,7 @@ test("nonExactDateReason and foldBReason derive plain reasons only from producer
   assert.equal(foldBReason(["來源已過期", "尚待覆核"]), "來源已過期；尚待覆核")
 })
 
-test("FutureContent splits non-exact rows into 日期未定 (has story_id) and 資料待整理 (no identity, plus coverage gaps), dropping the old merged fold and its per-item orange limitations", async () => {
+test("FutureContent keeps undated event records separate from source coverage gaps and preserves their evidence", async () => {
   const previousLocation = Object.getOwnPropertyDescriptor(globalThis, "location")
   Object.defineProperty(globalThis, "location", { value: { origin: "http://localhost", hostname: "localhost" }, configurable: true })
   const server = await createServer({ server: { middlewareMode: true }, appType: "custom" })
@@ -165,30 +165,40 @@ test("FutureContent splits non-exact rows into 日期未定 (has story_id) and �
       checks: [], sources: [source], limitations: [] as string[],
     }
     const dated = { ...base, story_id: "synth-followup", title: "月份未定的合成事件", date: null, date_label: "2026-10", date_precision: "month", window_membership: "possible" }
-    const undated = { ...base, story_id: null, title: "沒有事件身份的合成登記", affected_tickers: ["SYNTH"], date: null, date_label: null, date_precision: "imprecise", window_membership: "unknown", limitations: ["legacy 登記缺明示事件 identity；未自動合併"] }
+    const undated = { ...base, story_id: null, title: "相同標題的合成事件", state: "unlinked", affected_tickers: ["SYNTH"], date: null, date_label: null, date_precision: "imprecise", window_membership: "unknown", sources: [{ path: "synthetic/events/a.md", line: 8, raw: "合成事件原文甲" }], limitations: ["legacy 登記缺明示事件 identity；未自動合併"] }
+    const sameTitleDifferentSource = { ...undated, story_id: "synthetic-story-b", sources: [{ path: "synthetic/events/b.md", line: 12, raw: "合成事件原文乙" }], limitations: [] }
     const projection = {
       state: "partial", window_start: "2026-09-27", window_end: "2026-10-27",
-      items: [], uncertain_items: [dated, undated], past_items: [],
-      coverage_gaps: [{ ticker: "0050.TW", reason: "live holding 缺可掃描 wiki source" }],
+      items: [], uncertain_items: [dated, undated, sameTitleDifferentSource], past_items: [],
+      coverage_gaps: [
+        { ticker: "SYNTH", reason: "live holding 缺可掃描 wiki source", source: { path: "synthetic/gaps/a.md", line: 3, raw: "合成缺口來源甲" } },
+        { ticker: "SYNTH", reason: "next_catalyst 缺出處標記", source: { path: "synthetic/gaps/b.md", line: 6, raw: "合成缺口來源乙" } },
+      ],
       limitations: [],
     }
     const html = renderToStaticMarkup(createElement(FutureContent, { projection }))
-    assert.doesNotMatch(html, /日期或事件關聯未確認/, "the old merged fold header must be gone")
+    assert.doesNotMatch(html, /資料待整理/, "the old combined fold is removed from the typed projection")
     assert.match(html, /日期未定 · 1/)
     assert.match(html, /月份未定的合成事件/)
     assert.match(html, /只知月份/)
-    assert.match(html, /資料待整理 · 2/, "the no-identity row and the coverage gap share fold B")
-    assert.match(html, /沒有對應的事件身份/)
+    assert.match(html, /事件資料待確認 · 2 筆/)
+    assert.match(html, /來源覆蓋缺口 · 2 項/)
+    assert.equal((html.match(/相同標題的合成事件/g) ?? []).length, 2, "same-title records remain two rows")
+    assert.match(html, /來源事件 story_id：未提供/)
+    assert.match(html, /來源事件 story_id：synthetic-story-b/)
+    assert.match(html, /synthetic\/events\/a\.md:8/)
+    assert.match(html, /synthetic\/events\/b\.md:12/)
+    assert.match(html, /合成事件原文甲/)
+    assert.match(html, /合成事件原文乙/)
     assert.doesNotMatch(html, /legacy/i, "the internal legacy phrasing must be translated away")
-    // Finding #2: the event's own title must always show, even when it also
-    // has affected tickers -- tickers are extra context, never a replacement.
-    assert.match(html, /沒有事件身份的合成登記（SYNTH）：沒有對應的事件身份/)
-    assert.match(html, /0050\.TW/)
+    assert.match(html, /SYNTH/)
     assert.match(html, /live holding 缺可掃描 wiki source/)
-    // The section-level state Chip legitimately uses a warn tone; scope the
-    // "no per-item orange limitation line" check to the two folds themselves.
-    const foldsOnward = html.slice(html.indexOf("日期未定"))
-    assert.doesNotMatch(foldsOnward, /text-warn/, "fold rows drop their per-item orange limitation styling")
+    assert.match(html, /next_catalyst 缺出處標記/)
+    assert.match(html, /synthetic\/gaps\/a\.md:3/)
+    assert.match(html, /synthetic\/gaps\/b\.md:6/)
+    assert.match(html, /合成缺口來源甲/)
+    assert.match(html, /合成缺口來源乙/)
+    assert.doesNotMatch(html, /需要時到 Investment Note 更新/, "source-status rows do not read like owner todos")
   } finally { await server.close(); if (previousLocation) Object.defineProperty(globalThis, "location", previousLocation); else Reflect.deleteProperty(globalThis, "location") }
 })
 
