@@ -124,8 +124,8 @@ export const work: WorkData = {
   source: {
     state: "partial",
     coverage: {
-      files_seen: 6,
-      indexed: 4,
+      files_seen: 7,
+      indexed: 5,
       legacy_unstructured: 1,
       read_errors: 1,
       archived_included: true,
@@ -230,10 +230,40 @@ export const work: WorkData = {
       source_verified_at: "2026-09-18T11:00:00+08:00",
       verification_basis: "synthetic_snapshot",
       stale_flags: [],
-      links: [],
-      relations_state: "unknown",
+      links: [
+        { kind: "agent_task", label: "開啟已記錄的 Codex 工作紀錄", state: "supported", url: "codex://threads/00000000-0000-4000-8000-000000000010" },
+        { kind: "pull_request", label: "無效的合成連結", state: "invalid", url: "https://example.invalid/not-a-pull-request" },
+      ],
+      relations_state: "recorded",
       agent_runs: [],
       copy_summary: "成果：完成搜尋流程的範例檢查\n狀態：已完成\n完成階段：使用者已確認",
+    },
+    {
+      slug: "demo-dot-coordinates-thread",
+      title: "Dot 協調一筆連到 Codex 工作紀錄的成果",
+      state: "in_progress",
+      state_source: "work_state",
+      state_annotation_invalid: false,
+      next_action: "Dot 根據成果需求安排後續工作。",
+      next_actor: "dot",
+      next_actor_state: "known",
+      needs_user_action: false,
+      action_kind: "coordination",
+      blocked_by: null,
+      last_session_at: "2026-09-17T11:00:00+08:00",
+      next_action_at: null,
+      completion: { stage: "implementation", evidence: "合成協調紀錄；Codex 工作連結只表示可開啟的紀錄，不代表由 Codex 執行。" },
+      updated_at: "2026-09-17T11:00:00+08:00",
+      source_status: "in_progress",
+      source_kind: "task",
+      source_modified_at: "2026-09-17T11:00:00+08:00",
+      source_verified_at: null,
+      verification_basis: null,
+      stale_flags: [],
+      links: [{ kind: "agent_task", label: "開啟相關 Codex 工作紀錄", state: "supported", url: "codex://threads/00000000-0000-4000-8000-000000000011" }],
+      relations_state: "recorded",
+      agent_runs: [],
+      copy_summary: "成果：Dot 協調一筆連到 Codex 工作紀錄的成果\n狀態：進行中\n下一步：Dot 根據成果需求安排後續工作。",
     },
     {
       slug: "demo-archived-prototype",
@@ -286,7 +316,9 @@ export const work: WorkData = {
       stale_flags: [],
       links: [],
       relations_state: "unknown",
-      agent_runs: [],
+      agent_runs: [
+        { run_id: "demo-run-malformed-dot-01", agent_id: "dot", agent_state: "unknown", state: "unknown", last_activity_at: null, link_state: "invalid", url: "not-a-thread-url" },
+      ],
       copy_summary: "成果：舊格式搜尋備忘（合成）\n狀態：未知（舊格式）",
     },
   ],
@@ -296,15 +328,20 @@ export const work: WorkData = {
 export function workForAgent(agentId: string): WorkData | null {
   if (!work.agents.some((agent) => agent.id === agentId)) return null
   const tasks: WorkData["tasks"] = []
+  const declaredAgents = new Set(work.agents.map((agent) => agent.id))
+  const actorSentinels = new Set(["human", "agent", "any_agent", "external"])
   for (const task of work.tasks) {
-    const related = new Set(task.agent_runs.filter((run) => run.agent_state === "known" && run.agent_id).map((run) => run.agent_id as string))
+    const related = new Set(task.agent_runs.filter((run) => run.agent_state === "known" && run.agent_id && declaredAgents.has(run.agent_id)).map((run) => run.agent_id as string))
     if (task.next_actor_state === "known" && work.agents.some((entry) => entry.id === task.next_actor)) related.add(task.next_actor as string)
-    if (task.links.some((link) => link.kind === "agent_task" && link.state === "supported")) related.add("codex")
     if (related.has(agentId)) {
       tasks.push({ ...task, agent_match: "matched" })
       continue
     }
-    if (task.relations_state !== "recorded" || task.agent_runs.some((run) => run.agent_state === "unknown")) {
+    const hasUnknownRelation = task.relations_state !== "recorded"
+      || task.agent_runs.some((run) => run.agent_state !== "known" || !run.agent_id || !declaredAgents.has(run.agent_id))
+      || task.next_actor_state === "unknown"
+      || (task.next_actor_state === "known" && (!task.next_actor || (!actorSentinels.has(task.next_actor) && !declaredAgents.has(task.next_actor))))
+    if (hasUnknownRelation) {
       tasks.push({ ...task, agent_match: "unknown" })
     }
   }

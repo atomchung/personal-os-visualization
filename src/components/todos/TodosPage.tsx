@@ -226,6 +226,11 @@ function WorkSourceOverview({ data }: { data: WorkData }) {
   const label = state === "ready" ? "來源可讀" : state === "partial" ? "來源部分可讀" : "來源不可用"
   const coverage = data.source.coverage
   const count = (value: number | null) => value === null ? "未知" : String(value)
+  const archivedIncluded = coverage.archived_included === null
+    ? `未知 · ${count(coverage.archived_indexed)} 筆`
+    : coverage.archived_included
+      ? `是 · ${count(coverage.archived_indexed)} 筆`
+      : "否"
   return <section className="flex flex-col gap-2" aria-label="工作來源狀態">
     <Card className="flex flex-col gap-2 p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -237,7 +242,7 @@ function WorkSourceOverview({ data }: { data: WorkData }) {
         <div><dt>已整理成果</dt><dd className="font-medium text-ink-2">{count(coverage.indexed)}</dd></div>
         <div><dt>舊格式未整理</dt><dd className="font-medium text-ink-2">{count(coverage.legacy_unstructured)}</dd></div>
         <div><dt>讀取錯誤</dt><dd className="font-medium text-ink-2">{count(coverage.read_errors)}</dd></div>
-        <div><dt>封存資料已納入</dt><dd className="font-medium text-ink-2">{coverage.archived_included ? `是 · ${count(coverage.archived_indexed)} 筆` : "否"}</dd></div>
+        <div><dt>封存資料已納入</dt><dd className="font-medium text-ink-2">{archivedIncluded}</dd></div>
         <div><dt>封存舊格式</dt><dd className="font-medium text-ink-2">{count(coverage.archived_legacy_unstructured)}</dd></div>
         <div><dt>重複成果已合併</dt><dd className="font-medium text-ink-2">{count(coverage.duplicate_slugs_collapsed)}</dd></div>
         <div><dt>工具關聯未知</dt><dd className="font-medium text-ink-2">{count(coverage.unlinked_relations)}</dd></div>
@@ -269,6 +274,31 @@ function ActivitySummary({ data }: { data: WorkData["activity_summary"] }) {
     </div>
     <a className="shrink-0 text-caption font-medium text-info underline underline-offset-2" href="?tab=time">前往 AI 使用頁</a>
   </Card>
+}
+
+function WorkRefreshNotice({ isError, isFetching, isStale, error, dataUpdatedAt }: {
+  isError: boolean
+  isFetching: boolean
+  isStale: boolean
+  error: unknown
+  dataUpdatedAt: number
+}) {
+  if (!dataUpdatedAt) return null
+  const lastSuccessfulFetch = sourceTimestamp(new Date(dataUpdatedAt).toISOString())
+  const freshness = `上次成功讀取：${lastSuccessfulFetch}。工作卡片的來源驗證、修改與活動時間仍是來源記錄時間。`
+  if (isError) {
+    const message = error instanceof Error ? error.message : "未知錯誤"
+    return <Card role="alert" className="border-[0.5px] border-bad/30 p-3 text-caption text-bad">
+      重新讀取失敗，目前保留上次成功讀取的工作資料。{freshness}無法確認最新狀態。錯誤：{message}
+    </Card>
+  }
+  if (isFetching) return <Card role="status" className="border-[0.5px] border-warn/30 p-3 text-caption text-warn">
+    正在重新讀取；目前顯示上次成功讀取的工作資料。{freshness}尚未確認最新狀態。
+  </Card>
+  if (isStale) return <Card role="status" className="border-[0.5px] border-warn/30 p-3 text-caption text-warn">
+    工作資料已超過重新讀取期限，尚未確認最新狀態。{freshness}
+  </Card>
+  return null
 }
 
 function groupTitle(group: WorkGroup) {
@@ -355,8 +385,9 @@ export function TodosPage() {
 
   return <div className="flex flex-col gap-5">
     <PageHeader page="todos" />
-    {workQuery.isPending ? <Card role="status" className="p-4 text-body text-ink-3">讀取工作狀態中…</Card> : null}
-    {workQuery.isError ? <Card role="alert" className="p-4 text-body text-bad">讀不到工作狀態：{(workQuery.error as Error).message}。讀取失敗不代表沒有工作。</Card> : null}
+    {!workQuery.data && workQuery.isPending ? <Card role="status" className="p-4 text-body text-ink-3">讀取工作狀態中…</Card> : null}
+    {workQuery.data ? <WorkRefreshNotice isError={workQuery.isError} isFetching={workQuery.isFetching} isStale={workQuery.isStale} error={workQuery.error} dataUpdatedAt={workQuery.dataUpdatedAt} /> : null}
+    {!workQuery.data && workQuery.isError ? <Card role="alert" className="p-4 text-body text-bad">讀不到工作狀態：{(workQuery.error as Error).message}。讀取失敗不代表沒有工作。</Card> : null}
     {workQuery.data ? <>
       <ActivitySummary data={workQuery.data.activity_summary} />
       <WorkSourceOverview data={workQuery.data} />

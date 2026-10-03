@@ -732,15 +732,15 @@ export type WorkData = {
   source: {
     state: "ready" | "partial" | "unavailable"
     coverage: {
-      files_seen: number
-      indexed: number
-      legacy_unstructured: number
-      read_errors: number
-      archived_included: boolean
-      archived_indexed: number
-      archived_legacy_unstructured: number
-      duplicate_slugs_collapsed: number
-      unlinked_relations: number
+      files_seen: number | null
+      indexed: number | null
+      legacy_unstructured: number | null
+      read_errors: number | null
+      archived_included: boolean | null
+      archived_indexed: number | null
+      archived_legacy_unstructured: number | null
+      duplicate_slugs_collapsed: number | null
+      unlinked_relations: number | null
     }
     warnings: string[]
   }

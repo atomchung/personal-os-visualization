@@ -47,6 +47,11 @@ function resolveWatchExpiry(raw: unknown): string | null {
   return value
 }
 
+function applyWorkReadHook(value: typeof work, agentId: string | null): typeof work {
+  const hook = (globalThis as { window?: { __workReadHook?: (data: typeof work, agentId: string | null) => typeof work } }).window?.__workReadHook
+  return hook ? hook(value, agentId) : value
+}
+
 export function createDemoRequest() {
   const state = createState()
   const reply = (data: unknown, status = 200) => Response.json(data, { status })
@@ -75,9 +80,10 @@ export function createDemoRequest() {
         case "/api/cockpit": return reply(cockpit(state))
         case "/api/todos": return reply(todos(state))
         case "/api/work": {
-          if (!url.searchParams.has("agent")) return reply(work)
-          const filtered = workForAgent(url.searchParams.get("agent") ?? "")
-          return filtered ? reply(filtered) : rejected("agent must be declared")
+          if (!url.searchParams.has("agent")) return reply(applyWorkReadHook(work, null))
+          const agentId = url.searchParams.get("agent") ?? ""
+          const filtered = workForAgent(agentId)
+          return filtered ? reply(applyWorkReadHook(filtered, agentId)) : rejected("agent must be declared")
         }
         case "/api/goals": return reply(goals(state))
         case "/api/focus": return reply(focus(Number(url.searchParams.get("days")) || 7))
