@@ -227,7 +227,7 @@ function WorkSourceOverview({ data }: { data: WorkData }) {
   const coverage = data.source.coverage
   const count = (value: number | null) => value === null ? "未知" : String(value)
   const archivedIncluded = coverage.archived_included === null
-    ? `未知 · ${count(coverage.archived_indexed)} 筆`
+    ? "未知"
     : coverage.archived_included
       ? `是 · ${count(coverage.archived_indexed)} 筆`
       : "否"
