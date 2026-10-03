@@ -148,6 +148,29 @@ test("later quiet/unchanged scan states keep the last successful reassessment wh
   }
 })
 
+test("a healthy quiet scan with no prior delta keeps the formal judgment without a false warning", async () => {
+  const brief = { ...syntheticPresentationBrief(), session: "tw-open-prep" }
+  const assessedAt = "2001-02-03T10:00:00+08:00"
+  const sourceRevision = "sha256:quiet-feed"
+  const baselineCutoff = "2001-02-03T08:00:00+08:00"
+  const latest = { state: "preserved" as const, reason_code: null, reason: "No material change",
+    baseline_cutoff_at: baselineCutoff, assessed_at: assessedAt, source_revision: sourceRevision }
+  const today: InvestmentTodayView = { ...syntheticPresentationToday(), current_judgment: {
+    market: "tw", state: "preserved", baseline: { artifact: null, revision: "sha256:brief-v2", source_cutoff: baselineCutoff },
+    formal_judgment: brief.judgment!, effective_judgment: brief.judgment!, effective_source: "formal_baseline",
+    current_delta: null, latest_assessment: latest,
+  }, intraday_refresh: { schema_version: "1.0", markets: { tw: { state: "ready", freshness: "current",
+    baseline_cutoff: baselineCutoff, baseline_revision: "sha256:brief-v2", input_cutoff: null,
+    last_successful_cutoff: null, last_successful_refresh: null, latest_receipt: null,
+    current_judgment: { state: "preserved", current_delta: null, latest_assessment: latest }, story_states: [], limitations: [] } },
+    timeline_updates: [], updates: [], market_observations: [], limitations: [] } }
+  const html = await renderTodayBrief(today, false, brief)
+  assert.match(html, /本次掃描未產生新的判斷變更；沿用正式簡報判斷/)
+  assert.match(html, /合成正式判斷原文：目前維持觀察。/)
+  assert.doesNotMatch(html, /缺少可核對的來源版次/)
+  assert.doesNotMatch(html, /盤中判斷未確認/)
+})
+
 test("missing receipt or delta identity fails closed without claiming reassessment", async () => {
   const brief = { ...syntheticPresentationBrief(), session: "tw-open-prep" }
   const base = syntheticPresentationToday()

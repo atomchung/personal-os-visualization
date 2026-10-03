@@ -451,11 +451,14 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
       {currentJudgment?.state === "unchanged" && acceptedDelta ? <p role="status" className="text-caption text-ink-2">本次盤中重評維持原判斷；下方仍顯示上次有效的盤中判斷。</p> : null}
       {currentJudgment?.state === "unchanged" && receiptReadbackMatches && !currentJudgment.current_delta ? <p role="status" className="text-caption text-ink-2">盤中新聞已完成重評；目前資料不足以改變判斷，沿用正式簡報判斷。</p> : null}
       {currentJudgment?.state === "preserved" && acceptedDelta ? <p role="status" className="text-caption text-ink-2">本次掃描未產生新的判斷變更；下方保留上次有效的盤中判斷。</p> : null}
+      {currentJudgment?.state === "preserved" && receiptReadbackMatches && !currentJudgment.current_delta && currentJudgment.effective_source === "formal_baseline" ? <p role="status" className="text-caption text-ink-2">本次掃描未產生新的判斷變更；沿用正式簡報判斷。</p> : null}
       {currentJudgment?.state === "pending" ? <p role="status" className="text-caption text-warn">盤中判斷待重新確認；{acceptedDelta ? "保留上次已校驗的有效判斷。" : "正式簡報版次或來源尚未通過校驗，以下保留正式簡報判斷。"}</p> : null}
       {(currentJudgment?.state === "reassessed" && !acceptedDelta)
         || (currentJudgment?.state === "unchanged" && (!receiptReadbackMatches || Boolean(currentJudgment.current_delta) && !acceptedDelta))
         ? <p role="status" className="text-caption text-warn">盤中重評回讀或判斷來源不完整；保留正式簡報判斷，重評狀態未確認。</p> : null}
-      {currentJudgment?.state === "preserved" && !acceptedDelta ? <p role="status" className="text-caption text-warn">上次盤中判斷缺少可核對的來源版次；保留正式簡報判斷，盤中判斷未確認。</p> : null}
+      {currentJudgment?.state === "preserved" && !acceptedDelta
+        && (Boolean(currentJudgment.current_delta) || currentJudgment.effective_source === "last_successful_reassessment")
+        ? <p role="status" className="text-caption text-warn">上次盤中判斷缺少可核對的來源版次；保留正式簡報判斷，盤中判斷未確認。</p> : null}
       {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
       {readFailed ? <p role="status" className="text-body text-warn">本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動，是否已有新版本尚未確認。</p> : null}
       {judgment ? <div role="group" aria-label="主要下一步" className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
