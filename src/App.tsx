@@ -9,6 +9,7 @@ import { TimePage } from "@/components/time/TimePage"
 import { GoalsPage } from "@/components/goals/GoalsPage"
 import { IdealPage } from "@/components/ideal/IdealPage"
 import { HealthPage } from "@/components/health/HealthPage"
+import { WorkPage } from "@/components/work/WorkPage"
 import { TodosPage } from "@/components/todos/TodosPage"
 import { InvestmentPage } from "@/components/investment/InvestmentPage"
 import { Button } from "@/components/ui/button"
@@ -49,6 +50,7 @@ export default function App() {
       {tab === "goals" && <GoalsPage />}
       {tab === "ideal" && <IdealPage />}
       {tab === "health" && <HealthPage />}
+      {tab === "work" && <WorkPage />}
       {tab === "todos" && <TodosPage />}
       {tab === "guide" && <DesignGuidePage />}
     </main>

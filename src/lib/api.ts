@@ -776,3 +776,10 @@ export const acceptNomination = (
 
 export const skipNomination = (slug: string, expected_text: string) =>
   post<{ slug: string }>(`/api/nominations/${slug}/skip`, { expected_text })
+
+export type WorkItem = { id: string; name: string; summary: string }
+export type WorkData = {
+  status: "ready" | "unavailable"
+  groups: { in_progress: WorkItem[]; needs_attention: WorkItem[]; completed: WorkItem[] }
+}
+export const getWork = () => request("/api/work").then(json<WorkData>)

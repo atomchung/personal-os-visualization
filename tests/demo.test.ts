@@ -1083,3 +1083,21 @@ test("provider-owned writes increment the stored version after validating the su
   assert.equal(promoted.promoted_to_today, true)
   await assert.rejects(saveInvestmentWork(created), /版本已變更/)
 })
+
+test("Work has only fictional assignments and preserves Todo separately", async () => {
+  const response = await createDemoRequest()("/api/work")
+  const data = await response.json()
+  assert.equal(data.status, "ready")
+  assert.deepEqual(Object.keys(data.groups), ["in_progress", "needs_attention", "completed"])
+  assert.equal(data.groups.completed.length, 1)
+  assert.match(data.groups.in_progress[1].summary, /已轉交.*尚未確認完成.*dot 目前未執行/)
+  for (const group of Object.values(data.groups) as Record<string, string>[][]) {
+    for (const item of group) assert.deepEqual(Object.keys(item), ["id", "name", "summary"])
+  }
+  const root = new URL("../", import.meta.url)
+  const ui = readFileSync(new URL("src/components/work/WorkPage.tsx", root), "utf8")
+  assert.doesNotMatch(ui, /getTime|getTodos|agent|token|session|completion_stage/i)
+  const app = readFileSync(new URL("src/App.tsx", root), "utf8")
+  assert.match(app, /tab === "work" && <WorkPage/)
+  assert.match(app, /tab === "todos" && <TodosPage/)
+})

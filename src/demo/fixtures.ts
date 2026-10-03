@@ -997,3 +997,16 @@ export const pending: InvestmentPending = {
     weekly: { ...block, title: "範例週回顧", date: DATE, path: "synthetic/weekly", age_days: 0, alerts: [], action_items: [{ text: "整理兩個產品交付問題", done: false, detail: ["全合成案例"] }] },
   },
 }
+
+// Fictional assignments authored independently of any private task list.
+export const work = {
+  status: "ready",
+  groups: {
+    in_progress: [
+      { id: "sample-1", name: "整理展示作品", summary: "正在調整閱讀順序，完成後提供預覽。" },
+      { id: "sample-2", name: "圖示製作", summary: "已轉交另一個工作對話；尚未確認完成，dot 目前未執行。" },
+    ],
+    needs_attention: [{ id: "sample-3", name: "確認展示說明", summary: "請確認說明是否清楚，再繼續整理。" }],
+    completed: [{ id: "sample-4", name: "修正範例標題", summary: "標題已修正，並完成畫面檢查。" }],
+  },
+} as const
