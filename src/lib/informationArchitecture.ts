@@ -43,7 +43,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { key: "focus", label: "焦點", short: "時間與目標" },
       { key: "goals", label: "目標", short: "進度與里程碑" },
-      { key: "todos", label: "待辦", short: "可直接完成的事" },
+      { key: "todos", label: "工作", short: "成果、下一步與協作紀錄" },
     ],
   },
   {
@@ -78,8 +78,8 @@ export const PAGE_COPY: Record<"today" | PageKey | "guide", { label: string; sum
     summary: "看目標進度與里程碑；目標的完整內容只在這裡維護。",
   },
   todos: {
-    label: "待辦",
-    summary: "處理可以直接勾掉的短事項；里程碑仍由目標頁維護。",
+    label: "工作",
+    summary: "依目標成果查看目前狀態、下一步與已記錄的證據；短待辦收在次要區域。",
   },
   health: {
     label: "運動",

@@ -1,5 +1,5 @@
 /** Closed, browser-memory-only adapter. No network, storage, or live fallback. */
-import { cockpit, createState, focus, goals, health, home, ideal, timeData, todos } from "./fixtures.ts"
+import { cockpit, createState, focus, goals, health, home, ideal, timeData, todos, work, workForAgent } from "./fixtures.ts"
 import { taipeiCalendarToday } from "../lib/investmentFormat.ts"
 import {
   addInvestmentWork,
@@ -74,6 +74,11 @@ export function createDemoRequest() {
         case "/api/home": return reply(home(state))
         case "/api/cockpit": return reply(cockpit(state))
         case "/api/todos": return reply(todos(state))
+        case "/api/work": {
+          if (!url.searchParams.has("agent")) return reply(work)
+          const filtered = workForAgent(url.searchParams.get("agent") ?? "")
+          return filtered ? reply(filtered) : rejected("agent must be declared")
+        }
         case "/api/goals": return reply(goals(state))
         case "/api/focus": return reply(focus(Number(url.searchParams.get("days")) || 7))
         case "/api/time": {
