@@ -771,10 +771,20 @@ export function providerCompletionNote(status: Pick<InvestmentRefreshStatus, "pr
 
 /** Raw model id / per-provider errors stay off the main line; a hover title
  * is enough for anyone who wants the receipt. */
-export function providerDetailTitle(status: Pick<InvestmentRefreshStatus, "model" | "provider_errors"> | null | undefined): string | undefined {
+export function providerDetailTitle(status: Pick<InvestmentRefreshStatus, "model" | "provider_errors" | "provider_log_path" | "baseline_path" | "baseline_revision" | "baseline_cutoff_at" | "input_cutoff" | "source_cutoff" | "provider_invocation_count" | "provider_call_count" | "today_judgment_state" | "news_write_state"> | null | undefined): string | undefined {
   if (!status) return undefined
   const parts: string[] = []
   if (status.model) parts.push(`model: ${status.model}`)
+  if (typeof status.provider_invocation_count === "number") parts.push(`provider invocations: ${status.provider_invocation_count}`)
+  if (typeof status.provider_call_count === "number") parts.push(`provider calls: ${status.provider_call_count}`)
+  if (status.news_write_state) parts.push(`news write: ${status.news_write_state}`)
+  if (status.today_judgment_state) parts.push(`judgment readback: ${status.today_judgment_state}`)
+  if (status.baseline_path) parts.push(`baseline: ${status.baseline_path}`)
+  if (status.baseline_revision) parts.push(`baseline revision: ${status.baseline_revision}`)
+  if (status.baseline_cutoff_at) parts.push(`baseline cutoff: ${status.baseline_cutoff_at}`)
+  if (status.input_cutoff) parts.push(`input cutoff: ${status.input_cutoff}`)
+  if (status.source_cutoff) parts.push(`source cutoff: ${status.source_cutoff}`)
+  if (status.provider_log_path) parts.push(`provider log: ${status.provider_log_path}`)
   const errors = Object.entries(status.provider_errors ?? {})
   if (errors.length) parts.push(`errors: ${errors.map(([key, value]) => `${key}=${value}`).join(", ")}`)
   return parts.length ? parts.join(" · ") : undefined
