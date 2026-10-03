@@ -761,12 +761,13 @@ const PROVIDER_LABEL: Record<string, string> = { agy: "Antigravity", claude: "Cl
 /** Plain-language stand-in for a raw route note like "claude fallback 1" --
  * names who actually produced the result and, only when it took more than
  * one try, how many earlier models did not succeed. */
-export function providerCompletionNote(status: Pick<InvestmentRefreshStatus, "provider" | "fallback_depth">): string | null {
+export function providerCompletionNote(status: Pick<InvestmentRefreshStatus, "provider" | "fallback_depth"> & { state?: InvestmentRefreshStatus["state"] }): string | null {
   if (!status.provider) return null
   const label = PROVIDER_LABEL[status.provider] ?? status.provider
   const failedBefore = typeof status.fallback_depth === "number" && status.fallback_depth > 0
     ? `（先前 ${status.fallback_depth} 個模型未成功）` : ""
-  return `由 ${label} 完成${failedBefore}`
+  const outcome = status.state === "failed" ? "執行失敗" : status.state === "running" ? "執行中" : "完成"
+  return `由 ${label} ${outcome}${failedBefore}`
 }
 
 /** Raw model id / per-provider errors stay off the main line; a hover title

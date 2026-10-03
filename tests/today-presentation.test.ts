@@ -5,7 +5,8 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createServer, type ViteDevServer } from "vite"
 import { currentTodayActionPlan } from "../src/lib/investmentFormat.ts"
-import type { InvestmentTodayView } from "../src/lib/investment.ts"
+import { getInvestmentRefreshStatus, getSelectedInvestmentProvider, rereadInvestmentRefreshStatuses, setInvestmentProvider, type InvestmentTodayView, type InvestmentRefreshStatus } from "../src/lib/investment.ts"
+import { demoInvestmentProvider } from "../src/demo/investmentProvider.ts"
 import { syntheticBriefWithSameWording, syntheticIntradayUpdate, syntheticPresentationBrief, syntheticPresentationToday } from "./fixtures/today-presentation.ts"
 import type { InvestmentTimelineNode } from "../src/lib/investment.ts"
 
@@ -55,6 +56,47 @@ test("a valid projection keeps the formal judgment primary and labels the update
   assert.doesNotMatch(html, /更新 ID：synthetic-update-1/)
   assert.match(html, /正式簡報 · 版次未標示/)
   assert.doesNotMatch(html, /盤中補充觀察取代正式判斷/)
+})
+
+test("refresh status reads show request failures instead of presenting them as idle", async () => {
+  const { refreshStateLabel } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  assert.match(refreshStateLabel("news", undefined), /狀態讀取中/)
+  assert.match(refreshStateLabel("news", undefined, new Error("本機資料暫時無法讀取（503）")), /狀態讀取失敗：本機資料暫時無法讀取（503）/)
+  assert.match(refreshStateLabel("news", { action: "news", state: "failed", started_at: null, last_updated: "2001-02-03T09:00:00+08:00",
+    message: "Antigravity 權限遭拒", error: "permission_denied", discovery_state: "failed", discovery_updated_at: null,
+    trigger: null, new_update_count: null, sync_note: "", reconciled_at: null, provider: "agy", model: "gemini-3.7-flash-high",
+    fallback_depth: 0, provider_errors: { agy: "permission_denied" } }), /更新失敗：Antigravity 權限遭拒.*由 Antigravity 執行失敗/)
+  assert.match(refreshStateLabel("news", { action: "news", state: "idle", started_at: null, last_updated: null,
+    message: "", error: null, discovery_state: "idle", discovery_updated_at: null, trigger: null,
+    new_update_count: null, sync_note: "", reconciled_at: null, provider: null, model: null,
+    fallback_depth: null, provider_errors: {} }), /尚未更新/)
+})
+
+test("manual refresh-status reread invokes both read getters and never starts a refresh", async () => {
+  const originalProvider = getSelectedInvestmentProvider()
+  const reads: string[] = []
+  let writes = 0
+  setInvestmentProvider({
+    ...demoInvestmentProvider,
+    async getRefreshStatus(action) {
+      reads.push(`status:${action}`)
+      return { action, state: "failed" } as InvestmentRefreshStatus
+    },
+    async startRefresh() {
+      writes += 1
+      throw new Error("status reread must not start refresh")
+    },
+  })
+  try {
+    await rereadInvestmentRefreshStatuses(
+      () => getInvestmentRefreshStatus("market"),
+      () => getInvestmentRefreshStatus("news"),
+    )
+    assert.deepEqual(reads, ["status:market", "status:news"])
+    assert.equal(writes, 0)
+  } finally {
+    setInvestmentProvider(originalProvider)
+  }
 })
 
 test("a missing Today projection leaves the formal source judgment readable without claiming there was no update", async () => {
