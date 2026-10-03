@@ -329,7 +329,45 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
   // On read failure, keep the cached source snapshot visible without deriving
   // a new judgment from it.
   const replacement = !readFailed && b.state === "current" ? structuredBriefJudgmentReplacement(b) : null
-  const judgment = replacement?.judgment ?? (!readFailed && b.state === "current" ? validatedBriefJudgment(b) : null)
+  const currentJudgment = !readFailed && b.state === "current" ? today?.current_judgment ?? null : null
+  const briefMarket = b.session === "tw-open-prep" ? "tw" : b.session === "us-open-prep" ? "us" : null
+  const marketProjection = briefMarket ? today?.intraday_refresh?.markets[briefMarket] : null
+  const marketJudgment = marketProjection?.current_judgment ?? null
+  const hasIdentity = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0
+  const latestAssessment = currentJudgment?.latest_assessment
+  const marketLatestAssessment = marketJudgment?.latest_assessment
+  const receiptReadbackMatches = Boolean(currentJudgment && briefMarket
+    && currentJudgment.market === briefMarket
+    && hasIdentity(currentJudgment.baseline?.revision)
+    && hasIdentity(currentJudgment.baseline?.source_cutoff)
+    && marketProjection?.baseline_revision === currentJudgment.baseline?.revision
+    && marketProjection?.baseline_cutoff === currentJudgment.baseline?.source_cutoff
+    && marketJudgment?.state === currentJudgment.state
+    && hasIdentity(latestAssessment?.assessed_at)
+    && hasIdentity(latestAssessment?.source_revision)
+    && marketLatestAssessment?.assessed_at === latestAssessment?.assessed_at
+    && marketLatestAssessment?.source_revision === latestAssessment?.source_revision)
+  const marketDelta = marketJudgment?.current_delta ?? null
+  const acceptedDelta = receiptReadbackMatches && Boolean(currentJudgment?.current_delta && marketDelta)
+    && currentJudgment?.effective_source === "last_successful_reassessment"
+    && hasIdentity(currentJudgment.current_delta?.provenance?.assessed_at)
+    && hasIdentity(currentJudgment.current_delta?.provenance?.source_revision)
+    && hasIdentity(currentJudgment.current_delta?.provenance?.baseline_revision)
+    && hasIdentity(currentJudgment.current_delta?.provenance?.baseline_cutoff_at)
+    && currentJudgment.current_delta?.provenance?.baseline_revision === currentJudgment.baseline?.revision
+    && currentJudgment.current_delta?.provenance?.baseline_cutoff_at === currentJudgment.baseline?.source_cutoff
+    && currentJudgment.current_delta?.judgment === marketDelta?.judgment
+    && currentJudgment.current_delta?.why_now === marketDelta?.why_now
+    && currentJudgment.current_delta?.class === marketDelta?.class
+    && currentJudgment.current_delta?.revisit === marketDelta?.revisit
+    && currentJudgment.current_delta?.decision_effect === marketDelta?.decision_effect
+    && currentJudgment.current_delta?.provenance?.assessed_at === marketDelta?.provenance?.assessed_at
+    && currentJudgment.current_delta?.provenance?.source_revision === marketDelta?.provenance?.source_revision
+    && currentJudgment.current_delta?.provenance?.baseline_revision === marketDelta?.provenance?.baseline_revision
+    && currentJudgment.current_delta?.provenance?.baseline_cutoff_at === marketDelta?.provenance?.baseline_cutoff_at
+    ? currentJudgment.current_delta ?? currentJudgment.effective_judgment : null
+  const judgment = acceptedDelta ?? replacement?.judgment
+    ?? (!readFailed && b.state === "current" ? validatedBriefJudgment(b) : null)
   const previousJudgment = readFailed && typeof b.judgment?.judgment === "string" && b.judgment.judgment.trim()
     ? b.judgment.judgment.trim()
     : null
@@ -409,6 +447,15 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
         {judgmentTime.laterScanLine ? <p>{judgmentTime.laterScanLine}</p> : null}
       </div> : null}
       {today?.state === "partial" || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">{today.state === "partial" ? "今日資料只更新了一部分" : "今日更新資料目前無法取得"}；空白欄位不能確認沒有新行動。</p> : null}
+      {currentJudgment?.state === "reassessed" && acceptedDelta ? <p role="status" className="text-caption text-ink-2">盤中新聞已通過正式簡報版次與來源校驗；下方顯示重評後判斷。</p> : null}
+      {currentJudgment?.state === "unchanged" && acceptedDelta ? <p role="status" className="text-caption text-ink-2">本次盤中重評維持原判斷；下方仍顯示上次有效的盤中判斷。</p> : null}
+      {currentJudgment?.state === "unchanged" && receiptReadbackMatches && !currentJudgment.current_delta ? <p role="status" className="text-caption text-ink-2">盤中新聞已完成重評；目前資料不足以改變判斷，沿用正式簡報判斷。</p> : null}
+      {currentJudgment?.state === "preserved" && acceptedDelta ? <p role="status" className="text-caption text-ink-2">本次掃描未產生新的判斷變更；下方保留上次有效的盤中判斷。</p> : null}
+      {currentJudgment?.state === "pending" ? <p role="status" className="text-caption text-warn">盤中判斷待重新確認；{acceptedDelta ? "保留上次已校驗的有效判斷。" : "正式簡報版次或來源尚未通過校驗，以下保留正式簡報判斷。"}</p> : null}
+      {(currentJudgment?.state === "reassessed" && !acceptedDelta)
+        || (currentJudgment?.state === "unchanged" && (!receiptReadbackMatches || Boolean(currentJudgment.current_delta) && !acceptedDelta))
+        ? <p role="status" className="text-caption text-warn">盤中重評回讀或判斷來源不完整；保留正式簡報判斷，重評狀態未確認。</p> : null}
+      {currentJudgment?.state === "preserved" && !acceptedDelta ? <p role="status" className="text-caption text-warn">上次盤中判斷缺少可核對的來源版次；保留正式簡報判斷，盤中判斷未確認。</p> : null}
       {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
       {readFailed ? <p role="status" className="text-body text-warn">本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動，是否已有新版本尚未確認。</p> : null}
       {judgment ? <div role="group" aria-label="主要下一步" className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
@@ -448,6 +495,9 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
           {judgment ? <div className="flex min-w-0 flex-col gap-1">
             <p className="font-medium text-ink-2">判斷依據</p>
             <p>簡報版次：{b.session ? BRIEF_SESSION_LABELS[b.session] ?? b.session : "版次未標示"}</p>
+            {acceptedDelta && currentJudgment?.baseline?.revision ? <p className="break-all">已核對簡報內容版本：{currentJudgment.baseline.revision}</p> : null}
+            {acceptedDelta && currentJudgment?.baseline?.source_cutoff ? <p>重評基線資料截至：{sourceTimestamp(currentJudgment.baseline.source_cutoff)}</p> : null}
+            {acceptedDelta && acceptedDelta.provenance?.assessed_at ? <p>這項判斷重評完成：{sourceTimestamp(acceptedDelta.provenance.assessed_at)}</p> : null}
             {(judgment.provenance?.source_cutoff || b.source_cutoff) ? <p>判斷資料截至：{sourceTimestamp(judgment.provenance?.source_cutoff ?? b.source_cutoff)}</p> : null}
             {judgment.provenance?.validated_story_ids?.length ? <p className="break-all">已核對的事件 story_id：{judgment.provenance.validated_story_ids.join("、")}</p> : null}
             {replacement?.source === "action_items" ? <p className="break-all">來源明示關聯 action ID：{judgment.same_action_id}</p> : null}

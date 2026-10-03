@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createServer, type ViteDevServer } from "vite"
 import { currentTodayActionPlan } from "../src/lib/investmentFormat.ts"
+import type { InvestmentTodayView } from "../src/lib/investment.ts"
 import { syntheticBriefWithSameWording, syntheticIntradayUpdate, syntheticPresentationBrief, syntheticPresentationToday } from "./fixtures/today-presentation.ts"
 import type { InvestmentTimelineNode } from "../src/lib/investment.ts"
 
@@ -62,6 +63,120 @@ test("a missing Today projection leaves the formal source judgment readable with
   assert.match(html, /正式簡報判斷 · 更新 08:01/)
   assert.doesNotMatch(html, /盤中補充觀察/)
   assert.doesNotMatch(html, /今天沒有新更新/)
+})
+
+test("only the exact per-market receipt readback can replace the formal Today judgment", async () => {
+  const brief = { ...syntheticPresentationBrief(), session: "tw-open-prep" }
+  const delta = {
+    class: "watch" as const, judgment: "合成盤中重評：等待來源驗證。", why_now: "合成 verified event 改變短期判斷。",
+    revisit: "下一份公開資料發布時", decision_effect: "若來源反轉則取消觀察。", provenance: { validated_story_ids: ["synthetic-story-1"],
+      assessed_at: "2001-02-03T09:30:00+08:00", source_revision: "sha256:feed-v2", baseline_revision: "sha256:brief-v2",
+      baseline_cutoff_at: "2001-02-03T08:00:00+08:00" },
+  }
+  const latest = { state: "reassessed", reason_code: null, reason: "合成重評", baseline_cutoff_at: "2001-02-03T08:00:00+08:00",
+    assessed_at: "2001-02-03T09:30:00+08:00", source_revision: "sha256:feed-v2" }
+  const today: InvestmentTodayView = {
+    ...syntheticPresentationToday(),
+    current_judgment: { market: "tw", state: "reassessed", baseline: { artifact: "wiki/morning/briefs/2001-02-03.md",
+      revision: "sha256:brief-v2", source_cutoff: "2001-02-03T08:00:00+08:00" }, formal_judgment: brief.judgment!,
+      effective_judgment: delta, current_delta: delta, effective_source: "last_successful_reassessment", latest_assessment: latest },
+    intraday_refresh: { schema_version: "1.0", markets: { tw: { state: "ready", freshness: "current",
+      baseline_cutoff: "2001-02-03T08:00:00+08:00", baseline_revision: "sha256:brief-v2", baseline_path: "wiki/morning/briefs/2001-02-03.md",
+      input_cutoff: null, last_successful_cutoff: null, latest_receipt: null, last_successful_refresh: null,
+      current_judgment: { state: "reassessed", current_delta: delta, latest_assessment: latest }, story_states: [], limitations: [] } },
+      timeline_updates: [], updates: [], market_observations: [], limitations: [] },
+  }
+  const html = await renderTodayBrief(today, false, brief)
+  assert.match(html, /已通過正式簡報版次與來源校驗/)
+  assert.match(html, /合成盤中重評：等待來源驗證。/)
+  assert.doesNotMatch(html, /合成正式判斷原文：目前維持觀察。/)
+  assert.match(html, /已核對簡報內容版本：sha256:brief-v2/)
+  assert.match(html, /重評完成：2001\/02\/03 09:30 台北/)
+
+  const mismatch = structuredClone(today)
+  mismatch.intraday_refresh!.markets.tw!.baseline_revision = "sha256:brief-v3"
+  const mismatchHtml = await renderTodayBrief(mismatch, false, brief)
+  assert.match(mismatchHtml, /回讀或判斷來源不完整/)
+  assert.match(mismatchHtml, /合成正式判斷原文：目前維持觀察。/)
+  assert.doesNotMatch(mismatchHtml, /合成盤中重評：等待來源驗證。/)
+})
+
+test("unchanged or pending current judgments preserve the formal brief", async () => {
+  const brief = { ...syntheticPresentationBrief(), session: "us-open-prep" }
+  const formal = brief.judgment!
+  const pendingDelta = { class: "trade" as const, judgment: "不可套用的舊 delta", why_now: "舊版理由", revisit: null,
+    decision_effect: null, provenance: null }
+  for (const state of ["unchanged", "pending"] as const) {
+    const latest = { state, reason_code: state === "pending" ? "baseline_mismatch" : null, reason: "合成測試", baseline_cutoff_at: "2001-02-03T08:00:00+00:00",
+      assessed_at: "2001-02-03T09:30:00+00:00", source_revision: "sha256:feed" }
+    const today: InvestmentTodayView = { ...syntheticPresentationToday(), current_judgment: {
+      market: "us", state, baseline: { artifact: null, revision: "sha256:us-brief", source_cutoff: latest.baseline_cutoff_at },
+      formal_judgment: formal, effective_judgment: formal, effective_source: "formal_baseline", current_delta: null, latest_assessment: latest,
+    }, intraday_refresh: { schema_version: "1.0", markets: { us: { state: "ready", freshness: "current", baseline_cutoff: latest.baseline_cutoff_at,
+      baseline_revision: "sha256:us-brief", input_cutoff: null, last_successful_cutoff: null, last_successful_refresh: null, latest_receipt: null,
+      current_judgment: { state, current_delta: pendingDelta, latest_assessment: latest }, story_states: [], limitations: [] } },
+      timeline_updates: [], updates: [], market_observations: [], limitations: [] } }
+    const html = await renderTodayBrief(today, false, brief)
+    assert.match(html, state === "unchanged" ? /目前資料不足以改變判斷/ : /待重新確認/)
+    assert.match(html, /合成正式判斷原文：目前維持觀察。/)
+    assert.doesNotMatch(html, /不可套用的舊 delta/)
+  }
+})
+
+test("later quiet/unchanged scan states keep the last successful reassessment when source identity still matches", async () => {
+  const brief = { ...syntheticPresentationBrief(), session: "tw-open-prep" }
+  const delta = { class: "watch" as const, judgment: "合成先前有效重評", why_now: "合成先前來源理由",
+    revisit: "下一個驗證點", decision_effect: "反證後回到基線", provenance: { assessed_at: "2001-02-03T09:30:00+08:00",
+      source_revision: "sha256:feed-prior", baseline_revision: "sha256:brief-v2", baseline_cutoff_at: "2001-02-03T08:00:00+08:00",
+      source_cutoff: "2001-02-03T09:00:00+08:00", validated_story_ids: ["prior-story"] } }
+  for (const state of ["unchanged", "preserved"] as const) {
+    const latest = { state, reason_code: null, reason: "合成後續快掃", baseline_cutoff_at: "2001-02-03T08:00:00+08:00",
+      assessed_at: "2001-02-03T10:00:00+08:00", source_revision: "sha256:feed-latest" }
+    const today: InvestmentTodayView = { ...syntheticPresentationToday(), current_judgment: {
+      market: "tw", state, baseline: { artifact: null, revision: "sha256:brief-v2", source_cutoff: latest.baseline_cutoff_at },
+      formal_judgment: brief.judgment!, effective_judgment: delta, effective_source: "last_successful_reassessment",
+      current_delta: delta, latest_assessment: latest,
+    }, intraday_refresh: { schema_version: "1.0", markets: { tw: { state: "ready", freshness: "current",
+      baseline_cutoff: latest.baseline_cutoff_at, baseline_revision: "sha256:brief-v2", input_cutoff: null,
+      last_successful_cutoff: null, last_successful_refresh: null, latest_receipt: null,
+      current_judgment: { state, current_delta: delta, latest_assessment: latest }, story_states: [], limitations: [] } },
+      timeline_updates: [], updates: [], market_observations: [], limitations: [] } }
+    const html = await renderTodayBrief(today, false, brief)
+    assert.match(html, /合成先前有效重評/)
+    assert.match(html, state === "unchanged" ? /本次盤中重評維持原判斷/ : /未產生新的判斷變更/)
+    assert.doesNotMatch(html, /合成正式判斷原文：目前維持觀察。/)
+  }
+})
+
+test("missing receipt or delta identity fails closed without claiming reassessment", async () => {
+  const brief = { ...syntheticPresentationBrief(), session: "tw-open-prep" }
+  const base = syntheticPresentationToday()
+  const delta = { class: "watch" as const, judgment: "不得套用缺 identity 的 delta", why_now: "缺少來源版次",
+    revisit: "下一個驗證點", decision_effect: "反證後回到基線", provenance: { assessed_at: "2001-02-03T09:30:00+08:00",
+      source_revision: "sha256:feed-v2", baseline_revision: "sha256:brief-v2", baseline_cutoff_at: "2001-02-03T08:00:00+08:00" } }
+  const latest = { state: "unchanged" as const, reason_code: null, reason: "合成測試", baseline_cutoff_at: "2001-02-03T08:00:00+08:00",
+    assessed_at: "2001-02-03T10:00:00+08:00", source_revision: "sha256:feed-latest" }
+  const today: InvestmentTodayView = { ...base, current_judgment: { market: "tw", state: "unchanged",
+    baseline: { artifact: null, revision: "sha256:brief-v2", source_cutoff: latest.baseline_cutoff_at },
+    formal_judgment: brief.judgment!, effective_judgment: delta, current_delta: delta,
+    effective_source: "last_successful_reassessment", latest_assessment: latest },
+    intraday_refresh: { schema_version: "1.0", markets: { tw: { state: "ready", freshness: "current",
+      baseline_cutoff: latest.baseline_cutoff_at, baseline_revision: "sha256:brief-v2", input_cutoff: null,
+      last_successful_cutoff: null, last_successful_refresh: null, latest_receipt: null,
+      current_judgment: { state: "unchanged", current_delta: structuredClone(delta), latest_assessment: latest },
+      story_states: [], limitations: [] } }, timeline_updates: [], updates: [], market_observations: [], limitations: [] } }
+  delete (today.current_judgment!.current_delta!.provenance as Record<string, unknown>).baseline_revision
+  const html = await renderTodayBrief(today, false, brief)
+  assert.match(html, /回讀或判斷來源不完整/)
+  assert.doesNotMatch(html, /本次盤中重評維持原判斷/)
+  assert.doesNotMatch(html, /不得套用缺 identity 的 delta/)
+
+  const missing = structuredClone(today)
+  missing.current_judgment!.baseline!.source_cutoff = null
+  missing.intraday_refresh!.markets.tw!.baseline_cutoff = null
+  const missingHtml = await renderTodayBrief(missing, false, brief)
+  assert.doesNotMatch(missingHtml, /盤中新聞已完成重評/)
+  assert.match(missingHtml, /回讀或判斷來源不完整/)
 })
 
 test("the same update reason appears once on the action card and as a reference in its timeline point", async () => {

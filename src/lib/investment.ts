@@ -60,6 +60,9 @@ export type InvestmentBriefJudgmentProvenance = {
   artifact?: string | null
   source_revision?: string | null
   source_cutoff?: string | null
+  baseline_revision?: string | null
+  baseline_cutoff_at?: string | null
+  assessed_at?: string | null
   [key: string]: unknown
 }
 /** Optional structured "今天怎麼做" projection (personal-os-visualization #56).
@@ -74,6 +77,26 @@ export type InvestmentBriefJudgment = {
   provenance: InvestmentBriefJudgmentProvenance | null
   /** Explicit producer relation to one exact action row; absent means unlinked. */
   same_action_id?: string | null
+}
+
+/** Producer-owned short-term overlay. The formal brief remains the baseline;
+ * only an accepted reassessment is an effective replacement. */
+export type InvestmentCurrentJudgment = {
+  market: InvestmentNewsMarket | null
+  state: "baseline_only" | "unavailable" | "preserved" | "unchanged" | "reassessed" | "pending"
+  baseline: { artifact: string | null; revision: string | null; source_cutoff: string | null } | null
+  formal_judgment: InvestmentBriefJudgment | null
+  effective_judgment: InvestmentBriefJudgment | null
+  effective_source: "none" | "formal_baseline" | "last_successful_reassessment"
+  current_delta: InvestmentBriefJudgment | null
+  latest_assessment: {
+    state: string | null
+    reason_code: string | null
+    reason: string | null
+    baseline_cutoff_at: string | null
+    assessed_at: string | null
+    source_revision: string | null
+  } | null
 }
 
 /** A producer-classified market reading stays separate from event identities. */
@@ -235,10 +258,17 @@ export type InvestmentIntradayMarketProjection = {
   state: string
   freshness: string
   baseline_cutoff: string | null
+  baseline_path?: string | null
+  baseline_revision?: string | null
   input_cutoff: string | null
   last_successful_cutoff: string | null
   last_successful_refresh: InvestmentIntradayReceipt | null
   latest_receipt: InvestmentIntradayReceipt | null
+  current_judgment?: {
+    state: "preserved" | "unchanged" | "reassessed" | "pending" | "unavailable"
+    current_delta: InvestmentBriefJudgment | null
+    latest_assessment: InvestmentCurrentJudgment["latest_assessment"]
+  } | null
   story_states: { story_id: string; status: string; outcome: string; at?: string; source_cutoff?: string; summary?: string }[]
   limitations: string[]
 }
@@ -256,6 +286,7 @@ export type InvestmentTodayView = {
   state: "ready" | "partial" | "unavailable"
   decision_summary: string | null
   decision_summary_date?: string | null
+  current_judgment?: InvestmentCurrentJudgment | null
   updates: InvestmentTodayUpdate[]
   market_observations?: InvestmentMarketObservation[]
   /** Per-market receipt projection; no consumer-side freshness inference. */
@@ -646,8 +677,21 @@ export type InvestmentRefreshStatus = {
   reconciled_at: string | null
   provider: "agy" | "claude" | "codex" | "grok" | null
   model: string | null
+  requested_provider?: "agy" | "claude" | "codex" | "grok" | null
+  requested_model?: string | null
+  provider_invocation_count?: number | null
+  provider_call_count?: number | null
+  provider_log_path?: string | null
   fallback_depth: number | null
   provider_errors: Record<string, string>
+  intraday_result?: string | null
+  news_write_state?: string | null
+  today_judgment_state?: string | null
+  baseline_path?: string | null
+  baseline_revision?: string | null
+  baseline_cutoff_at?: string | null
+  input_cutoff?: string | null
+  source_cutoff?: string | null
   scan_mode?: "quick" | "deep" | null
   market_scope?: InvestmentNewsMarket | null
   duration_seconds?: number | null
