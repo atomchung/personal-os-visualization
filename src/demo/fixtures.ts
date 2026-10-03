@@ -1,5 +1,5 @@
 /** Synthetic showcase fixture; never generated from a real API or private vault. */
-import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
+import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData, WorkData } from "../lib/api"
 import type { TwRelativeStrength, InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentMarketObservation, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchDetail, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, RelativeStrength, StockMomentumData, StockQuote } from "../lib/investment"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 
@@ -87,6 +87,277 @@ export function todos(state: DemoState): TodosData {
       const items = state.todos.filter(t => t.category === name)
       return { name, active_count: items.filter(t => !t.done).length, total_count: items.length, items }
     }), category_options: ["輸出", "投資", "學習", "其他"], goal_options: [{ id: "demo-build", title: "完成紙飛機筆記原型" }], archivable_count: 0 }
+}
+
+function buildActivitySummary(): WorkData["activity_summary"] {
+  const data = timeData("week")
+  const missing = data.snapshot.missing
+  const stale = data.snapshot.is_stale
+  const snapshotState = missing ? "missing" : stale ? "stale" : "current"
+  const metric = (key: WorkData["activity_summary"]["metrics"][number]["key"], label: string, value: string | null) => ({
+    key,
+    label,
+    value: missing || value === "—" ? null : value,
+    state: !missing && value !== null && value !== "—" ? "available" as const : "unknown" as const,
+  })
+  const metrics = [
+    metric("output", "文字產出", data.kpis.output.value),
+    metric("sessions", "工作紀錄", data.kpis.sessions.value),
+    metric("active_hours", "活動時數", data.kpis.active_hours.value),
+    metric("api_equivalent_cost", "API 價格表等值", data.kpis.cost.value),
+  ]
+  return {
+    source_ref: "/api/time?period=week",
+    period: "week",
+    state: missing || !metrics.some((item) => item.state === "available") ? "unknown" : "available",
+    as_of: STAMP,
+    source_as_of: null,
+    snapshot_state: snapshotState,
+    metrics,
+    note: `${data.kpis.cost.caveat}；不是實際支出或配額消耗。工作歸因目前無法提供；數字取自整體使用彙總。`,
+  }
+}
+
+export const work: WorkData = {
+  schema_version: 1,
+  as_of: STAMP,
+  source: {
+    state: "partial",
+    coverage: {
+      files_seen: 7,
+      indexed: 5,
+      legacy_unstructured: 1,
+      read_errors: 1,
+      archived_included: true,
+      archived_indexed: 1,
+      archived_legacy_unstructured: 0,
+      duplicate_slugs_collapsed: 0,
+      unlinked_relations: 4,
+    },
+    warnings: ["有一筆舊格式記錄無法整理成成果卡；讀取錯誤也不代表沒有工作。"],
+  },
+  agents: [
+    { id: "claude", label: "Claude" },
+    { id: "codex", label: "Codex" },
+    { id: "antigravity", label: "Antigravity" },
+    { id: "grok", label: "Grok" },
+    { id: "dot", label: "Dot" },
+  ],
+  filter: null,
+  tasks: [
+    {
+      slug: "demo-search-acceptance",
+      title: "讓範例測試者快速找回指定筆記",
+      state: "awaiting_verification",
+      state_source: "work_state",
+      state_annotation_invalid: false,
+      next_action: "請範例測試者在窄畫面找回一篇指定筆記。",
+      next_actor: "human",
+      next_actor_state: "known",
+      needs_user_action: true,
+      action_kind: "verification",
+      blocked_by: null,
+      last_session_at: "2026-09-20T10:00:00+08:00",
+      next_action_at: "2026-09-21",
+      completion: {
+        stage: "delivered",
+        evidence: "合成交付記錄：搜尋流程已提供範例測試；尚無本人驗收記錄。",
+      },
+      updated_at: "2026-09-20T10:00:00+08:00",
+      source_status: "done",
+      source_kind: "task",
+      source_modified_at: "2026-09-20T10:00:00+08:00",
+      source_verified_at: "2026-09-20T10:00:00+08:00",
+      verification_basis: "synthetic_snapshot",
+      stale_flags: [],
+      links: [],
+      relations_state: "partial",
+      agent_runs: [
+        { run_id: "demo-run-codex-01", agent_id: "codex", agent_state: "known", state: "completed", last_activity_at: "2026-09-20T09:00:00+08:00", link_state: "unavailable", url: null },
+        { run_id: "demo-run-grok-01", agent_id: "grok", agent_state: "known", state: "completed", last_activity_at: "2026-09-20T09:30:00+08:00", link_state: "unavailable", url: null },
+        { run_id: "demo-run-unlinked-01", agent_id: null, agent_state: "unknown", state: "unknown", last_activity_at: null, link_state: "unavailable", url: null },
+      ],
+      copy_summary: "成果：讓範例測試者快速找回指定筆記\n狀態：等待驗證\n下一步：請範例測試者在窄畫面找回一篇指定筆記。\n完成階段：已交付",
+    },
+    {
+      slug: "demo-search-ranking",
+      title: "整理搜尋結果的關鍵字排序",
+      state: "in_progress",
+      state_source: "work_state",
+      state_annotation_invalid: false,
+      next_action: "比較兩種合成排序方式並保留差異。",
+      next_actor: "codex",
+      next_actor_state: "known",
+      needs_user_action: false,
+      action_kind: "implementation",
+      blocked_by: null,
+      last_session_at: "2026-09-19T16:30:00+08:00",
+      next_action_at: null,
+      completion: { stage: "implementation", evidence: "合成進度記錄：實作仍在進行，尚未交付或驗收。" },
+      updated_at: "2026-09-19T16:30:00+08:00",
+      source_status: "in_progress",
+      source_kind: "task",
+      source_modified_at: "2026-09-19T16:30:00+08:00",
+      source_verified_at: "2026-09-19T16:30:00+08:00",
+      verification_basis: "synthetic_snapshot",
+      stale_flags: [],
+      links: [],
+      relations_state: "recorded",
+      agent_runs: [
+        { run_id: "demo-run-codex-02", agent_id: "codex", agent_state: "known", state: "running", last_activity_at: "2026-09-19T16:30:00+08:00", link_state: "unavailable", url: null },
+      ],
+      copy_summary: "成果：整理搜尋結果的關鍵字排序\n狀態：進行中\n下一步：比較兩種合成排序方式並保留差異。\n完成階段：實作中",
+    },
+    {
+      slug: "demo-search-smoke-test",
+      title: "完成搜尋流程的範例檢查",
+      state: "done",
+      state_source: "source_status",
+      state_annotation_invalid: false,
+      next_action: null,
+      next_actor: null,
+      next_actor_state: "unassigned",
+      needs_user_action: false,
+      action_kind: null,
+      blocked_by: null,
+      last_session_at: "2026-09-18T11:00:00+08:00",
+      next_action_at: null,
+      completion: { stage: "user_verified", evidence: "合成驗收記錄：範例測試者找到指定筆記。" },
+      updated_at: "2026-09-18T11:00:00+08:00",
+      source_status: "done",
+      source_kind: "task",
+      source_modified_at: "2026-09-18T11:00:00+08:00",
+      source_verified_at: "2026-09-18T11:00:00+08:00",
+      verification_basis: "synthetic_snapshot",
+      stale_flags: [],
+      links: [
+        { kind: "agent_task", label: "開啟已記錄的 Codex 工作紀錄", state: "supported", url: "codex://threads/00000000-0000-4000-8000-000000000010" },
+        { kind: "pull_request", label: "無效的合成連結", state: "invalid", url: "https://example.invalid/not-a-pull-request" },
+      ],
+      relations_state: "recorded",
+      agent_runs: [],
+      copy_summary: "成果：完成搜尋流程的範例檢查\n狀態：已完成\n完成階段：使用者已確認",
+    },
+    {
+      slug: "demo-dot-coordinates-thread",
+      title: "Dot 協調一筆連到 Codex 工作紀錄的成果",
+      state: "in_progress",
+      state_source: "work_state",
+      state_annotation_invalid: false,
+      next_action: "Dot 根據成果需求安排後續工作。",
+      next_actor: "dot",
+      next_actor_state: "known",
+      needs_user_action: false,
+      action_kind: "coordination",
+      blocked_by: null,
+      last_session_at: "2026-09-17T11:00:00+08:00",
+      next_action_at: null,
+      completion: { stage: "implementation", evidence: "合成協調紀錄；Codex 工作連結只表示可開啟的紀錄，不代表由 Codex 執行。" },
+      updated_at: "2026-09-17T11:00:00+08:00",
+      source_status: "in_progress",
+      source_kind: "task",
+      source_modified_at: "2026-09-17T11:00:00+08:00",
+      source_verified_at: null,
+      verification_basis: null,
+      stale_flags: [],
+      links: [{ kind: "agent_task", label: "開啟相關 Codex 工作紀錄", state: "supported", url: "codex://threads/00000000-0000-4000-8000-000000000011" }],
+      relations_state: "recorded",
+      agent_runs: [],
+      copy_summary: "成果：Dot 協調一筆連到 Codex 工作紀錄的成果\n狀態：進行中\n下一步：Dot 根據成果需求安排後續工作。",
+    },
+    {
+      slug: "demo-archived-prototype",
+      title: "早期搜尋草稿（合成）",
+      state: "archived",
+      state_source: "source_status",
+      state_annotation_invalid: false,
+      next_action: null,
+      next_actor: null,
+      next_actor_state: "unassigned",
+      needs_user_action: false,
+      action_kind: null,
+      blocked_by: null,
+      last_session_at: null,
+      next_action_at: null,
+      completion: { stage: "unknown", evidence: null },
+      updated_at: "2026-09-10",
+      source_status: "archived",
+      source_kind: "archived_task",
+      source_modified_at: "2026-09-10",
+      source_verified_at: null,
+      verification_basis: null,
+      stale_flags: [],
+      links: [],
+      relations_state: "unknown",
+      agent_runs: [],
+      copy_summary: "成果：早期搜尋草稿（合成）\n狀態：已封存",
+    },
+    {
+      slug: "demo-legacy-search-note",
+      title: "舊格式搜尋備忘（合成）",
+      state: "unknown",
+      state_source: "unknown",
+      state_annotation_invalid: false,
+      next_action: null,
+      next_actor: null,
+      next_actor_state: "unassigned",
+      needs_user_action: false,
+      action_kind: null,
+      blocked_by: null,
+      last_session_at: null,
+      next_action_at: null,
+      completion: { stage: "unknown", evidence: null },
+      updated_at: "2026-09-11",
+      source_status: null,
+      source_kind: "legacy",
+      source_modified_at: "2026-09-11",
+      source_verified_at: null,
+      verification_basis: null,
+      stale_flags: [],
+      links: [],
+      relations_state: "unknown",
+      agent_runs: [
+        { run_id: "demo-run-malformed-dot-01", agent_id: "dot", agent_state: "unknown", state: "unknown", last_activity_at: null, link_state: "invalid", url: "not-a-thread-url" },
+      ],
+      copy_summary: "成果：舊格式搜尋備忘（合成）\n狀態：未知（舊格式）",
+    },
+  ],
+  activity_summary: buildActivitySummary(),
+}
+
+export function workForAgent(agentId: string, source: WorkData = work): WorkData | null {
+  if (!source.agents.some((agent) => agent.id === agentId)) return null
+  const tasks: WorkData["tasks"] = []
+  const declaredAgents = new Set(source.agents.map((agent) => agent.id))
+  // Generic agent actors do not identify a registry member; keep them unknown in specific-agent filters.
+  const actorSentinels = new Set(["human", "external"])
+  for (const task of source.tasks) {
+    const related = new Set(task.agent_runs.filter((run) => run.agent_state === "known" && run.agent_id && declaredAgents.has(run.agent_id)).map((run) => run.agent_id as string))
+    if (task.next_actor_state === "known" && source.agents.some((entry) => entry.id === task.next_actor)) related.add(task.next_actor as string)
+    if (related.has(agentId)) {
+      tasks.push({ ...task, agent_match: "matched" })
+      continue
+    }
+    const hasUnknownRelation = task.relations_state !== "recorded"
+      || task.agent_runs.some((run) => run.agent_state !== "known" || !run.agent_id || !declaredAgents.has(run.agent_id))
+      || task.next_actor_state === "unknown"
+      || (task.next_actor_state === "known" && (!task.next_actor || (!actorSentinels.has(task.next_actor) && !declaredAgents.has(task.next_actor))))
+    if (hasUnknownRelation) {
+      tasks.push({ ...task, agent_match: "unknown" })
+    }
+  }
+  const matched = tasks.filter((task) => task.agent_match === "matched").length
+  const unknownRelationIncluded = tasks.filter((task) => task.agent_match === "unknown").length
+  return {
+    ...source,
+    tasks,
+    filter: {
+      agent_id: agentId,
+      matched,
+      unknown_relation_included: unknownRelationIncluded,
+      explicitly_unmatched_omitted: source.tasks.length - tasks.length,
+    },
+  }
 }
 
 export function goals(state: DemoState): GoalsData {

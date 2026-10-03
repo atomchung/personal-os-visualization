@@ -666,6 +666,99 @@ export type TodosData = {
   archivable_count: number
 }
 
+export type WorkState = "open" | "in_progress" | "awaiting_verification" | "done" | "paused" | "archived" | "unknown"
+export type WorkCompletionStage = "implementation" | "delivered" | "user_verified" | "unknown"
+export type WorkActorState = "known" | "unknown" | "unassigned"
+export type WorkRelationState = "partial" | "recorded" | "unknown"
+export type WorkLink = {
+  kind: "pull_request" | "issue" | "source" | "agent_task" | "unsupported"
+  label: string
+  state: "supported" | "invalid" | "unavailable" | "unsupported"
+  url: string | null
+}
+export type WorkRun = {
+  run_id: string | null
+  agent_id: string | null
+  agent_state: "known" | "unknown"
+  state: "queued" | "running" | "completed" | "failed" | "interrupted" | "unknown"
+  last_activity_at: string | null
+  link_state: "supported" | "invalid" | "unavailable"
+  url: string | null
+}
+export type WorkTaskSummary = {
+  slug: string
+  title: string
+  state: WorkState
+  state_source: "work_state" | "source_status" | "unknown"
+  state_annotation_invalid: boolean
+  next_action: string | null
+  next_actor: string | null
+  next_actor_state: WorkActorState
+  needs_user_action: boolean
+  action_kind: string | null
+  blocked_by: string | null
+  last_session_at: string | null
+  next_action_at: string | null
+  completion: { stage: WorkCompletionStage; evidence: string | null }
+  updated_at: string | null
+  source_status: string | null
+  source_kind: "task" | "archived_task" | "legacy" | "archived_legacy"
+  source_modified_at: string | null
+  source_verified_at: string | null
+  verification_basis: string | null
+  stale_flags: string[]
+  agent_runs: WorkRun[]
+  links: WorkLink[]
+  relations_state: WorkRelationState
+  agent_match?: "matched" | "unknown"
+  copy_summary: string
+}
+export type WorkAgent = { id: string; label: string }
+export type WorkMetric = {
+  key: "output" | "sessions" | "active_hours" | "api_equivalent_cost"
+  label: string
+  value: string | null
+  state: "available" | "unknown"
+}
+export type WorkFilter = {
+  agent_id: string
+  matched: number
+  unknown_relation_included: number
+  explicitly_unmatched_omitted: number
+}
+export type WorkData = {
+  schema_version: 1
+  as_of: string
+  source: {
+    state: "ready" | "partial" | "unavailable"
+    coverage: {
+      files_seen: number | null
+      indexed: number | null
+      legacy_unstructured: number | null
+      read_errors: number | null
+      archived_included: boolean | null
+      archived_indexed: number | null
+      archived_legacy_unstructured: number | null
+      duplicate_slugs_collapsed: number | null
+      unlinked_relations: number | null
+    }
+    warnings: string[]
+  }
+  tasks: WorkTaskSummary[]
+  agents: WorkAgent[]
+  filter: WorkFilter | null
+  activity_summary: {
+    source_ref: "/api/time?period=week"
+    period: "week"
+    state: "available" | "unknown"
+    as_of: string
+    source_as_of: string | null
+    snapshot_state: "current" | "stale" | "missing" | "unavailable"
+    metrics: WorkMetric[]
+    note: string
+  }
+}
+
 export type Verdict = "accept" | "not_now" | "wrong_context" | "clear"
 
 /** Which week to render. Read-only; see web/api.py on why the trial needs it. */
@@ -732,6 +825,8 @@ export const getIdeal = () => request("/api/ideal").then(json<IdealData>)
 export const getHealth = () => request("/api/health").then(json<HealthData>)
 
 export const getTodos = () => request("/api/todos").then(json<TodosData>)
+
+export const getWork = (agent?: string) => request(`/api/work${agent ? `?agent=${encodeURIComponent(agent)}` : ""}`).then(json<WorkData>)
 
 export const sendVerdict = (task_slug: string, verdict: Verdict) =>
   post<Cockpit>("/api/cockpit/feedback", {

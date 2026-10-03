@@ -23,7 +23,7 @@ import { setInvestmentProvider as configureDemoProvider } from "../src/lib/inves
 import { demoInvestmentProvider } from "../src/demo/investmentProvider.ts"
 import { addInvestmentWork, bindInvestmentProvider, getInvestment, getInvestmentNarrative, getInvestmentResearch, getInvestmentHistory, getInvestmentActions, getInvestmentResearchDetail, getInvestmentHistorySource, getSelectedInvestmentProvider, saveInvestmentWork, setInvestmentProvider } from "../src/lib/investment.ts"
 import { getSelectedModuleProvider, selectModuleProvider } from "../src/lib/moduleProvider.ts"
-import { investment as syntheticInvestment, investmentHistory, investmentHistorySources, investmentResearch, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
+import { investment as syntheticInvestment, investmentHistory, investmentHistorySources, investmentResearch, pulseIntegrityScenarios, work as syntheticWork, workForAgent } from "../src/demo/fixtures.ts"
 import { investmentScenario } from "../src/demo/generated/investment-scenario.ts"
 configureDemoProvider(demoInvestmentProvider)
 import { buildTimeline, researchForToday, splitCatalyst, watchDateWindow } from "../src/lib/investmentDates.ts"
@@ -146,7 +146,7 @@ test("every page runs with no network; unknown routes and real symbols fail clos
   globalThis.fetch = () => { throw new Error("Unexpected network request") }
   try {
     const request = createDemoRequest()
-    for (const path of ["home", "cockpit", "focus", "time", "goals", "ideal", "health", "todos", "investment", "investment/narrative", "investment/actions", "investment/explore", "investment/market", "investment/pulse", "investment/research", `investment/research/detail?id=${encodeURIComponent(investmentResearch.research.items[0].id)}`, "investment/watch/read-model", "investment/history", "investment/context", "investment/pending/read-model", "investment/work", "investment/momentum/universe", "investment/momentum/leaders", `investment/quote?symbol=${investmentScenario.symbol}`, `investment/momentum?symbol=${investmentScenario.symbol}`, `investment/source?id=${investmentScenario.source_id}`, `investment/history/source?id=${encodeURIComponent(investmentHistory.history.items[0].id)}`]) {
+    for (const path of ["home", "cockpit", "focus", "time", "goals", "ideal", "health", "todos", "work", "investment", "investment/narrative", "investment/actions", "investment/explore", "investment/market", "investment/pulse", "investment/research", `investment/research/detail?id=${encodeURIComponent(investmentResearch.research.items[0].id)}`, "investment/watch/read-model", "investment/history", "investment/context", "investment/pending/read-model", "investment/work", "investment/momentum/universe", "investment/momentum/leaders", `investment/quote?symbol=${investmentScenario.symbol}`, `investment/momentum?symbol=${investmentScenario.symbol}`, `investment/source?id=${investmentScenario.source_id}`, `investment/history/source?id=${encodeURIComponent(investmentHistory.history.items[0].id)}`]) {
       const result = await request(`/api/${path}`)
       assert.equal(result.status, 200, path)
       assert.equal(typeof await result.json(), "object", path)
@@ -157,6 +157,91 @@ test("every page runs with no network; unknown routes and real symbols fail clos
     for (const path of ["/api/not-implemented", "/api/investment/momentum?symbol=REAL", "/api/investment/source?id=private", "/api/investment/history/source?id=private", "http://localhost:8000/api/home", "https://example.com/api/home", "//localhost/api/home"]) assert.equal((await request(path)).status, 404, path)
     assert.equal((await request("/api/not-implemented", write({}))).status, 404)
   } finally { globalThis.fetch = original }
+})
+
+test("Work v1 demo keeps outcome cards, agent relations, source verification, and activity attribution explicit", async () => {
+  const request = createDemoRequest()
+  const response = await request("/api/work")
+  assert.equal(response.status, 200)
+  const data = await response.json()
+  assert.equal(data.schema_version, 1)
+  assert.equal(data.source.state, "partial")
+  assert.equal(data.source.coverage.archived_included, true)
+  assert.equal(data.activity_summary.snapshot_state, "current")
+  assert.match(data.activity_summary.note, /工作歸因目前無法提供/)
+  assert.deepEqual(data.agents.map((agent: {id: string}) => agent.id), ["claude", "codex", "antigravity", "grok", "dot"])
+  assert.equal(new Set(data.tasks.map((task: {slug: string}) => task.slug)).size, data.tasks.length, "each card represents one outcome slug")
+  assert.equal(data.tasks[0].agent_runs.filter((run: {agent_state: string}) => run.agent_state === "known").length, 2, "different declared agents stay nested in one outcome")
+  assert.equal(data.tasks[0].agent_runs.find((run: {run_id: string}) => run.run_id === "demo-run-unlinked-01").agent_state, "unknown", "an unlinked run stays unknown")
+  assert.equal(data.tasks[0].source_verified_at, "2026-09-20T10:00:00+08:00")
+  assert.equal(data.tasks.find((task: {state: string}) => task.state === "done").completion.stage, "user_verified")
+  assert.equal(data.activity_summary.metrics.find((metric: {key: string}) => metric.key === "api_equivalent_cost").state, "unknown", "no unverified estimate is shown as spend")
+  const linkedThreadOnly = data.tasks.find((task: {slug: string}) => task.slug === "demo-search-smoke-test")
+  assert.equal(linkedThreadOnly.relations_state, "recorded")
+  assert.equal(linkedThreadOnly.links[0].kind, "agent_task")
+  assert.equal(linkedThreadOnly.links[0].url.startsWith("codex://threads/"), true)
+  const filtered = await request("/api/work?agent=grok")
+  const filteredData = await filtered.json()
+  assert.equal(filteredData.filter.matched, 1)
+  assert.ok(filteredData.filter.unknown_relation_included > 0, "unknown relationships remain visible under an agent filter")
+  assert.equal(filteredData.tasks.find((task: {slug: string}) => task.slug === data.tasks[0].slug).agent_match, "matched")
+  assert.ok(filteredData.tasks.some((task: {agent_match: string}) => task.agent_match === "unknown"))
+  const codexFiltered = await (await request("/api/work?agent=codex")).json()
+  assert.equal(codexFiltered.filter.matched, 2)
+  assert.equal(codexFiltered.tasks.some((task: {slug: string}) => task.slug === "demo-search-smoke-test"), false, "a supported Codex thread link does not claim Codex executed the task")
+  const dotFiltered = await (await request("/api/work?agent=dot")).json()
+  assert.equal(dotFiltered.filter.matched, 1)
+  assert.equal(dotFiltered.tasks.find((task: {slug: string}) => task.slug === "demo-dot-coordinates-thread").agent_match, "matched", "a declared Dot actor is an explicit agent relation")
+  const malformedRelation = dotFiltered.tasks.find((task: {slug: string}) => task.slug === "demo-legacy-search-note")
+  assert.equal(malformedRelation.agent_match, "unknown", "a registry ID with unknown relation state stays unknown")
+  assert.deepEqual(malformedRelation.agent_runs.map((run: {agent_id: string; agent_state: string}) => [run.agent_id, run.agent_state]), [["dot", "unknown"]])
+  assert.equal((await request("/api/work?agent=unknown-agent")).status, 422)
+})
+
+test("generic agent actors remain unknown in a specific-agent filter while human and external actors are explicit nonmatches", () => {
+  const actors = ["agent", "any_agent", "human", "external"] as const
+  const tasks = actors.map((actor) => ({
+    ...syntheticWork.tasks[0]!,
+    slug: `demo-actor-${actor}`,
+    title: `Synthetic actor ${actor}`,
+    next_action: null,
+    next_actor: actor,
+    next_actor_state: "known" as const,
+    needs_user_action: false,
+    relations_state: "recorded" as const,
+    agent_runs: [],
+    links: [],
+  }))
+  const filtered = workForAgent("codex", { ...syntheticWork, tasks })
+  assert.ok(filtered)
+  assert.equal(filtered.filter?.matched, 0)
+  assert.equal(filtered.filter?.unknown_relation_included, 2)
+  assert.equal(filtered.filter?.explicitly_unmatched_omitted, 2)
+  assert.deepEqual(filtered.tasks.map((task) => [task.slug, task.agent_match]), [
+    ["demo-actor-agent", "unknown"],
+    ["demo-actor-any_agent", "unknown"],
+  ])
+})
+
+test("Work UI keeps short todos collapsed and separates stale, unavailable, and completion-evidence wording", () => {
+  const workPage = readFileSync(new URL("../src/components/todos/TodosPage.tsx", import.meta.url), "utf8")
+  const informationArchitecture = readFileSync(new URL("../src/lib/informationArchitecture.ts", import.meta.url), "utf8")
+  assert.match(informationArchitecture, /key: "todos", label: "工作"/)
+  assert.match(workPage, /短待辦與里程碑/)
+  assert.match(workPage, /來源目前不可用；沒有將讀取失敗顯示成「沒有工作」/)
+  assert.match(workPage, /來源驗證時間/)
+  assert.match(workPage, /source_verified_at/)
+  assert.match(workPage, /COMPLETION_STAGE/)
+  assert.match(workPage, /run\.agent_state !== "known"/)
+  assert.match(workPage, /未確認工具關聯/)
+  assert.match(workPage, /複製工作摘要/)
+  assert.match(workPage, /if \(task\.needs_user_action\)/)
+  assert.match(workPage, /coverage\.archived_included === null/)
+  assert.match(workPage, /重新讀取失敗，目前保留上次成功讀取的工作資料/)
+  assert.match(workPage, /dataUpdatedAt/)
+  assert.match(workPage, /來源驗證、修改與活動時間仍是來源記錄時間/)
+  assert.match(workPage, /workQuery\.isStale/)
+  assert.match(workPage, /href="\?tab=time"/)
 })
 
 test("formal Research and legacy Watch retain separate typed producer envelopes", async () => {

@@ -1,5 +1,5 @@
 /** Closed, browser-memory-only adapter. No network, storage, or live fallback. */
-import { cockpit, createState, focus, goals, health, home, ideal, timeData, todos } from "./fixtures.ts"
+import { cockpit, createState, focus, goals, health, home, ideal, timeData, todos, work, workForAgent } from "./fixtures.ts"
 import { taipeiCalendarToday } from "../lib/investmentFormat.ts"
 import {
   addInvestmentWork,
@@ -47,6 +47,11 @@ function resolveWatchExpiry(raw: unknown): string | null {
   return value
 }
 
+function applyWorkReadHook(value: typeof work, agentId: string | null): typeof work {
+  const hook = (globalThis as { window?: { __workReadHook?: (data: typeof work, agentId: string | null) => typeof work } }).window?.__workReadHook
+  return hook ? hook(value, agentId) : value
+}
+
 export function createDemoRequest() {
   const state = createState()
   const reply = (data: unknown, status = 200) => Response.json(data, { status })
@@ -74,6 +79,12 @@ export function createDemoRequest() {
         case "/api/home": return reply(home(state))
         case "/api/cockpit": return reply(cockpit(state))
         case "/api/todos": return reply(todos(state))
+        case "/api/work": {
+          if (!url.searchParams.has("agent")) return reply(applyWorkReadHook(work, null))
+          const agentId = url.searchParams.get("agent") ?? ""
+          const filtered = workForAgent(agentId)
+          return filtered ? reply(applyWorkReadHook(filtered, agentId)) : rejected("agent must be declared")
+        }
         case "/api/goals": return reply(goals(state))
         case "/api/focus": return reply(focus(Number(url.searchParams.get("days")) || 7))
         case "/api/time": {
