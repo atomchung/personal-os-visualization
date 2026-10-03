@@ -5,7 +5,8 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createServer, type ViteDevServer } from "vite"
 import { currentTodayActionPlan } from "../src/lib/investmentFormat.ts"
-import type { InvestmentTodayView } from "../src/lib/investment.ts"
+import { getInvestmentRefreshStatus, getSelectedInvestmentProvider, rereadInvestmentRefreshStatuses, setInvestmentProvider, type InvestmentTodayView, type InvestmentRefreshStatus } from "../src/lib/investment.ts"
+import { demoInvestmentProvider } from "../src/demo/investmentProvider.ts"
 import { syntheticBriefWithSameWording, syntheticIntradayUpdate, syntheticPresentationBrief, syntheticPresentationToday } from "./fixtures/today-presentation.ts"
 import type { InvestmentTimelineNode } from "../src/lib/investment.ts"
 
@@ -69,6 +70,33 @@ test("refresh status reads show request failures instead of presenting them as i
     message: "", error: null, discovery_state: "idle", discovery_updated_at: null, trigger: null,
     new_update_count: null, sync_note: "", reconciled_at: null, provider: null, model: null,
     fallback_depth: null, provider_errors: {} }), /尚未更新/)
+})
+
+test("manual refresh-status reread invokes both read getters and never starts a refresh", async () => {
+  const originalProvider = getSelectedInvestmentProvider()
+  const reads: string[] = []
+  let writes = 0
+  setInvestmentProvider({
+    ...demoInvestmentProvider,
+    async getRefreshStatus(action) {
+      reads.push(`status:${action}`)
+      return { action, state: "failed" } as InvestmentRefreshStatus
+    },
+    async startRefresh() {
+      writes += 1
+      throw new Error("status reread must not start refresh")
+    },
+  })
+  try {
+    await rereadInvestmentRefreshStatuses(
+      () => getInvestmentRefreshStatus("market"),
+      () => getInvestmentRefreshStatus("news"),
+    )
+    assert.deepEqual(reads, ["status:market", "status:news"])
+    assert.equal(writes, 0)
+  } finally {
+    setInvestmentProvider(originalProvider)
+  }
 })
 
 test("a missing Today projection leaves the formal source judgment readable without claiming there was no update", async () => {
