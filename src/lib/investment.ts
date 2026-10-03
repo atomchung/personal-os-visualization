@@ -1414,6 +1414,14 @@ export const getInvestmentRefreshStatus = (action: InvestmentRefreshAction, sign
   refreshOperations().getRefreshStatus?.(action, signal)
     ?? Promise.reject(new Error("Investment refresh status is unavailable."))
 
+/** Re-read only the two persisted status queries; this accepts read callbacks, never a refresh/write operation. */
+export async function rereadInvestmentRefreshStatuses(
+  refetchMarket: () => Promise<unknown>,
+  refetchNews: () => Promise<unknown>,
+): Promise<void> {
+  await Promise.all([refetchMarket(), refetchNews()])
+}
+
 export const getInvestmentActions = (signal?: AbortSignal) =>
   optionalCapability("actions", signal)
 

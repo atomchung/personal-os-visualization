@@ -57,6 +57,20 @@ test("a valid projection keeps the formal judgment primary and labels the update
   assert.doesNotMatch(html, /盤中補充觀察取代正式判斷/)
 })
 
+test("refresh status reads show request failures instead of presenting them as idle", async () => {
+  const { refreshStateLabel } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  assert.match(refreshStateLabel("news", undefined), /狀態讀取中/)
+  assert.match(refreshStateLabel("news", undefined, new Error("本機資料暫時無法讀取（503）")), /狀態讀取失敗：本機資料暫時無法讀取（503）/)
+  assert.match(refreshStateLabel("news", { action: "news", state: "failed", started_at: null, last_updated: "2001-02-03T09:00:00+08:00",
+    message: "Antigravity 權限遭拒", error: "permission_denied", discovery_state: "failed", discovery_updated_at: null,
+    trigger: null, new_update_count: null, sync_note: "", reconciled_at: null, provider: "agy", model: "gemini-3.7-flash-high",
+    fallback_depth: 0, provider_errors: { agy: "permission_denied" } }), /更新失敗：Antigravity 權限遭拒.*由 Antigravity 執行失敗/)
+  assert.match(refreshStateLabel("news", { action: "news", state: "idle", started_at: null, last_updated: null,
+    message: "", error: null, discovery_state: "idle", discovery_updated_at: null, trigger: null,
+    new_update_count: null, sync_note: "", reconciled_at: null, provider: null, model: null,
+    fallback_depth: null, provider_errors: {} }), /尚未更新/)
+})
+
 test("a missing Today projection leaves the formal source judgment readable without claiming there was no update", async () => {
   const html = await renderTodayBrief(undefined)
   assert.match(html, /合成正式判斷原文：目前維持觀察。/)

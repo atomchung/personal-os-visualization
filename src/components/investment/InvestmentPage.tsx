@@ -26,7 +26,7 @@ import { InvestmentThesis } from "./InvestmentThesis"
 import {
   BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentResearch,
   getInvestmentHistory, getInvestmentContext, getInvestmentSource,
-  getInvestmentActions, getInvestmentNarrative, getInvestmentRefreshStatus, postInvestmentRefresh,
+  getInvestmentActions, getInvestmentNarrative, getInvestmentRefreshStatus, postInvestmentRefresh, rereadInvestmentRefreshStatuses,
   type InvestmentIntradayMarketProjection, type InvestmentIntradayRefresh, type InvestmentRefreshAction, type InvestmentRefreshStatus,
   type InvestmentActionItem, type InvestmentActions, type InvestmentBrief, type InvestmentMarketObservation, type InvestmentSource, type InvestmentTodayView,
 } from "@/lib/investment"
@@ -151,11 +151,16 @@ function TodayIntradayReceipts({ refresh, readFailed }: { refresh?: InvestmentIn
   </section>
 }
 
-function refreshStateLabel(action: InvestmentRefreshAction, status: InvestmentRefreshStatus | undefined): string {
+export function refreshStateLabel(action: InvestmentRefreshAction, status: InvestmentRefreshStatus | undefined, error?: unknown): string {
   const marketName = status?.market_scope === "tw" ? "台股" : status?.market_scope === "us" ? "美股" : null
   const scanName = status?.scan_mode === "quick" ? "快掃" : status?.scan_mode === "deep" ? "深度掃描" : "掃描"
   const name = action === "market" ? "盤面" : `${marketName ? `${marketName}消息` : "最新消息"}${scanName}`
-  if (!status || status.state === "idle") return `${name}尚未更新`
+  if (error) {
+    const detail = error instanceof Error && error.message.trim() ? error.message.trim() : "本機狀態讀取失敗"
+    return `${name}狀態讀取失敗：${detail}`
+  }
+  if (!status) return `${name}狀態讀取中…`
+  if (status.state === "idle") return `${name}尚未更新`
   if (status.state === "running") {
     const started = status.started_at ? Date.parse(status.started_at) : Number.NaN
     const elapsed = Number.isFinite(started) ? Math.max(0, Math.floor((Date.now() - started) / 1000)) : null
@@ -611,8 +616,8 @@ export function InvestmentPage() {
   const [refreshError, setRefreshError] = useState("")
   const client = useQueryClient()
   const query = useQuery({ queryKey: ["investment"], queryFn: ({ signal }) => getInvestment(signal), retry: false, refetchOnWindowFocus: true, staleTime: 60_000 })
-  const marketRefresh = useQuery({ queryKey: ["investment-refresh-status", "market"], queryFn: ({ signal }) => getInvestmentRefreshStatus("market", signal), retry: false, refetchOnWindowFocus: false, refetchInterval: (q) => q.state.data?.state === "running" ? 2_000 : false })
-  const newsRefresh = useQuery({ queryKey: ["investment-refresh-status", "news"], queryFn: ({ signal }) => getInvestmentRefreshStatus("news", signal), retry: false, refetchOnWindowFocus: false, refetchInterval: (q) => q.state.data?.state === "running" ? 2_000 : false })
+  const marketRefresh = useQuery({ queryKey: ["investment-refresh-status", "market"], queryFn: ({ signal }) => getInvestmentRefreshStatus("market", signal), retry: false, refetchOnMount: "always", refetchOnWindowFocus: false, refetchInterval: (q) => q.state.data?.state === "running" ? 2_000 : false })
+  const newsRefresh = useQuery({ queryKey: ["investment-refresh-status", "news"], queryFn: ({ signal }) => getInvestmentRefreshStatus("news", signal), retry: false, refetchOnMount: "always", refetchOnWindowFocus: false, refetchInterval: (q) => q.state.data?.state === "running" ? 2_000 : false })
   const watch = useQuery({ queryKey: ["investment-watch"], queryFn: ({ signal }) => getInvestmentWatch(signal), enabled: view === "work", retry: false, refetchOnWindowFocus: false })
   const researchIndex = useQuery({ queryKey: ["investment-research"], queryFn: ({ signal }) => getInvestmentResearch(signal), enabled: view === "work", retry: false, refetchOnWindowFocus: false })
   const actions = useQuery({ queryKey: ["investment-actions"], queryFn: ({ signal }) => getInvestmentActions(signal), enabled: view === "work", retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
@@ -665,10 +670,11 @@ export function InvestmentPage() {
         <Button disabled={marketRefresh.data?.state === "running"} onClick={() => void runRefresh("market")}>刷新盤面</Button>
         <Button disabled={newsRefresh.data?.state === "running"} onClick={() => void runRefresh("news", "tw")}>台股消息快掃</Button>
         <Button disabled={newsRefresh.data?.state === "running"} onClick={() => void runRefresh("news", "us")}>美股消息快掃</Button>
+        <Button disabled={marketRefresh.isFetching || newsRefresh.isFetching} title="只重新讀取狀態，不會啟動行情或新聞刷新" onClick={() => void rereadInvestmentRefreshStatuses(() => marketRefresh.refetch(), () => newsRefresh.refetch())}>重新讀取狀態</Button>
       </div>
       <div className="flex min-w-0 flex-col gap-1 text-caption text-ink-3" aria-live="polite">
-        <p>{refreshStateLabel("market", marketRefresh.data)}{marketRefresh.data?.discovery_state === "running" ? " · 市場資金掃描仍在背景整理" : marketRefresh.data?.discovery_state === "partial" ? " · 市場資金掃描部分完成" : marketRefresh.data?.discovery_state === "failed" ? " · 市場資金掃描失敗" : ""}</p>
-        <p title={providerDetailTitle(newsRefresh.data)}>{refreshStateLabel("news", newsRefresh.data)}</p>
+        <p>{refreshStateLabel("market", marketRefresh.data, marketRefresh.error)}{marketRefresh.data?.discovery_state === "running" ? " · 市場資金掃描仍在背景整理" : marketRefresh.data?.discovery_state === "partial" ? " · 市場資金掃描部分完成" : marketRefresh.data?.discovery_state === "failed" ? " · 市場資金掃描失敗" : ""}</p>
+        <p title={providerDetailTitle(newsRefresh.data)}>{refreshStateLabel("news", newsRefresh.data, newsRefresh.error)}</p>
       </div>
     </div> : null}
     {refreshError ? <p role="alert" aria-live="polite" className="text-caption text-warn">{refreshError}</p> : null}
