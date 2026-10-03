@@ -1,5 +1,5 @@
 /** Closed, browser-memory-only adapter. No network, storage, or live fallback. */
-import { cockpit, createState, focus, goals, health, home, ideal, timeData, todos } from "./fixtures.ts"
+import { cockpit, work, createState, focus, goals, health, home, ideal, timeData, todos } from "./fixtures.ts"
 import { taipeiCalendarToday } from "../lib/investmentFormat.ts"
 import {
   addInvestmentWork,
@@ -63,6 +63,7 @@ export function createDemoRequest() {
     if (declared.status === "unavailable") throw new Error(declared.limitations.join(" ") || `${capability} unavailable`)
   }
   return async (input: string, init: RequestInit = {}): Promise<Response> => {
+    if (input === "/api/work" && (!init.method || init.method === "GET")) return reply(work)
     if (init.signal?.aborted) throw new DOMException("Request aborted", "AbortError")
     // Only relative API paths are accepted; absolute URLs never reach a server.
     if (!input.startsWith("/api/") || input.startsWith("//")) return rejected("展示版只提供合成資料。", 404)

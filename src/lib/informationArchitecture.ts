@@ -6,6 +6,7 @@ export type TabKey =
   | "goals"
   | "ideal"
   | "health"
+  | "work"
   | "todos"
   | "guide"
 
@@ -43,6 +44,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { key: "focus", label: "焦點", short: "時間與目標" },
       { key: "goals", label: "目標", short: "進度與里程碑" },
+      { key: "work", label: "Work", short: "交辦給 dot 的任務" },
       { key: "todos", label: "待辦", short: "可直接完成的事" },
     ],
   },
@@ -77,6 +79,7 @@ export const PAGE_COPY: Record<"today" | PageKey | "guide", { label: string; sum
     label: "目標",
     summary: "看目標進度與里程碑；目標的完整內容只在這裡維護。",
   },
+  work: { label: "Work", summary: "只看你交辦給 dot 的任務與下一步。" },
   todos: {
     label: "待辦",
     summary: "處理可以直接勾掉的短事項；里程碑仍由目標頁維護。",
@@ -108,6 +111,7 @@ export function isTabKey(value: string | null): value is TabKey {
     "goals",
     "ideal",
     "health",
+    "work",
     "todos",
     "guide",
   ].includes(value)
