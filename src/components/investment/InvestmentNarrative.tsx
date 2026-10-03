@@ -395,7 +395,6 @@ function FutureProvenanceDetails({ item }: { item: FutureCheckpoint }) {
   return <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">原始事件標題與來源 · {item.sources.length}</summary>
     <div className="flex min-w-0 flex-col gap-2 pt-1">
       <p>來源事件標題：<InlineText text={item.title} /></p>
-      {item.source_qualifiers?.length ? <p>出處註記：{item.source_qualifiers.join("、")}</p> : null}
       <EventSources sources={item.sources} />
     </div>
   </details>
@@ -405,7 +404,9 @@ function FutureRow({ item, showIdentity = false }: { item: FutureCheckpoint; sho
   const heading = futureCheckpointHeading(item)
   const impacts = item.affected_scopes.length ? `影響範圍：${item.affected_scopes.join("、")}` : null
   return <li className="flex min-w-0 flex-col gap-2 border-t border-line-soft py-3 first:border-0 first:pt-0">
-    <p className="text-body font-medium leading-relaxed text-ink-2">{heading.date} · {heading.tickers.length ? `${heading.tickers.join("、")} · ` : ""}<InlineText text={heading.title} /></p>
+    <p className="text-body font-medium leading-relaxed text-ink-2">{heading.tickers.length ? `${heading.tickers.join("、")} · ` : ""}<InlineText text={heading.title} /></p>
+    <p className="text-caption text-ink-3">{heading.date}</p>
+    {item.source_qualifiers?.length ? <p className="text-caption text-ink-3">來源註記：{item.source_qualifiers.join("、")}</p> : null}
     {impacts ? <p className="text-caption text-ink-3">{impacts}</p> : null}
     {!item.affected_tickers.length && !item.affected_scopes.length ? <p className="text-caption text-ink-3">影響標的與範圍：來源未提供</p> : null}
     {showIdentity ? <p className="break-all text-caption text-ink-3">來源事件 story_id：{item.story_id ?? "未提供"}</p> : null}
@@ -422,7 +423,9 @@ function FutureRow({ item, showIdentity = false }: { item: FutureCheckpoint; sho
 function FutureFoldARow({ item }: { item: FutureCheckpoint }) {
   const heading = futureCheckpointHeading(item)
   return <li className="flex min-w-0 flex-col gap-1 border-t border-line-soft py-2 first:border-0 first:pt-0">
-    <p className="text-body leading-relaxed text-ink-2">{heading.date} · {heading.tickers.length ? `${heading.tickers.join("、")} · ` : ""}<InlineText text={heading.title} /></p>
+    <p className="text-body leading-relaxed text-ink-2">{heading.tickers.length ? `${heading.tickers.join("、")} · ` : ""}<InlineText text={heading.title} /></p>
+    <p className="text-caption text-ink-3">{heading.date}</p>
+    {item.source_qualifiers?.length ? <p className="text-caption text-ink-3">來源註記：{item.source_qualifiers.join("、")}</p> : null}
     <p className="text-caption text-ink-3">{nonExactDateReason(item)}</p>
     <FutureProvenanceDetails item={item} />
   </li>
@@ -438,7 +441,7 @@ function FutureCoverageGapRow({ gap }: { gap: FutureCheckpoints["coverage_gaps"]
   </li>
 }
 
-export function FutureContent({ projection, heading = "已登記事件檢查點" }: { projection: FutureCheckpoints; heading?: string }) {
+export function FutureContent({ projection, heading = "公司近期事件" }: { projection: FutureCheckpoints; heading?: string }) {
   const exact = projection.items.filter(item => item.date_precision === "day" && item.window_membership === "within")
   const nonExact = [...projection.items.filter(item => !exact.includes(item)), ...projection.uncertain_items]
   const { dated: foldA, undated: foldBEvents } = splitNonExactByDateInfo(nonExact)
@@ -446,7 +449,7 @@ export function FutureContent({ projection, heading = "已登記事件檢查點"
   return <section aria-label={heading} className="flex min-w-0 flex-col gap-2">
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2"><SubsectionHeading>{heading}</SubsectionHeading><Chip tone={projection.state === "ready" ? "mute" : "warn"}>{projection.state === "ready" ? "來源完整" : projection.state === "unknown" ? "狀態未知" : "來源部分可用"}</Chip></div>
     <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4">
-      <p className="text-caption text-ink-3">窗口 {projection.window_start} 至 {projection.window_end}；這裡只列已登記事件，依來源事件身份呈現；各標的與論點的檢查分開保留。正式簡報另列的「近期檢查」收在「今天怎麼做」→「檢查點與來源」，兩者不推定關聯。</p>
+      <p className="text-caption text-ink-3">公司近期事件列表；其他市場提醒見「今天怎麼做」→「檢查點與來源」。</p>
       {exact.length ? <ul className="flex min-w-0 flex-col">{exact.slice(0, 3).map((item, index) => <FutureRow key={item.story_id ?? `legacy:${index}`} item={item} />)}</ul> : <p className="text-body text-ink-3">來源沒有列出日期明確的窗口內事件；不代表沒有未來事件。</p>}
       {exact.length > 3 ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">其他日期明確的事件 · {exact.length - 3}</summary><ul className="flex min-w-0 flex-col">{exact.slice(3).map((item, index) => <FutureRow key={item.story_id ?? `more:${index}`} item={item} />)}</ul></details> : null}
       {foldA.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">日期未定 · {foldA.length}</summary><ul className="flex min-w-0 flex-col">{foldA.map((item, index) => <FutureFoldARow key={item.story_id ?? `undated:${index}`} item={item} />)}</ul></details> : null}
@@ -464,7 +467,7 @@ export function FutureContent({ projection, heading = "已登記事件檢查點"
 }
 
 /** Compact Today projection. This is independent of the brief query and never links by ticker or prose. */
-export function TodayCatalysts({ enabled, heading = "已登記事件檢查點" }: { enabled: boolean; heading?: string }) {
+export function TodayCatalysts({ enabled, heading = "公司近期事件" }: { enabled: boolean; heading?: string }) {
   const query = useQuery({
     queryKey: ["investment-narrative"],
     queryFn: ({ signal }) => getInvestmentNarrative(signal),

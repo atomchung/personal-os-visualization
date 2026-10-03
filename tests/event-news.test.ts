@@ -109,7 +109,7 @@ test("event cards preserve ticker effects, candidate status, checks and degraded
     assert.match(missingScope, /結果尚未逐項驗證/)
     const row = { story_id: "earnings", title: "合成下一季財報", state: "ready", date: "2026-09-30", date_label: "2026-09-30", date_precision: "day", window_membership: "within", source_qualifiers: ["一手"], affected_tickers: ["SYNTH", "ETF"], affected_scopes: ["POOL"], checks, sources: [source], limitations: [] }
     const future = renderToStaticMarkup(createElement(FutureContent, { projection: { state: "partial", window_start: "2026-09-27", window_end: "2026-10-27", items: [row], uncertain_items: [{ ...row, story_id: "uncertain", title: "未確認月份", state: "unlinked", date: null, date_label: "2026-10", date_precision: "month", window_membership: "possible" }], past_items: [{ ...row, title: "已過事件" }], coverage_gaps: [], limitations: [] } }))
-    assert.match(future, /已登記事件檢查點/)
+    assert.match(future, /公司近期事件/)
     assert.match(future, /公司執行檢查/)
     assert.match(future, /共享供需檢查/)
     assert.match(future, /日期未定/)
