@@ -23,7 +23,7 @@ import { setInvestmentProvider as configureDemoProvider } from "../src/lib/inves
 import { demoInvestmentProvider } from "../src/demo/investmentProvider.ts"
 import { addInvestmentWork, bindInvestmentProvider, getInvestment, getInvestmentNarrative, getInvestmentResearch, getInvestmentHistory, getInvestmentActions, getInvestmentResearchDetail, getInvestmentHistorySource, getSelectedInvestmentProvider, saveInvestmentWork, setInvestmentProvider } from "../src/lib/investment.ts"
 import { getSelectedModuleProvider, selectModuleProvider } from "../src/lib/moduleProvider.ts"
-import { investment as syntheticInvestment, investmentHistory, investmentHistorySources, investmentResearch, pulseIntegrityScenarios } from "../src/demo/fixtures.ts"
+import { investment as syntheticInvestment, investmentHistory, investmentHistorySources, investmentResearch, pulseIntegrityScenarios, work as syntheticWork, workForAgent } from "../src/demo/fixtures.ts"
 import { investmentScenario } from "../src/demo/generated/investment-scenario.ts"
 configureDemoProvider(demoInvestmentProvider)
 import { buildTimeline, researchForToday, splitCatalyst, watchDateWindow } from "../src/lib/investmentDates.ts"
@@ -196,6 +196,31 @@ test("Work v1 demo keeps outcome cards, agent relations, source verification, an
   assert.equal(malformedRelation.agent_match, "unknown", "a registry ID with unknown relation state stays unknown")
   assert.deepEqual(malformedRelation.agent_runs.map((run: {agent_id: string; agent_state: string}) => [run.agent_id, run.agent_state]), [["dot", "unknown"]])
   assert.equal((await request("/api/work?agent=unknown-agent")).status, 422)
+})
+
+test("generic agent actors remain unknown in a specific-agent filter while human and external actors are explicit nonmatches", () => {
+  const actors = ["agent", "any_agent", "human", "external"] as const
+  const tasks = actors.map((actor) => ({
+    ...syntheticWork.tasks[0]!,
+    slug: `demo-actor-${actor}`,
+    title: `Synthetic actor ${actor}`,
+    next_action: null,
+    next_actor: actor,
+    next_actor_state: "known" as const,
+    needs_user_action: false,
+    relations_state: "recorded" as const,
+    agent_runs: [],
+    links: [],
+  }))
+  const filtered = workForAgent("codex", { ...syntheticWork, tasks })
+  assert.ok(filtered)
+  assert.equal(filtered.filter?.matched, 0)
+  assert.equal(filtered.filter?.unknown_relation_included, 2)
+  assert.equal(filtered.filter?.explicitly_unmatched_omitted, 2)
+  assert.deepEqual(filtered.tasks.map((task) => [task.slug, task.agent_match]), [
+    ["demo-actor-agent", "unknown"],
+    ["demo-actor-any_agent", "unknown"],
+  ])
 })
 
 test("Work UI keeps short todos collapsed and separates stale, unavailable, and completion-evidence wording", () => {

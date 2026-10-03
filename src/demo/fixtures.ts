@@ -325,14 +325,15 @@ export const work: WorkData = {
   activity_summary: buildActivitySummary(),
 }
 
-export function workForAgent(agentId: string): WorkData | null {
-  if (!work.agents.some((agent) => agent.id === agentId)) return null
+export function workForAgent(agentId: string, source: WorkData = work): WorkData | null {
+  if (!source.agents.some((agent) => agent.id === agentId)) return null
   const tasks: WorkData["tasks"] = []
-  const declaredAgents = new Set(work.agents.map((agent) => agent.id))
-  const actorSentinels = new Set(["human", "agent", "any_agent", "external"])
-  for (const task of work.tasks) {
+  const declaredAgents = new Set(source.agents.map((agent) => agent.id))
+  // Generic agent actors do not identify a registry member; keep them unknown in specific-agent filters.
+  const actorSentinels = new Set(["human", "external"])
+  for (const task of source.tasks) {
     const related = new Set(task.agent_runs.filter((run) => run.agent_state === "known" && run.agent_id && declaredAgents.has(run.agent_id)).map((run) => run.agent_id as string))
-    if (task.next_actor_state === "known" && work.agents.some((entry) => entry.id === task.next_actor)) related.add(task.next_actor as string)
+    if (task.next_actor_state === "known" && source.agents.some((entry) => entry.id === task.next_actor)) related.add(task.next_actor as string)
     if (related.has(agentId)) {
       tasks.push({ ...task, agent_match: "matched" })
       continue
@@ -348,13 +349,13 @@ export function workForAgent(agentId: string): WorkData | null {
   const matched = tasks.filter((task) => task.agent_match === "matched").length
   const unknownRelationIncluded = tasks.filter((task) => task.agent_match === "unknown").length
   return {
-    ...work,
+    ...source,
     tasks,
     filter: {
       agent_id: agentId,
       matched,
       unknown_relation_included: unknownRelationIncluded,
-      explicitly_unmatched_omitted: work.tasks.length - tasks.length,
+      explicitly_unmatched_omitted: source.tasks.length - tasks.length,
     },
   }
 }
