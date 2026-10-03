@@ -7,7 +7,7 @@ import {
   getInvestmentMarket, getInvestmentPulse, HOLDING_POLL_MS, IDLE_POLL_MS, isRecentQuote,
   type InvestmentMarket, type InvestmentMarketPulse,
 } from "@/lib/investment"
-import { classifyTwSession, formatNumber, marketIndexDirectionDisplay, primaryTwBlock, shouldPollTwPulse, sourceTimestamp, twSessionLabel } from "@/lib/investmentFormat"
+import { classifyTwSession, formatNumber, marketIndexDirectionDisplay, primaryTwBlock, shouldPollTwPulse, sourceTimestamp, twSessionLabel, type TwSessionState } from "@/lib/investmentFormat"
 import { DEMO_MODE } from "@/lib/transport"
 import { MarketIndicators } from "./MarketIndicators"
 import { MarketExplore } from "./MarketExplore"
@@ -124,14 +124,24 @@ function useNowTick(intervalMs: number): number {
   return now
 }
 
-function TaiwanIndexIntraday({ twii, isError }: { twii?: InvestmentMarket["items"][number]; isError: boolean }) {
+function TaiwanIndexIntraday({ twii, isError, isPending }: {
+  twii?: InvestmentMarket["items"][number]
+  isError: boolean
+  isPending: boolean
+}) {
   const change = twii?.change ?? null
+  const statuses: string[] = []
+  if (isError) statuses.push(twii ? "更新失敗，顯示上次數值" : "讀取失敗，盤中報價不可用")
+  if (!twii && !isError) statuses.push(isPending ? "讀取中…" : "盤中報價未取得")
+  if (twii?.state === "stale") statuses.push("較早報價；以下保留來源提供的數值與時間")
+  else if (twii && (twii.state === "unavailable" || twii.value == null)) statuses.push("來源未提供盤中數值")
+
   return <div className="min-w-0">
-    <p className="text-caption text-ink-3">台股大盤（加權指數）</p>
+    <p className="text-caption text-ink-3">盤中即時指數 · 加權指數</p>
     <p className="text-display font-semibold tabular-nums text-ink">{number(twii?.value ?? null)}</p>
     <p className={`text-body tabular-nums ${tone(change)}`}>{number(change)} 點 · {pct(twii?.change_percent ?? null)}</p>
-    {isError || !twii || twii.state !== "available" ? <p className="text-caption text-warn">{isError ? (twii ? "更新失敗，顯示上次數值" : "讀取失敗") : twii ? "報價未取得" : "讀取中…"}</p> : null}
-    <p className="text-micro text-ink-3">Yahoo Finance，報價可能延遲。</p>
+    {statuses.length ? <p role="status" className="text-caption text-warn">{statuses.join(" · ")}</p> : null}
+    <p className="text-micro text-ink-3">Yahoo Finance · 報價時間 {sourceTimestamp(twii?.quoted_at)} · 報價可能延遲。</p>
   </div>
 }
 
@@ -144,10 +154,6 @@ function TaiwanOverview({ pulseQuery }: {
   // stops the real-time TAIEX request from starting.
   const indexQuery = useTaiwanIndexQuote()
   const twii = indexQuery.data?.items.find(item => item.symbol === "^TWII")
-  // Whether there is an actual number to show, not just whether the ^TWII row
-  // exists in the snapshot -- a row can be present with state "unavailable"
-  // and a null value when only this one symbol's fetch failed this tick.
-  const hasIntradayQuote = twii?.value != null
   // A ticking clock, not the snapshot's own fetch time: session state must
   // keep advancing toward "closed" even if the index fetch stalls or starts
   // failing right around the close (otherwise a frozen `fetched_at` would
@@ -181,27 +187,39 @@ function TaiwanOverview({ pulseQuery }: {
     const id = setInterval(() => { retryPulse() }, PULSE_RETRY_MS)
     return () => clearInterval(id)
   }, [shouldPoll, retryPulse])
+  return <TaiwanMarketPresentation
+    pulse={pulse}
+    pulseError={pulseQuery.isError}
+    pulsePending={pulseQuery.isPending}
+    twii={twii}
+    indexError={indexQuery.isError}
+    indexPending={indexQuery.isPending}
+    sessionState={sessionState}
+  />
+}
+
+export function TaiwanMarketPresentation({ pulse, pulseError, pulsePending, twii, indexError, indexPending, sessionState }: {
+  pulse?: InvestmentMarketPulse
+  pulseError: boolean
+  pulsePending: boolean
+  twii?: InvestmentMarket["items"][number]
+  indexError: boolean
+  indexPending: boolean
+  sessionState: TwSessionState
+}) {
   const sessionLabel = twSessionLabel(sessionState, twii?.quoted_at ?? null, pulse?.as_of ?? null)
-  // Never both at once: pick one primary block per the owner's rule (prioritize
-  // intraday while the market is open); keep the other one reachable instead of
-  // removing it -- a closed-by-default <details> disclosure, chosen over hiding
-  // it outright so the owner can still check it deliberately.
-  const showIntradayPrimary = primaryTwBlock(sessionState, hasIntradayQuote) === "intraday"
-  const intradayBlock = <TaiwanIndexIntraday twii={twii} isError={indexQuery.isError} />
+  const showIntradayPrimary = primaryTwBlock(sessionState, twii?.value != null) === "intraday"
+  const intradayBlock = <TaiwanIndexIntraday twii={twii} isError={indexError} isPending={indexPending} />
 
   if (!pulse) {
-    // No close-of-day data at all yet (still loading) or its fetch failed --
-    // either way the intraday block above is already mounted and can render
-    // on its own; the pulse gets its own short, retryable status line instead
-    // of blocking the whole tab on a permanent "loading" placeholder.
     return <div className="flex min-w-0 flex-col gap-4">
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-body font-medium text-ink">整體盤感</h3>
+        <h3 className="text-body font-medium text-ink">盤中即時指數</h3>
         <span className="text-caption text-ink-3">{sessionLabel}</span>
       </div>
       {intradayBlock}
-      <p role="status" className={`text-body ${pulseQuery.isError ? "text-warn" : "text-ink-3"}`}>
-        {pulseQuery.isError ? "台股市場脈搏這次無法取得；保留缺值，不以空清單代替。請按上方「刷新盤面」重試。" : "讀取台股整體盤感中…"}
+      <p role="status" className={`text-body ${pulseError ? "text-warn" : "text-ink-3"}`}>
+        {pulseError ? "台股市場脈搏這次無法取得；保留缺值，不以空清單代替。請按上方「刷新盤面」重試。" : pulsePending ? "讀取台股整體盤感中…" : "台股日線市場快照尚未提供。"}
       </p>
     </div>
   }
@@ -211,13 +229,26 @@ function TaiwanOverview({ pulseQuery }: {
     ? "來源已確認方向"
     : direction.state === "needs_review" ? "漲跌方向待核對" : "漲跌方向未能確認"
   const b = pulse.breadth
-  const dailyBlock = <>
+  const pulseCompleteness = pulse.state === "ready" ? "完整" : pulse.state === "partial" ? "部分" : "無法取得"
+  const dailyBlock = <section aria-label="日線市場快照" className="flex min-w-0 flex-col gap-3">
+    <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2 border-b border-line-soft pb-2">
+      <div className="min-w-0">
+        <h4 className="text-body font-medium text-ink">加權指數與市場廣度</h4>
+        <p className="text-caption text-ink-3">TWSE／TPEx 日線快照 · 成交額與族群熱度</p>
+      </div>
+      <Chip tone={pulse.state === "ready" ? "ok" : "warn"}>{pulseCompleteness}</Chip>
+    </div>
+    <div className="flex min-w-0 flex-col gap-1 text-caption text-ink-3">
+      <p>快照日期 {sourceTimestamp(pulse.as_of)} · 資料截止 {sourceTimestamp(pulse.source_cutoff)}</p>
+      <p>行情來源日：TWSE {sourceTimestamp(pulse.source_dates?.twse)} · TPEx {sourceTimestamp(pulse.source_dates?.tpex)}</p>
+    </div>
     {pulse.state === "unavailable" ? <p role="status" className="text-body text-warn">這次沒有取得台股市場脈搏；缺值不代表沒有變化。</p> : <>
       <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="min-w-0">
-          <p className="text-caption text-ink-3">{pulse.index.label}</p>
+          <p className="text-caption text-ink-3">日線指數（TWSE） · {pulse.index.label}</p>
           <p className="text-display font-semibold tabular-nums text-ink">{number(pulse.index.value)}</p>
           <p className={`text-body tabular-nums ${tone(direction.changePercent)}`}>{direction.state === "confirmed" ? `${number(direction.change)} 點 · ${pct(direction.changePercent)}` : directionLabel}</p>
+          <p className="text-caption text-ink-3">指數行情日 {sourceTimestamp(pulse.source_dates?.twse)}</p>
           {direction.state !== "confirmed" && pulse.index.direction_check?.reason ? <p className="text-caption text-ink-3">{pulse.index.direction_check.reason}</p> : null}
         </div>
         <div className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-2 text-caption">
@@ -238,22 +269,24 @@ function TaiwanOverview({ pulseQuery }: {
       </div>
     </>}
     <SessionFlowSection flow={pulse.flow} />
-  </>
+  </section>
+
+  const supportingViewSummary = showIntradayPrimary
+    ? `日線市場快照 · 截止 ${sourceTimestamp(pulse.source_cutoff)}`
+    : `盤中即時指數 · Yahoo Finance · ${sourceTimestamp(twii?.quoted_at)}`
+
   return <div className="flex min-w-0 flex-col gap-4">
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
-      <div className="flex min-w-0 flex-wrap items-baseline gap-2">
-        <h3 className="text-body font-medium text-ink">整體盤感</h3>
-        <Chip tone={pulse.state === "ready" ? "ok" : "warn"}>{pulse.state === "ready" ? "完整" : pulse.state === "partial" ? "部分" : "無法取得"}</Chip>
-      </div>
+      <h3 className="text-body font-medium text-ink">{showIntradayPrimary ? "盤中即時指數" : "日線市場快照"}</h3>
       <span className="text-caption text-ink-3">{sessionLabel}</span>
     </div>
-    {pulseQuery.isError ? <p role="status" className="text-caption text-warn">台股市場脈搏更新失敗；以下保留上次快照與原始日期，不是本次更新。</p> : null}
+    {pulseError ? <p role="status" className="text-caption text-warn">台股市場脈搏更新失敗；以下保留上次快照與原始日期，不是本次更新。</p> : null}
     {showIntradayPrimary ? intradayBlock : dailyBlock}
     <details className="border-t border-line-soft pt-3">
-      <summary className="cursor-pointer py-1 text-caption text-ink-3">{showIntradayPrimary ? `上次收盤資料（${pulse.as_of ?? "未取得"}）` : "盤中即時指數"}</summary>
+      <summary className="cursor-pointer py-1 text-caption text-ink-3">{supportingViewSummary}</summary>
       <div className="flex min-w-0 flex-col gap-4 pt-2">{showIntradayPrimary ? dailyBlock : intradayBlock}</div>
     </details>
-    <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">資料時間、覆蓋與方向核對</summary><div className="flex flex-col gap-1 pt-1"><p>要求日期：{sourceTimestamp(pulse.requested_date)} · 資料產出：{sourceTimestamp(pulse.generated_at)}</p><p>產出：{pulse.producer}</p><p>資料截止：{sourceTimestamp(pulse.source_cutoff)}</p><p>方向核對：{directionLabel}{pulse.index.direction_check?.session_flow_status ? ` · 盤後來源 ${pulse.index.direction_check.session_flow_status}` : ""}</p>{pulse.index.direction_check?.reason ? <p>{pulse.index.direction_check.reason}</p> : null}{pulse.index.direction_check ? <div className="grid grid-cols-1 gap-1 rounded border border-line-soft p-2 sm:grid-cols-2"><p>TWSE 日結原值：{number(pulse.index.direction_check.twse_close)} 點；漲跌 {number(pulse.index.direction_check.twse_change)} 點（{pct(pulse.index.direction_check.twse_change_pct)}）</p><p>盤後量價原值：收 {number(pulse.index.direction_check.session_flow_close)} 點；漲跌 {number(pulse.index.direction_check.session_flow_change)} 點</p></div> : null}{pulse.source_dates ? <p>TWSE 行情日：{sourceTimestamp(pulse.source_dates.twse)} · TPEx 行情日：{sourceTimestamp(pulse.source_dates.tpex)}</p> : null}{pulse.flow.as_of ? <p>{pulse.flow.basis}</p> : null}{pulse.flow.as_of || pulse.flow.limitations.length ? <p>來源：TWSE 每日市場成交資訊（FMTQIK）、三大法人買賣金額統計表（BFI82U）</p> : null}{pulse.flow.limitations.map((item, index) => <p key={`flow-${index}`}>{item}</p>)}{pulse.limitations.map((item, index) => <p key={index}>{item}</p>)}</div></details>
+    <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">市場資料時間、覆蓋與方向核對</summary><div className="flex flex-col gap-1 pt-1"><p>要求日期：{sourceTimestamp(pulse.requested_date)} · 資料產出：{sourceTimestamp(pulse.generated_at)}</p><p>產出：{pulse.producer}</p><p>資料截止：{sourceTimestamp(pulse.source_cutoff)}</p><p>方向核對：{directionLabel}{pulse.index.direction_check?.session_flow_status ? ` · 盤後來源 ${pulse.index.direction_check.session_flow_status}` : ""}</p>{pulse.index.direction_check?.reason ? <p>{pulse.index.direction_check.reason}</p> : null}{pulse.index.direction_check ? <div className="grid grid-cols-1 gap-1 rounded border border-line-soft p-2 sm:grid-cols-2"><p>TWSE 日結原值：{number(pulse.index.direction_check.twse_close)} 點；漲跌 {number(pulse.index.direction_check.twse_change)} 點（{pct(pulse.index.direction_check.twse_change_pct)}）</p><p>盤後量價原值：收 {number(pulse.index.direction_check.session_flow_close)} 點；漲跌 {number(pulse.index.direction_check.session_flow_change)} 點</p></div> : null}<p>TWSE 行情日：{sourceTimestamp(pulse.source_dates?.twse)} · TPEx 行情日：{sourceTimestamp(pulse.source_dates?.tpex)}</p>{pulse.flow.as_of ? <p>{pulse.flow.basis}</p> : null}{pulse.flow.as_of || pulse.flow.limitations.length ? <p>來源：TWSE 每日市場成交資訊（FMTQIK）、三大法人買賣金額統計表（BFI82U）</p> : null}{pulse.flow.limitations.map((item, index) => <p key={`flow-${index}`}>{item}</p>)}{pulse.limitations.map((item, index) => <p key={index}>{item}</p>)}</div></details>
   </div>
 }
 
@@ -292,7 +325,7 @@ export function MarketPulse() {
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
         <div>
           <p className="text-body font-medium text-ink">市場現在怎麼走</p>
-          <p className="text-caption text-ink-3">先看整體盤感，再看資金往哪裡走。台股大盤指數盤中即時更新，盤後改顯示 TWSE／TPEx 的 breadth／成交額／熱度日結；美股指標會自動更新。</p>
+          <p className="text-caption text-ink-3">台股盤中以 Yahoo Finance 加權指數為主；日線市場快照列出 TWSE／TPEx 行情日、廣度、成交額與族群熱度，兩種資料各自標示來源時間。美股指標會自動更新。</p>
         </div>
         <div role="tablist" aria-label="市場" className="flex min-w-0 gap-3 border-b border-line-soft">
           {MARKETS.map((item, index) => <Button key={item.key} role="tab" aria-selected={market === item.key} tabIndex={market === item.key ? 0 : -1} variant="link" className={`rounded-none border-b-2 px-0 py-2 text-body ${market === item.key ? "border-accent text-ink" : "border-transparent text-ink-3"}`} onClick={() => setMarket(item.key)} onKeyDown={event => {
