@@ -528,6 +528,19 @@ export const investmentNarrative: InvestmentNarrative = {
     }],
     limitations: ["展示用合成事件資料。"],
   },
+  future_checkpoints: {
+    state: "ready", window_start: "2026-10-03", window_end: "2026-11-02",
+    items: [{
+      story_id: null,
+      title: "2026-10-12 15:00 合成公司 Q3 線上法說（公司 2026-09-18 公告）",
+      state: "unlinked", date: "2026-10-12", date_label: "2026-10-12", date_precision: "day", window_membership: "within",
+      source_qualifiers: ["合成公司公告"], affected_tickers: ["SYNTH"], affected_scopes: [],
+      checks: [{ scope: "SYNTH", check: "檢查合成下一季需求說明。", state: "registered", result_state: "unknown", source: { path: "synthetic/future-checkpoints.md", line: 2, raw: "合成檢查條件" } }],
+      sources: [{ path: "synthetic/future-checkpoints.md", line: 2, raw: "2026-10-12 15:00 合成公司 Q3 線上法說（公司 2026-09-18 公告）" }],
+      limitations: ["此為合成示例，不代表真實市場事件。"],
+    }],
+    uncertain_items: [], past_items: [], coverage_gaps: [], limitations: [],
+  },
   catalysts_30d: {
     state: "ready", window_start: DATE, window_end: "2026-10-20",
     items: [{ ticker: "DEMO", type: "虛構財報", raw: "2026-10-05 公布虛構公司財報，核對需求是否延續。", date_precision: "day", date: "2026-10-05", date_label: "2026-10-05", source_qualifiers: [], source: { path: "synthetic/catalysts.md", line: 1 }, window_membership: "within" }],

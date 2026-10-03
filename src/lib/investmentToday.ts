@@ -1,4 +1,47 @@
-import type { InvestmentBrief, InvestmentCatalysts30d, InvestmentTodayUpdate } from "./investment"
+import type { FutureCheckpoint, InvestmentBrief, InvestmentCatalysts30d, InvestmentTodayUpdate } from "./investment"
+
+export type FutureCheckpointHeadingInput = Pick<FutureCheckpoint, "date" | "date_label" | "title" | "affected_tickers">
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
+const COMPANY_ANNOUNCEMENT_SUFFIX = /\s*[（(]\s*公司(?:\s+\d{4}-\d{2}-\d{2})?\s*公告\s*[）)]\s*$/
+
+function isCalendarDay(value: string): boolean {
+  if (!ISO_DAY.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00Z`)
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
+
+/** Remove a title's duplicate date only when it exactly matches the explicit
+ * source date and has a clear boundary. Keep all unparsed/raw date text. */
+function removeRepeatedDatePrefix(title: string, date: string): string {
+  if (!isCalendarDay(date) || !title.startsWith(date)) return title
+
+  const remainder = title.slice(date.length)
+  let separatorLength = 0
+  if (/^T\d{2}:\d{2}(?:\s|$)/.test(remainder)) {
+    separatorLength = 1 // Preserve the source time after an ISO timestamp separator.
+  } else {
+    const separator = remainder.match(/^(?:[\t ]+|[\t ]*[·,，:：—–-][\t ]*)/)
+    if (separator) separatorLength = separator[0].length
+    else if (remainder) return title
+  }
+
+  const withoutDate = remainder.slice(separatorLength).trimStart()
+  return withoutDate ? withoutDate : title
+}
+
+/** Presentation-only compaction. The original producer title remains visible
+ * in the disclosure, and identity comes only from the explicit ticker field. */
+export function futureCheckpointHeading(item: FutureCheckpointHeadingInput) {
+  const date = item.date?.trim() || item.date_label?.trim() || "日期未確認"
+  const withoutDate = removeRepeatedDatePrefix(item.title, date)
+  const title = withoutDate.replace(COMPANY_ANNOUNCEMENT_SUFFIX, "").trim() || item.title
+  return {
+    date,
+    title,
+    tickers: item.affected_tickers.map(ticker => ticker.trim()).filter(Boolean),
+  }
+}
 
 export type TodayStoryEvent = {
   event: InvestmentBrief["events"][number]
