@@ -36,3 +36,21 @@ jobs:
           path: .artifacts/investment-hub/
           if-no-files-found: warn
           retention-days: 7
+
+      - name: Retain compact judgment screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: judgment-view-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .artifacts/investment-hub/judgment-change-1080.png
+            .artifacts/investment-hub/judgment-change-390.png
+            .artifacts/investment-hub/claim-relations-1080.png
+            .artifacts/investment-hub/claim-relations-390.png
+            .artifacts/investment-hub/judgment-ready-1080.png
+            .artifacts/investment-hub/claim-ready-1080.png
+            .artifacts/investment-hub/judgment-ready-1080-full.png
+            .artifacts/investment-hub/claim-ready-1080-full.png
+            .artifacts/investment-hub/report.json
+          if-no-files-found: warn
+          retention-days: 7

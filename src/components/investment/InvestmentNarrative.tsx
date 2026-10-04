@@ -23,6 +23,7 @@ import {
 } from "@/lib/investment"
 import { InlineText } from "./ReadingText"
 import { EventSources } from "./EventNews"
+import { ClaimEvidence } from "./ClaimEvidence"
 
 type DisplayState = InvestmentNarrativeState | "unavailable"
 
@@ -549,6 +550,8 @@ function NarrativeContent({ data, narrative, readable }: { data: InvestmentNarra
         {summary.map(line => <Field key={line.label} label={line.label} tone={line.muted ? "muted" : "default"}><InlineText text={line.text} /></Field>)}
       </FieldList>
     </CardSection>
+
+    <ClaimEvidence evidence={evidence} snapshotState={!readable ? "cached" : data.state === "unavailable" ? "unavailable" : narrative.state === "stale" || evidence.state === "stale" ? "stale" : "available"} />
 
     {/* The long-held thesis rarely changes and the owner already knows it:
         kept in place, folded by default, one click away. */}

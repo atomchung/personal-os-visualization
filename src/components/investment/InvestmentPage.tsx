@@ -54,7 +54,7 @@ const INTRADAY_MARKET_LABEL = { tw: "台股", us: "美股" } as const
 
 function intradayResultLabel(result: string | undefined): string {
   switch (result) {
-    case "no_material_update": return "完成，沒有重大更新"
+    case "no_material_update": return "來源回報沒有重要增量"
     case "updated": return "已更新事件"
     case "needs_deeper_analysis": return "有候選仍待深入分析"
     case "partial": return "部分來源完成"
@@ -77,6 +77,16 @@ function intradayMarketSummary(market: InvestmentIntradayMarketProjection | unde
   if (!market) return "刷新狀態未提供"
   if (!market.latest_receipt && market.state === "not_requested") return "尚無可採用的盤中更新；沿用正式簡報"
   const result = market.latest_receipt?.result ?? market.state
+  if (result === "no_material_update") {
+    const coverage = market.latest_receipt?.coverage_state
+    const summary = coverage === "complete" && ["fresh", "current"].includes(market.freshness)
+      ? "此次掃描範圍內沒有重要增量"
+      : coverage === "partial" ? "本次掃描僅部分完成，不能確認有無重要增量"
+        : coverage === "failed" ? "本次掃描失敗，不能確認有無重要增量"
+          : coverage === "complete" ? "較早掃描回報沒有重要增量，目前未確認"
+            : "掃描完整度未確認，不能判定沒有重要增量"
+    return `${summary} · ${intradayFreshnessLabel(market.freshness)}`
+  }
   return `${intradayResultLabel(result)} · ${intradayFreshnessLabel(market.freshness)}`
 }
 
@@ -96,7 +106,7 @@ function intradayMarketDegraded(market: InvestmentIntradayMarketProjection | und
     || ["partial", "failed"].includes(market.latest_receipt?.coverage_state ?? "")
 }
 
-function TodayIntradayReceipts({ refresh, readFailed }: { refresh?: InvestmentIntradayRefresh; readFailed: boolean }) {
+export function TodayIntradayReceipts({ refresh, readFailed }: { refresh?: InvestmentIntradayRefresh; readFailed: boolean }) {
   if (!refresh) return <section aria-label="台美盤中刷新回執" className="flex min-w-0 flex-col gap-2 border-y border-line-soft py-2">
     <p role="status" className="text-caption text-warn">{readFailed
       ? "本次簡報讀取失敗；上次內容沒有盤中更新回報，目前狀態與資料截止時間尚未確認。"
@@ -374,9 +384,42 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
     ? currentJudgment.current_delta ?? currentJudgment.effective_judgment : null
   const judgment = acceptedDelta ?? replacement?.judgment
     ?? (!readFailed && b.state === "current" ? validatedBriefJudgment(b) : null)
-  const previousJudgment = readFailed && typeof b.judgment?.judgment === "string" && b.judgment.judgment.trim()
+  const previousJudgment = (readFailed || b.state === "stale") && typeof b.judgment?.judgment === "string" && b.judgment.judgment.trim()
     ? b.judgment.judgment.trim()
     : null
+  // These are receipts for the same assessment, not inferred event/claim relations.
+  // A retained delta can remain readable after a failed scan without being a fresh review.
+  const assessmentMatches = receiptReadbackMatches
+    && latestAssessment?.state === marketLatestAssessment?.state
+    && latestAssessment?.reason === marketLatestAssessment?.reason
+    && latestAssessment?.reason_code === marketLatestAssessment?.reason_code
+    && latestAssessment?.baseline_cutoff_at === currentJudgment?.baseline?.source_cutoff
+    && latestAssessment?.baseline_cutoff_at === marketLatestAssessment?.baseline_cutoff_at
+  const assessmentReceipt = marketProjection?.latest_receipt
+  const assessmentCurrent = assessmentMatches
+    && ["fresh", "current"].includes(marketProjection?.freshness ?? "")
+    && ["ready", "updated", "no_material_update"].includes(marketProjection?.state ?? "")
+    && today?.state !== "unavailable"
+    && assessmentReceipt?.coverage_state === "complete"
+    && ["updated", "no_material_update"].includes(assessmentReceipt?.result ?? "")
+    && assessmentReceipt?.finished_at === latestAssessment?.assessed_at
+    && assessmentReceipt?.baseline_cutoff_at === currentJudgment?.baseline?.source_cutoff
+    && hasIdentity(assessmentReceipt?.baseline_artifact_sha256)
+    && `sha256:${assessmentReceipt.baseline_artifact_sha256}` === currentJudgment?.baseline?.revision
+  const assessmentConfirmed = assessmentCurrent && latestAssessment?.state === currentJudgment?.state
+    && (currentJudgment?.state === "reassessed" ? Boolean(acceptedDelta)
+      : currentJudgment?.state === "unchanged" || currentJudgment?.state === "preserved"
+        ? !currentJudgment.current_delta || Boolean(acceptedDelta) : false)
+  const formalJudgment = currentJudgment?.formal_judgment
+  const priorJudgment = acceptedDelta && formalJudgment?.judgment !== judgment?.judgment
+    ? formalJudgment : null
+  const actionUnchanged = acceptedDelta && formalJudgment?.class === acceptedDelta.class
+  const assessmentHeading = assessmentConfirmed
+    ? currentJudgment?.state === "reassessed" ? "判斷已更新"
+      : currentJudgment?.state === "unchanged" ? "已重評，判斷維持不變" : "沿用既有判斷"
+    : readFailed || b.state === "stale" || currentJudgment && currentJudgment.state !== "baseline_only"
+      ? "本次無法確認，保留既有判斷" : "尚未取得新的重評結果"
+  const assessmentReason = assessmentMatches ? latestAssessment?.reason?.trim() : null
   const cachedSteps = readFailed
     ? currentTodayActionPlan(b, today, false)
     : currentTodayActionPlan(b, today)
@@ -442,7 +485,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
       <ol className="flex min-w-0 flex-col gap-3">{items.map(item => row(item))}</ol>
     </div> : null
   }
-  return <section className="flex min-w-0 flex-col gap-3" aria-label={actionSection.heading}>
+  return <section className="flex min-w-0 flex-col gap-3 break-words [overflow-wrap:anywhere]" aria-label={actionSection.heading}>
     <SectionHeading>{actionSection.heading}</SectionHeading>
     <Card className="min-w-0 p-4 sm:p-5">
       <div className="flex min-w-0 flex-col gap-3">
@@ -453,27 +496,27 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
         {judgmentTime.laterScanLine ? <p>{judgmentTime.laterScanLine}</p> : null}
       </div> : null}
       {today?.state === "partial" || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">{today.state === "partial" ? "今日資料只更新了一部分" : "今日更新資料目前無法取得"}；空白欄位不能確認沒有新行動。</p> : null}
-      {currentJudgment?.state === "reassessed" && acceptedDelta ? <p role="status" className="text-caption text-ink-2">盤中新聞已通過正式簡報版次與來源校驗；下方顯示重評後判斷。</p> : null}
-      {currentJudgment?.state === "unchanged" && acceptedDelta ? <p role="status" className="text-caption text-ink-2">本次盤中重評維持原判斷；下方仍顯示上次有效的盤中判斷。</p> : null}
-      {currentJudgment?.state === "unchanged" && receiptReadbackMatches && !currentJudgment.current_delta ? <p role="status" className="text-caption text-ink-2">盤中新聞已完成重評；目前資料不足以改變判斷，沿用正式簡報判斷。</p> : null}
-      {currentJudgment?.state === "preserved" && acceptedDelta ? <p role="status" className="text-caption text-ink-2">本次掃描未產生新的判斷變更；下方保留上次有效的盤中判斷。</p> : null}
-      {currentJudgment?.state === "preserved" && receiptReadbackMatches && !currentJudgment.current_delta && currentJudgment.effective_source === "formal_baseline" ? <p role="status" className="text-caption text-ink-2">本次掃描未產生新的判斷變更；沿用正式簡報判斷。</p> : null}
-      {currentJudgment?.state === "pending" ? <p role="status" className="text-caption text-warn">盤中判斷待重新確認；{acceptedDelta ? "保留上次已校驗的有效判斷。" : "正式簡報版次或來源尚未通過校驗，以下保留正式簡報判斷。"}</p> : null}
-      {(currentJudgment?.state === "reassessed" && !acceptedDelta)
-        || (currentJudgment?.state === "unchanged" && (!receiptReadbackMatches || Boolean(currentJudgment.current_delta) && !acceptedDelta))
-        ? <p role="status" className="text-caption text-warn">盤中重評回讀或判斷來源不完整；保留正式簡報判斷，重評狀態未確認。</p> : null}
-      {currentJudgment?.state === "preserved" && !acceptedDelta
-        && (Boolean(currentJudgment.current_delta) || currentJudgment.effective_source === "last_successful_reassessment")
-        ? <p role="status" className="text-caption text-warn">上次盤中判斷缺少可核對的來源版次；保留正式簡報判斷，盤中判斷未確認。</p> : null}
+      <div role="status" aria-label="這次判斷更新" className="flex min-w-0 flex-col gap-1 border-l-2 border-line pl-3">
+        <p className="text-body font-medium text-ink">{assessmentHeading}{assessmentConfirmed && acceptedDelta && actionUnchanged ? ` · 行動仍是${JUDGMENT_CLASS_LABEL[acceptedDelta.class]}` : ""}</p>
+        {assessmentReason ? <p className="text-body leading-relaxed text-ink-2">{!assessmentConfirmed ? "上次回報的原因（本次未確認）：" : ""}<InlineText text={assessmentReason} /></p>
+          : <p className="text-caption leading-relaxed text-ink-3">{assessmentConfirmed ? "來源未提供本次覆核原因；不能由行動不變推定沒有新資訊。" : "尚不能確認這次有沒有重要新資訊；以下保留可讀的既有判斷。"}</p>}
+        {assessmentConfirmed && latestAssessment?.assessed_at ? <p className="text-caption text-ink-3">本次查核：{sourceTimestamp(latestAssessment.assessed_at)}</p> : null}
+      </div>
       {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
       {readFailed ? <p role="status" className="text-body text-warn">本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動，是否已有新版本尚未確認。</p> : null}
+      {priorJudgment ? <div role="group" aria-label="原先判斷" className="flex min-w-0 flex-col gap-1 border-l-2 border-line-soft pl-3">
+        <p className="text-caption font-medium text-ink-3">原先判斷 · 正式簡報</p>
+        <p className="text-body leading-relaxed text-ink-2"><InlineText text={priorJudgment.judgment} /></p>
+      </div> : null}
+      {previousJudgment ? <p className="text-body leading-relaxed text-ink-2">上次讀取的判斷（目前未確認）：<InlineText text={previousJudgment} /></p> : null}
       {judgment ? <div role="group" aria-label="主要下一步" className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
+          <p className="text-caption font-medium text-ink-3">{acceptedDelta ? assessmentConfirmed ? "現在判斷" : "上次有效判斷（本次未確認）" : "正式簡報判斷"}</p>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Chip tone="info">{JUDGMENT_CLASS_LABEL[judgment.class]}</Chip>
             <p className="min-w-0 text-body font-medium leading-relaxed text-ink"><InlineText text={judgment.judgment} /></p>
           </div>
           <FieldList>
-            <Field label="這次新資訊與判斷"><InlineText text={judgment.why_now} /></Field>
+            <Field label={acceptedDelta ? "相較原先，多知道什麼" : "這次新資訊與判斷"}><InlineText text={judgment.why_now} /></Field>
             {judgment.revisit ? <Field label="接下來看什麼"><InlineText text={judgment.revisit} /></Field> : null}
             {judgment.decision_effect ? <Field label="什麼結果會改變判斷"><InlineText text={judgment.decision_effect} /></Field> : null}
           </FieldList>
@@ -491,7 +534,6 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
         <summary className="cursor-pointer py-1">檢查點與來源</summary>
         <div className="mt-2 flex min-w-0 flex-col gap-3">
           <div>{checkpointNote}</div>
-          {previousJudgment ? <p>上次讀取的判斷（目前未確認）：<InlineText text={previousJudgment} /></p> : null}
           {b.upcoming.length ? <div className="flex min-w-0 flex-col gap-2">
             <p className="font-medium text-ink-2">近期檢查 · {b.upcoming.length}</p>
             <p>這些事件未提供與上方行動的明確關係，分開保留。</p>
@@ -749,3 +791,4 @@ export function InvestmentPage() {
     </div></details>
   </div>
 }
+
