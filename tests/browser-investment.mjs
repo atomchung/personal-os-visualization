@@ -42,6 +42,12 @@ await page.addInitScript(({ scenario, judgmentFixture, claimFixture }) => {
       }
       if (scenario === 'claim-empty') evidence.evidence_claim_relations.relations = []
       if (scenario === 'claim-unavailable') data.state = 'unavailable'
+      if (scenario === 'claim-ready') {
+        data.state = 'ready'
+        data.limitations = []
+        data.narratives[0].state = 'ready'
+        data.narratives[0].state_reason = null
+      }
       if (scenario === 'claim-relations') evidence.evidence_claim_relations.relations[2].reason += ' 這段是合成長文，用來檢查窄畫面的閱讀：' + '同一筆資料對不同假設可能有不同意義，須保留來源限制。'.repeat(5)
     }
     if (judgmentFixture && data?.brief && data?.today) {
@@ -468,14 +474,23 @@ try {
   }
   // User-facing before/after read-back, at both reading and narrow widths.
   for (const width of [1080, 390]) {
-    for (const scenario of ['judgment-change', 'claim-relations']) {
+    for (const scenario of ['judgment-ready', 'claim-ready', 'judgment-change', 'claim-relations']) {
       const { page, errors, externalRequests } = await openPage(width, scenario)
       let section = page.getByRole('region', { name: '今天怎麼做', exact: true })
-      if (scenario === 'claim-relations') {
+      if (scenario.startsWith('claim-')) {
         await page.getByRole('tab', { name: '我的判斷', exact: true }).click()
         section = page.getByRole('article', { name: '主張與證據', exact: true })
       }
       await section.waitFor()
+      if (scenario.endsWith('-ready')) {
+        const normalText = await section.innerText()
+        assert.doesNotMatch(normalText, /合成長文|這段是合成長文/)
+        if (scenario === 'claim-ready') {
+          assert.match(normalText, /來源標示目前有效/)
+          assert.doesNotMatch(normalText, /來源目前不可用|尚未重新確認目前狀態/)
+        } else assert.match(normalText, /判斷已更新 · 行動仍是觀察/)
+        await page.screenshot({ path: `${output}/${scenario}-${width}-full.png`, fullPage: true })
+      }
       await section.screenshot({ path: `${output}/${scenario}-${width}.png` })
       assert.deepEqual(errors, [])
       assert.deepEqual(externalRequests, [])
