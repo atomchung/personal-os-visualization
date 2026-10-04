@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react"
+import "./judgment.css"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { DEMO_MODE } from "@/lib/transport"
 import { Button } from "@/components/ui/button"
@@ -740,11 +741,12 @@ export function InvestmentPage() {
         <StockMomentum />
       </section>
     </div>
-    <div id="investment-panel-thesis" role="tabpanel" aria-labelledby="investment-tab-thesis" hidden={view !== "thesis"} className={view === "thesis" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
-      <ReadingColumn><InvestmentNarrativeSection enabled={view === "thesis"} onOpenHistory={() => openView("history")} /></ReadingColumn>
+    <div id="investment-panel-thesis" role="tabpanel" aria-labelledby="investment-tab-thesis" hidden={view !== "thesis"} className={view === "thesis" ? "judgment-workspace flex min-w-0 flex-col gap-5" : "hidden"}>
+      <InvestmentNarrativeSection enabled={view === "thesis"} onOpenHistory={() => openView("history")}>
       {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
       {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次讀取的資料；資料截止時間仍以簡報標示為準。" : "目前沒有可用的簡報資料。"}請按更新資料重試。</p> : null}
-      {b ? <ReadingColumn><InvestmentThesis b={b} /></ReadingColumn> : null}
+      {b ? <InvestmentThesis b={b} /> : null}
+      </InvestmentNarrativeSection>
     </div>
     <div id="investment-panel-work" role="tabpanel" aria-labelledby="investment-tab-work" hidden={view !== "work"} className={view === "work" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
       {watch.isError ? <p role="alert" className="text-body text-warn">Watch 日期來源本次讀取失敗。{watch.data ? "仍顯示上次內容。" : ""}</p> : null}

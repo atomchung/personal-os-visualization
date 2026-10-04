@@ -416,9 +416,11 @@ try {
         await panel.getByRole('heading', { name: '目前判斷', exact: true }).waitFor()
         assert.match(await panel.innerText(), /來源關聯不一致/)
         assert.equal(await panel.getByText('資料狀態說明', { exact: true }).first().locator('..').getAttribute('open'), null)
-        const order = ['目前判斷', '支持訊號', '挑戰訊號', '最近一次明確記錄的判斷與驗證', '下一驗證點', '五層詳細證據']
-        const bounds = await Promise.all(order.map(name => panel.getByRole('heading', { name, exact: true }).boundingBox()))
-        assert.ok(bounds.every((box, i) => box && (i === 0 || box.y > bounds[i - 1].y)), 'judgment and explicit signals precede evidence')
+        const overview = await panel.getByRole('article', { name: '目前判斷', exact: true }).boundingBox()
+        const claims = await panel.getByRole('article', { name: '主張與證據', exact: true }).boundingBox()
+        assert.ok(overview && claims && overview.y < claims.y, 'current judgment precedes evidence')
+        assert.equal(await panel.getByTestId('judgment-layers').getAttribute('open'), null)
+        assert.equal(await panel.getByTestId('judgment-signals').getAttribute('open'), null)
       }
       if (label === '研究與策略') {
         const catalysts = panel.getByRole('region', { name: '未來 30 天催化劑', exact: true })

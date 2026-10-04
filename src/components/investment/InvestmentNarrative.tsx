@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardSection, Field, FieldList, SectionHeading, SubsectionHeading } from "@/components/ui/card"
+import { Card, CardSection, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { DEMO_MODE } from "@/lib/transport"
 import { filterLayerEntityGroups, layerEntityEvidenceGroups, layerEvidenceGroups, layerGapLine, layerReadingCaption, layerReadingText, layerStatusLineFor, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeDisplayState, narrativeSignalSections, narrativeSummaryLines, paginateLayerEntityGroups, sourceTimestamp } from "@/lib/investmentFormat"
@@ -518,7 +518,7 @@ export function TodayCatalysts({ enabled, heading = "公司近期事件" }: { en
   </section>
 }
 
-function NarrativeContent({ data, narrative, readable }: { data: InvestmentNarrative; narrative: InvestmentNarrative["narratives"][number]; readable: boolean }) {
+function NarrativeContent({ data, narrative, readable, children }: { data: InvestmentNarrative; narrative: InvestmentNarrative["narratives"][number]; readable: boolean; children?: ReactNode }) {
   const evidence = narrative.thesis_evidence
   const { challengeSignals, supportSignals, explicitFalsifiers } = narrativeSignalSections(evidence.directional_signals)
   // Global indexes can contain rows absent from a matching layer card. Keep
@@ -543,19 +543,37 @@ function NarrativeContent({ data, narrative, readable }: { data: InvestmentNarra
     nextCheckpoint: null,
     signals: evidence ? { state: evidence.state, items: evidence.directional_signals ?? [] } : null,
   })
-  return <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
-    <CardSection as="article" density="normal" aria-label="目前判斷" className="flex min-w-0 flex-col gap-3">
-      <SubsectionHeading>目前判斷</SubsectionHeading>
-      <FieldList>
-        {summary.map(line => <Field key={line.label} label={line.label} tone={line.muted ? "muted" : "default"}><InlineText text={line.text} /></Field>)}
-      </FieldList>
-    </CardSection>
+  const tension = summary[0]
+  const lastChange = summary[1]
+  const signalSummary = summary[3]
+  return <div className="judgment-content">
+    <Card className="judgment-overview">
+      <article aria-label="目前判斷" className="judgment-overview-main">
+        <div className="judgment-eyebrow"><span aria-hidden="true">◎</span><h3>目前判斷</h3></div>
+        {narrative.title ? <p className="judgment-topic">{narrative.title}</p> : null}
+        <dl><dt className="judgment-label">現在的張力</dt><dd className={`judgment-lead ${tension.muted ? "judgment-lead-missing text-ink-3" : "text-ink"}`}><InlineText text={tension.text} /></dd></dl>
+        <p className="judgment-signal-summary"><span aria-hidden="true">⇄</span><span>{signalSummary.text}</span></p>
+      </article>
+      <div className="judgment-overview-side">
+        <details className="judgment-record">
+          <summary><span className="judgment-label">最近一次記錄</span><span className="judgment-record-preview"><InlineText text={lastChange.text} /></span><span className="judgment-detail-link">展開判斷與驗證</span></summary>
+          <RecordedLearning record={evidence.latest_recorded_change} />
+        </details>
+        <section aria-label="下一驗證點" className="judgment-checkpoint">
+          <h3 className="judgment-label">下一驗證點</h3>
+          <p>{readable ? "來源尚未把下一個檢查點連到此論點" : "目前無法取得"}</p>
+          <details><summary>查看涵蓋說明</summary><p>目前來源沒有把下一檢查點明確連到這個論點或層級；{hasUnlinkedCatalyst ? "其他近期事件已在 Today 顯示，這裡不依代號或文字推定關係。" : "因此保持未知，不用事件日期或近期新聞代替。"}</p></details>
+        </section>
+      </div>
+    </Card>
 
+    {evidence.scorecard_update?.status === "evidence_pending_review" ? <p role="status" className="judgment-notice">新證據待覆核 · 新增資料不代表論點已確認或改變</p> : null}
+    {children}
     <ClaimEvidence evidence={evidence} snapshotState={!readable ? "cached" : data.state === "unavailable" ? "unavailable" : narrative.state === "stale" || evidence.state === "stale" ? "stale" : "available"} />
 
     {/* The long-held thesis rarely changes and the owner already knows it:
         kept in place, folded by default, one click away. */}
-    <details aria-label="長期論點" className="p-4 sm:p-5">
+    <details aria-label="長期論點" className="judgment-fold">
       <summary className="cursor-pointer"><h3 className="inline text-section font-semibold tracking-tight text-ink">長期論點</h3></summary>
       <div className="flex min-w-0 flex-col gap-2 pt-3">
         {narrative.title ? <p className="text-caption text-ink-3">{narrative.title}</p> : null}
@@ -567,29 +585,28 @@ function NarrativeContent({ data, narrative, readable }: { data: InvestmentNarra
       </div>
     </details>
 
-    <CardSection as="article" density="normal" aria-label="支持訊號" className="flex min-w-0 flex-col gap-3">
-      <SubsectionHeading>支持訊號</SubsectionHeading>
-      <SignalGroup title="來源明確列出的支持訊號" signals={supportSignals} emptyLabel="來源尚未列出明確的支持訊號；不以新聞或文字相似度補上。" />
-    </CardSection>
-
-    <CardSection as="article" density="normal" aria-label="挑戰訊號" className="flex min-w-0 flex-col gap-3">
-      <SubsectionHeading>挑戰訊號</SubsectionHeading>
-      <SignalGroup title="來源明確列出的挑戰訊號" signals={challengeSignals} emptyLabel="來源尚未列出明確的挑戰訊號；不以空白代表沒有反方。" />
-      <div className="flex min-w-0 flex-col gap-1">
-        <p className="text-caption font-medium text-ink-2">明確推翻條件</p>
-        {explicitFalsifiers.length ? <ul className="list-disc pl-5 text-body leading-relaxed text-ink-2">{explicitFalsifiers.map((condition, index) => <li key={index}><InlineText text={condition} /></li>)}</ul> : <p className="text-caption leading-relaxed text-ink-3">{NARRATIVE_FALSIFIER_UNAVAILABLE_COPY}</p>}
+    <details className="judgment-fold" data-testid="judgment-signals">
+      <summary><span className="judgment-fold-title">其他方向訊號</span><span className="judgment-fold-meta">已列出：支持 {supportSignals.length} 條 · 挑戰 {challengeSignals.length} 條 · 明確推翻條件 {explicitFalsifiers.length} 條；未列出不代表不存在</span></summary>
+      <p className="judgment-help">來源另外列出的方向訊號，與上方主張關係分開閱讀。未列出不代表沒有支持或挑戰。</p>
+      <div className="judgment-paired">
+        <article aria-label="支持訊號" className="judgment-signal-panel" data-direction="supports">
+          <h3 className="judgment-minor-heading"><span aria-hidden="true">↗</span>支持訊號</h3>
+          <SignalGroup title="來源明確列出的支持訊號" signals={supportSignals} emptyLabel="來源尚未列出明確的支持訊號；不以新聞或文字相似度補上。" />
+        </article>
+        <article aria-label="挑戰訊號" className="judgment-signal-panel" data-direction="challenges">
+          <h3 className="judgment-minor-heading"><span aria-hidden="true">↘</span>挑戰訊號</h3>
+          <SignalGroup title="來源明確列出的挑戰訊號" signals={challengeSignals} emptyLabel="來源尚未列出明確的挑戰訊號；不以空白代表沒有反方。" />
+          <div className="mt-3 border-t border-line-soft pt-3">
+            <p className="text-caption font-medium text-ink-2">明確推翻條件</p>
+            {explicitFalsifiers.length ? <ul className="list-disc pl-5 text-body leading-relaxed text-ink-2">{explicitFalsifiers.map((condition, index) => <li key={index}><InlineText text={condition} /></li>)}</ul> : <p className="text-caption leading-relaxed text-ink-3">{NARRATIVE_FALSIFIER_UNAVAILABLE_COPY}</p>}
+          </div>
+        </article>
       </div>
-    </CardSection>
+    </details>
 
-    <RecordedLearning record={evidence.latest_recorded_change} />
-
-    <CardSection as="article" density="normal" aria-label="下一驗證點" className="flex min-w-0 flex-col gap-2">
-      <SubsectionHeading>下一驗證點</SubsectionHeading>
-      <p className="text-body text-ink-3">目前來源沒有把下一檢查點明確連到這個論點或層級；{hasUnlinkedCatalyst ? "其他近期事件已在 Today 顯示，這裡不依代號或文字推定關係。" : "因此保持未知，不用事件日期或近期新聞代替。"}</p>
-    </CardSection>
-
-    <CardSection as="article" density="normal" className="flex min-w-0 flex-col gap-3">
-      <SubsectionHeading>五層詳細證據</SubsectionHeading>
+    <details className="judgment-fold" data-testid="judgment-layers">
+      <summary><h3 className="judgment-fold-title">五層詳細證據</h3><span className="judgment-fold-meta">{evidence.layers.length} 個層級 · {STATE_COPY[evidence.state].label}</span></summary>
+      <div className="judgment-fold-body">
       <p className="text-caption leading-relaxed text-ink-3">方向、支持／挑戰資料、對應關係與反方檢查狀態分開呈現；沒有明確連結不代表沒有相關證據。</p>
       <div role="group" aria-label="五層證據覆蓋狀態" className="flex min-w-0 flex-col gap-1"><p className="text-caption font-medium text-ink-2">證據覆蓋：{STATE_COPY[evidence.state].label}</p><StateReasonDetails reason={evidence.reason} /></div>
       {evidence.scorecard_update?.status === "evidence_pending_review" ? <p role="status" className="text-caption leading-relaxed text-warn">新證據尚待論點覆核；最近一次明確覆核日為 {sourceTimestamp(evidence.scorecard_update.updated_at)}。新增資料不代表論點已確認或改變。</p> : null}
@@ -602,9 +619,9 @@ function NarrativeContent({ data, narrative, readable }: { data: InvestmentNarra
           <IntegrityRows title="未連結的玩家關係" rows={unlinkedPlayers} />
         </div>
       </details> : null}
-    </CardSection>
+    </div></details>
 
-    <details className="p-4 text-caption text-ink-3 sm:p-5">
+    <details className="judgment-fold judgment-provenance text-caption text-ink-3">
       <summary className="cursor-pointer">日期與來源</summary>
       <div className="flex flex-col gap-2 pt-2">
         <p>Scorecard 更新：{sourceTimestamp(narrative.updated)} · 頁面讀取資料截點：{sourceTimestamp(data.source_cutoff)}</p>
@@ -614,10 +631,10 @@ function NarrativeContent({ data, narrative, readable }: { data: InvestmentNarra
       </div>
     </details>
 
-  </Card>
+  </div>
 }
 
-export function InvestmentNarrativeSection({ enabled, onOpenHistory }: { enabled: boolean; onOpenHistory: () => void }) {
+export function InvestmentNarrativeSection({ enabled, onOpenHistory, children }: { enabled: boolean; onOpenHistory: () => void; children?: ReactNode }) {
   const query = useQuery({
     queryKey: ["investment-narrative"],
     queryFn: ({ signal }) => getInvestmentNarrative(signal),
@@ -630,13 +647,13 @@ export function InvestmentNarrativeSection({ enabled, onOpenHistory }: { enabled
   const narrative = data?.narratives[0]
   const state: DisplayState = query.isError ? "unavailable" : narrativeDisplayState(narrative?.state, narrative?.thesis_evidence.state, data?.state) ?? "unknown"
   return <section aria-label="我的判斷" className="flex min-w-0 flex-col gap-3 break-words">
-    <SectionHeading aside={<StateChip state={state} />}>我的判斷</SectionHeading>
-    <p className="text-caption leading-relaxed text-ink-3">先看目前判斷與支持／挑戰訊號，再回看最近一次明確記錄與下一驗證點，最後展開五層來源證據。資料完整度不代表論點成立。要回看當時判斷、後來結果與已記錄心得，請到 <Button variant="link" className="inline min-h-0 px-0 py-0 align-baseline" onClick={onOpenHistory}>復盤與學習</Button>。交易紀錄核對是另一項工作；PersonalOS 目前沒有對應入口。</p>
+    <div className="judgment-page-heading"><SectionHeading>我的判斷</SectionHeading><span className="judgment-data-state"><StateChip state={state} /><span>資料狀態，不代表論點成立</span></span></div>
+    <p className="judgment-page-intro">看目前的主張、支持與挑戰，以及還缺哪些驗證。<Button variant="link" className="inline min-h-0 px-0 py-0 align-baseline" onClick={onOpenHistory}>回看復盤與學習 ↗</Button></p>
     {narrative ? <StateReasonDetails reason={narrative.state_reason} /> : null}
     {DEMO_MODE ? <p className="text-caption text-ink-3">展示內容全為合成範例；個人論點與持倉保持未知。</p> : null}
     {query.isPending && !data ? <p role="status" className="text-body text-ink-3">正在讀取論點來源；讀取完成前不顯示健康狀態。</p> : null}
     {query.isError ? <p role="alert" className="text-caption text-warn">這次論點來源讀取失敗。{data ? "以下保留上次讀取結果。" : "目前無法確認論點狀態。"}請按更新資料重試。</p> : null}
     {!query.isPending && !query.isError && !narrative ? <p role="status" className="text-body text-ink-3">目前沒有可讀的 AI narrative；來源未提供資料，不補寫論點。</p> : null}
-    {data && narrative ? <NarrativeContent data={data} narrative={narrative} readable={!query.isError} /> : null}
+    {data && narrative ? <NarrativeContent data={data} narrative={narrative} readable={!query.isError}>{children}</NarrativeContent> : children}
   </section>
 }
