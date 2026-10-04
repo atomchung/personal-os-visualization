@@ -670,7 +670,7 @@ export function InvestmentPage() {
         <Button disabled={marketRefresh.data?.state === "running"} onClick={() => void runRefresh("market")}>刷新盤面</Button>
         <Button disabled={newsRefresh.data?.state === "running"} onClick={() => void runRefresh("news", "tw")}>台股消息快掃</Button>
         <Button disabled={newsRefresh.data?.state === "running"} onClick={() => void runRefresh("news", "us")}>美股消息快掃</Button>
-        <Button disabled={marketRefresh.isFetching || newsRefresh.isFetching} title="只重新讀取狀態，不會啟動行情或新聞刷新" onClick={() => void rereadInvestmentRefreshStatuses(() => marketRefresh.refetch(), () => newsRefresh.refetch())}>重新讀取狀態</Button>
+        {marketRefresh.isError || newsRefresh.isError ? <Button disabled={marketRefresh.isFetching || newsRefresh.isFetching} title="只重新讀取狀態，不會啟動行情或新聞刷新" onClick={() => void rereadInvestmentRefreshStatuses(() => marketRefresh.refetch(), () => newsRefresh.refetch())}>重新讀取狀態</Button> : null}
       </div>
       <div className="flex min-w-0 flex-col gap-1 text-caption text-ink-3" aria-live="polite">
         <p>{refreshStateLabel("market", marketRefresh.data, marketRefresh.error)}{marketRefresh.data?.discovery_state === "running" ? " · 市場資金掃描仍在背景整理" : marketRefresh.data?.discovery_state === "partial" ? " · 市場資金掃描部分完成" : marketRefresh.data?.discovery_state === "failed" ? " · 市場資金掃描失敗" : ""}</p>
