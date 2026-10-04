@@ -123,6 +123,8 @@ test("providerCompletionNote and providerDetailTitle keep raw model/provider_err
   assert.equal(providerCompletionNote({ provider: "claude", fallback_depth: 1 }), "由 Claude 完成（先前 1 個模型未成功）")
   assert.equal(providerCompletionNote({ provider: "grok", fallback_depth: null }), "由 Grok 完成")
   assert.equal(providerCompletionNote({ provider: "agy", fallback_depth: 0, state: "failed" }), "由 Antigravity 執行失敗")
+  assert.equal(providerCompletionNote({ provider: "agy", fallback_depth: 0, state: "failed", model_work_state: "failed" }), "由 Antigravity 執行失敗")
+  assert.equal(providerCompletionNote({ provider: "agy", fallback_depth: 0, state: "failed", model_work_state: "completed" }), "由 Antigravity 完成搜尋，結果未採用")
   assert.equal(providerCompletionNote({ provider: "agy", fallback_depth: 0, state: "running" }), "由 Antigravity 執行中")
   assert.doesNotMatch(providerCompletionNote({ provider: "claude", fallback_depth: 1 }) ?? "", /fallback/)
 

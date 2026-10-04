@@ -681,6 +681,7 @@ export type InvestmentRefreshStatus = {
   requested_model?: string | null
   provider_invocation_count?: number | null
   provider_call_count?: number | null
+  model_work_state?: string | null
   provider_log_path?: string | null
   fallback_depth: number | null
   provider_errors: Record<string, string>

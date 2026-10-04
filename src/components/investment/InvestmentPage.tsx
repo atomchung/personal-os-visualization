@@ -123,7 +123,8 @@ function TodayIntradayReceipts({ refresh, readFailed }: { refresh?: InvestmentIn
             {market ? <>
               <p>正式基準 cutoff：{sourceTimestamp(market.baseline_cutoff)}</p>
               {receipt?.baseline_cutoff_at ? <p>本次回執採用的基準 cutoff：{sourceTimestamp(receipt.baseline_cutoff_at)}</p> : null}
-              <p>本次輸入 cutoff：{sourceTimestamp(market.input_cutoff)}</p>
+              {receipt ? <p>本次輸入 cutoff：{sourceTimestamp(receipt.input_cutoff)}</p> : null}
+              <p>下次搜尋起點：{sourceTimestamp(market.input_cutoff)}</p>
               {receipt?.source_cutoff ? <p>本次搜尋 cutoff：{sourceTimestamp(receipt.source_cutoff)}</p> : null}
               {receipt ? <p>本次輸出 cutoff：{sourceTimestamp(receipt.output_cutoff)}</p> : null}
               <p>最近成功 cutoff：{sourceTimestamp(market.last_successful_cutoff)}</p>
