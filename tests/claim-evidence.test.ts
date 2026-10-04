@@ -12,9 +12,9 @@ let server: ViteDevServer
 before(async () => { server = await createServer({ server: { middlewareMode: true }, appType: "custom" }) })
 after(async () => { await server.close() })
 
-async function renderEvidence(evidence: InvestmentNarrativeThesisEvidence) {
+async function renderEvidence(evidence: InvestmentNarrativeThesisEvidence, snapshotState?: "available" | "cached" | "stale") {
   const { ClaimEvidence } = await server.ssrLoadModule("/src/components/investment/ClaimEvidence.tsx")
-  return renderToStaticMarkup(createElement(ClaimEvidence, { evidence }))
+  return renderToStaticMarkup(createElement(ClaimEvidence, { evidence, snapshotState }))
 }
 
 test("exact claim relations retain support, challenge and mixed reasons with their source evidence", async () => {
@@ -33,6 +33,31 @@ test("exact claim relations retain support, challenge and mixed reasons with the
   assert.doesNotMatch(html, /反方完整|沒有反方證據[。<]/)
 })
 
+test("one evidence ID can support one claim and independently mix with or challenge another", async () => {
+  for (const direction of ["mixed", "challenges"] as const) {
+    const evidence = syntheticClaimEvidence()
+    const original = evidence.evidence_claim_relations!.relations[0]
+    const secondClaimId = "demo-garden-maintenance-effort"
+    evidence.claim_registry!.claims.push({ ...evidence.claim_registry!.claims[0], claim_id: secondClaimId, title: "雲庭花園的維護主張", claim_statement: "虛構花園的滴灌維護工作會減少。" })
+    const secondRelation = { ...original, claim_id: secondClaimId, direction, reason: "同一筆虛構試驗對維護工作的影響另由來源判定。" }
+    evidence.evidence_claim_relations!.relations.push(secondRelation)
+    const view = claimEvidenceView(evidence)
+    assert.equal(view.state, "ready")
+    const firstRow = view.claims[0].rows.find(row => row.relation.evidence_id === original.evidence_id)!
+    const secondRow = view.claims[1].rows[0]
+    assert.equal(firstRow.direction, "supports")
+    assert.equal(secondRow.direction, direction)
+    assert.equal(secondRow.relation, secondRelation)
+    assert.equal(firstRow.evidence, secondRow.evidence, "both exact relations link to the same evidence record")
+    assert.equal(firstRow.sourceUrl, secondRow.sourceUrl)
+    assert.equal(view.issues.length, 0, "distinct claim IDs are not a relation conflict")
+    const html = await renderEvidence(evidence)
+    assert.ok(html.includes(original.reason))
+    assert.ok(html.includes(secondRelation.reason))
+    assert.match(html, /雲庭花園的維護主張/)
+  }
+})
+
 test("ready relation never makes a stale challenge current, and later support does not erase it", async () => {
   const evidence = syntheticClaimEvidence()
   const rows = claimEvidenceView(evidence).claims[0].rows
@@ -47,6 +72,26 @@ test("ready relation never makes a stale challenge current, and later support do
   assert.match(html, /不代表目前仍然成立/)
   assert.match(html, /後一次花圃試驗的用水減少/)
   assert.match(html, /較早的黏土花圃試驗出現漏水/)
+})
+
+test("failed cached rereads and stale parent snapshots retain direction without claiming current validity", async () => {
+  const evidence = syntheticClaimEvidence()
+  for (const snapshot of ["cached", "stale"] as const) {
+    const html = await renderEvidence(evidence, snapshot)
+    assert.ok(html.includes(`data-claim-evidence-snapshot="${snapshot}"`))
+    assert.match(html, /尚未重新確認目前狀態/)
+    assert.match(html, /data-claim-direction="supports" data-evidence-timing="snapshot"/)
+    assert.match(html, /data-claim-direction="mixed" data-evidence-timing="snapshot"/)
+    assert.match(html, /data-claim-direction="challenges" data-evidence-timing="historical"/)
+    assert.match(html, /歷史資料，來源已過期/)
+    assert.doesNotMatch(html, /來源標示目前有效|data-evidence-timing="current"/)
+    for (const relation of evidence.evidence_claim_relations!.relations) assert.ok(html.includes(relation.reason), "source reasons remain unchanged")
+  }
+  evidence.state = "stale"
+  assert.match(await renderEvidence(evidence), /data-claim-evidence-snapshot="stale"/)
+  assert.doesNotMatch(await renderEvidence(evidence), /來源標示目前有效/)
+  const narrative = readFileSync(new URL("../src/components/investment/InvestmentNarrative.tsx", import.meta.url), "utf8")
+  assert.match(narrative, /snapshotState=\{!readable \? "cached" : narrative\.state === "stale" \|\| evidence\.state === "stale" \? "stale" : "available"\}/)
 })
 
 test("absent fields and explicitly empty global or embedded arrays have different meanings", async () => {
@@ -174,6 +219,6 @@ test("long source reasons remain complete and wrappable near the narrative judgm
   assert.match(html, /min-w-0 break-words \[overflow-wrap:anywhere\]/)
   assert.doesNotMatch(html, /line-clamp|truncate/)
   const narrative = readFileSync(new URL("../src/components/investment/InvestmentNarrative.tsx", import.meta.url), "utf8")
-  assert.ok(narrative.indexOf('<ClaimEvidence evidence={evidence} />') > narrative.indexOf('aria-label="目前判斷"'))
-  assert.ok(narrative.indexOf('<ClaimEvidence evidence={evidence} />') < narrative.indexOf('aria-label="長期論點"'))
+  assert.ok(narrative.indexOf('<ClaimEvidence evidence={evidence}') > narrative.indexOf('aria-label="目前判斷"'))
+  assert.ok(narrative.indexOf('<ClaimEvidence evidence={evidence}') < narrative.indexOf('aria-label="長期論點"'))
 })

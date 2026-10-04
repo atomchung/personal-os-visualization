@@ -11,15 +11,21 @@ const DIRECTIONS: Record<ClaimEvidenceDirection, string> = {
   unknown: "關係尚待確認",
 }
 
+type SnapshotState = "available" | "cached" | "stale"
+
 function Source({ label, source }: { label: string; source?: InvestmentNarrativeSource | null }) {
   return <p className="break-all">{label}：{source ? <>{source.label ? `${source.label} · ` : ""}{source.path}{source.line ? `:${source.line}` : ""}</> : "來源位置未提供"}</p>
 }
 
-function RelationRow({ row }: { row: ClaimEvidenceRow }) {
+function RelationRow({ row, snapshotState }: { row: ClaimEvidenceRow; snapshotState: SnapshotState }) {
   const item = row.evidence
   const date = item && "source_date" in item ? item.source_date : item?.evidence_date
-  return <li data-claim-direction={row.direction} data-evidence-timing={row.timing} className="flex min-w-0 flex-col gap-1.5 border-t border-line-soft py-3 first:border-0 first:pt-0 last:pb-0">
-    <p className="text-caption font-medium text-ink-2">{row.timing === "historical" ? "歷史資料，來源已過期" : row.timing === "current" ? "來源標示目前有效" : "證據時效尚未確認"}</p>
+  // Transport/snapshot freshness qualifies the presentation only. It cannot
+  // rewrite the producer's explicit direction or make expired evidence current.
+  const timing = row.timing === "historical" ? "historical" : snapshotState !== "available" ? "snapshot" : row.timing
+  const timingLabel = timing === "historical" ? "歷史資料，來源已過期" : timing === "snapshot" ? "保留來源關係記錄，目前尚未重新確認" : timing === "current" ? "來源標示目前有效" : "證據時效尚未確認"
+  return <li data-claim-direction={row.direction} data-evidence-timing={timing} className="flex min-w-0 flex-col gap-1.5 border-t border-line-soft py-3 first:border-0 first:pt-0 last:pb-0">
+    <p className="text-caption font-medium text-ink-2">{timingLabel}</p>
     <p className="whitespace-pre-wrap text-body leading-relaxed text-ink-2">{row.relation.reason ? <InlineText text={row.relation.reason} /> : "來源尚未提供關係理由。"}</p>
     {row.timing === "historical" ? <p className="text-caption text-ink-3">保留過去的關係記錄，不代表目前仍然成立。</p> : null}
     {row.notes.map((note, index) => <p key={index} className="text-caption leading-relaxed text-ink-3">{note}</p>)}
@@ -63,10 +69,12 @@ function Issue({ issue }: { issue: ClaimEvidenceIssue }) {
   </li>
 }
 
-export function ClaimEvidence({ evidence }: { evidence: InvestmentNarrativeThesisEvidence }) {
+export function ClaimEvidence({ evidence, snapshotState = "available" }: { evidence: InvestmentNarrativeThesisEvidence; snapshotState?: SnapshotState }) {
   const view = claimEvidenceView(evidence)
-  return <CardSection as="article" density="normal" aria-label="主張與證據" data-claim-evidence-state={view.state} className="min-w-0 break-words [overflow-wrap:anywhere]">
+  const snapshot = snapshotState === "cached" ? "cached" : snapshotState === "stale" || evidence.state === "stale" ? "stale" : "available"
+  return <CardSection as="article" density="normal" aria-label="主張與證據" data-claim-evidence-state={view.state} data-claim-evidence-snapshot={snapshot} className="min-w-0 break-words [overflow-wrap:anywhere]">
     <SubsectionHeading>主張與證據</SubsectionHeading>
+    {snapshot !== "available" ? <p className="text-caption leading-relaxed text-warn">{snapshot === "cached" ? "本次讀取失敗；以下保留上次讀取的主張與關係，尚未重新確認目前狀態。" : "來源整體標為較舊；以下保留原有主張與關係，尚未重新確認目前狀態。"}</p> : null}
     <p className="text-caption leading-relaxed text-ink-3">{view.notice}</p>
     {view.claims.map(({ claim, rows }) => <section key={claim.claim_id} aria-label={claim.title || "來源主張"} className="flex min-w-0 flex-col gap-3 border-t border-line-soft pt-3">
       <div className="flex min-w-0 flex-col gap-1">
@@ -77,7 +85,7 @@ export function ClaimEvidence({ evidence }: { evidence: InvestmentNarrativeThesi
         const items = rows.filter(row => row.direction === direction)
         return items.length ? <div key={direction} className="flex min-w-0 flex-col gap-2">
           <h5 className="text-caption font-semibold text-ink">{DIRECTIONS[direction]}</h5>
-          <ul className="flex min-w-0 flex-col">{items.map((row, index) => <RelationRow key={`${row.relation.evidence_id}:${index}`} row={row} />)}</ul>
+          <ul className="flex min-w-0 flex-col">{items.map((row, index) => <RelationRow key={`${row.relation.evidence_id}:${index}`} row={row} snapshotState={snapshot} />)}</ul>
         </div> : null
       })}
       {!rows.length ? <p className="text-caption leading-relaxed text-ink-3">{view.state === "unavailable" ? "此主張的關係資料尚未提供。" : "目前沒有可明確對應到此主張的關係列；不代表沒有支持或反方。"}</p> : null}

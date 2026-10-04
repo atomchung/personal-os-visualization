@@ -555,7 +555,7 @@ try {
         assert.match(text, /有新增續約資料，但觀察時間仍短/)
         break
       case 'judgment-quiet':
-        assert.match(text, /此次掃描範圍內沒有重要增量/)
+        assert.match(await page.getByRole('region', { name: '台美盤中刷新回執', exact: true }).innerText(), /此次掃描範圍內沒有重要增量/)
         assert.match(text, /沿用既有判斷/)
         break
       case 'judgment-failed':
