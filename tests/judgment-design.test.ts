@@ -44,8 +44,8 @@ test("pending source review remains visible outside the folded layers", async ()
 })
 
 test("judgment direction colors have AA normal-text contrast on white", () => {
-  const css = readFileSync(new URL('../src/components/investment/judgment.css', import.meta.url), 'utf8')
-  const colors = [...css.matchAll(/--judgment-(?:support|challenge|mixed|unknown): (#[\da-f]{6})/g)].map(match => match[1])
+  const tokens = readFileSync(new URL('../src/tokens.css', import.meta.url), 'utf8')
+  const colors = [...tokens.matchAll(/--color-judgment-(?:support|challenge|mixed|unknown): (#[\da-f]{6})/g)].map(match => match[1])
   assert.equal(colors.length, 4)
   for (const hex of colors) {
     const rgb = [1, 3, 5].map(i => Number.parseInt(hex.slice(i, i + 2), 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
@@ -91,4 +91,14 @@ test("every briefing change exposes its authored title/direction and notes-only 
     assert.match(notes, /只有原文的來源判斷，必須直接看得到。/)
     assert.doesNotMatch(notes, /本日評估 · 0 條記錄/)
   } finally { await server.close() }
+})
+
+
+test("judgment stylesheet uses declared color and type tokens", () => {
+  const css = readFileSync(new URL('../src/components/investment/judgment.css', import.meta.url), 'utf8')
+  const tokens = readFileSync(new URL('../src/tokens.css', import.meta.url), 'utf8')
+  const known = new Set([...tokens.matchAll(/--([a-z0-9-]+):/g)].map(match => match[1]))
+  assert.doesNotMatch(css, /#[a-f\d]{3,8}\b/i)
+  assert.doesNotMatch(css, /font-size:\s*[\d.]+px/)
+  for (const [, token] of css.matchAll(/var\(--([a-z0-9-]+)/g)) assert.ok(known.has(token), token)
 })

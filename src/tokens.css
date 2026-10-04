@@ -33,6 +33,11 @@
   --color-info: #007aff;
   --color-accent: #ff6a4d;
   --color-accent-2: #ff9d5c;
+  --color-judgment-support: #24665b;
+  --color-judgment-challenge: #a0443a;
+  --color-judgment-mixed: #675497;
+  --color-judgment-unknown: #536173;
+  --color-judgment-direction: #536173;
 
   /* time-tracking category semantics */
   --color-cat-1: #007aff;  /* 投資 */
