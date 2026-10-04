@@ -1,6 +1,7 @@
 import "./convergence-regressions.test.ts"
 import "./ccstoryPricing.test.ts"
 import "./claim-evidence.test.ts"
+import "./judgment-design.test.ts"
 import "./checkpoint-identity-copy.test.ts"
 import "./event-news.test.ts"
 import "./future-event-title.test.ts"

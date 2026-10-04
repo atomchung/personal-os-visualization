@@ -1,4 +1,4 @@
-import { CardSection, SubsectionHeading } from "@/components/ui/card"
+import { CardSection } from "@/components/ui/card"
 import type { InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence } from "@/lib/investment"
 import { claimEvidenceView, type ClaimEvidenceDirection, type ClaimEvidenceIssue, type ClaimEvidenceRow } from "@/lib/investmentClaimEvidence"
 import { sourceTimestamp } from "@/lib/investmentFormat"
@@ -24,8 +24,8 @@ function RelationRow({ row, snapshotState }: { row: ClaimEvidenceRow; snapshotSt
   // rewrite the producer's explicit direction or make expired evidence current.
   const timing = row.timing === "historical" ? "historical" : snapshotState !== "available" ? "snapshot" : row.timing
   const timingLabel = timing === "historical" ? "歷史資料，來源已過期" : timing === "snapshot" ? "保留來源關係記錄，目前尚未重新確認" : timing === "current" ? "來源標示目前有效" : "證據時效尚未確認"
-  return <li data-claim-direction={row.direction} data-evidence-timing={timing} className="flex min-w-0 flex-col gap-1.5 border-t border-line-soft py-3 first:border-0 first:pt-0 last:pb-0">
-    <p className="text-caption font-medium text-ink-2">{timingLabel}</p>
+  return <li data-claim-direction={row.direction} data-evidence-timing={timing} className="judgment-relation-row">
+    <p className="judgment-timing" data-timing={timing}>{timingLabel}</p>
     <p className="whitespace-pre-wrap text-body leading-relaxed text-ink-2">{row.relation.reason ? <InlineText text={row.relation.reason} /> : "來源尚未提供關係理由。"}</p>
     {row.timing === "historical" ? <p className="text-caption text-ink-3">保留過去的關係記錄，不代表目前仍然成立。</p> : null}
     {row.notes.map((note, index) => <p key={index} className="text-caption leading-relaxed text-ink-3">{note}</p>)}
@@ -69,29 +69,36 @@ function Issue({ issue }: { issue: ClaimEvidenceIssue }) {
   </li>
 }
 
+const DIRECTION_ICON: Record<ClaimEvidenceDirection, string> = { supports: "↗", challenges: "↘", mixed: "⇄", unknown: "?" }
+
+function RelationGroup({ direction, rows, snapshot }: { direction: ClaimEvidenceDirection; rows: ClaimEvidenceRow[]; snapshot: SnapshotState }) {
+  if (!rows.length) return null
+  return <section className="judgment-relation-group" data-direction={direction} aria-label={DIRECTIONS[direction]}>
+    <h5><span className="judgment-direction-icon" aria-hidden="true">{DIRECTION_ICON[direction]}</span><span>{DIRECTIONS[direction]}</span><span className="judgment-count">{rows.length} 筆</span></h5>
+    <ul><RelationRow row={rows[0]} snapshotState={snapshot} /></ul>
+    {rows.length > 1 ? <details className="judgment-more-rows"><summary>其餘 {rows.length - 1} 筆{DIRECTIONS[direction]}</summary><ul>{rows.slice(1).map((row, index) => <RelationRow key={`${row.relation.evidence_id}:${index}`} row={row} snapshotState={snapshot} />)}</ul></details> : null}
+  </section>
+}
+
 export function ClaimEvidence({ evidence, snapshotState = "available" }: { evidence: InvestmentNarrativeThesisEvidence; snapshotState?: SnapshotState }) {
   const view = claimEvidenceView(evidence)
   const snapshot = snapshotState === "cached" || snapshotState === "unavailable" ? snapshotState : snapshotState === "stale" || evidence.state === "stale" ? "stale" : "available"
-  return <CardSection as="article" density="normal" aria-label="主張與證據" data-claim-evidence-state={view.state} data-claim-evidence-snapshot={snapshot} className="min-w-0 break-words [overflow-wrap:anywhere]">
-    <SubsectionHeading>主張與證據</SubsectionHeading>
-    {snapshot !== "available" ? <p className="text-caption leading-relaxed text-warn">{snapshot === "cached" ? "本次讀取失敗；以下保留上次讀取的主張與關係，尚未重新確認目前狀態。" : snapshot === "unavailable" ? "來源目前不可用；以下保留已有主張與關係，尚未重新確認目前狀態。" : "來源整體標為較舊；以下保留原有主張與關係，尚未重新確認目前狀態。"}</p> : null}
-    <p className="text-caption leading-relaxed text-ink-3">{view.notice}</p>
-    {view.claims.map(({ claim, rows }) => <section key={claim.claim_id} aria-label={claim.title || "來源主張"} className="flex min-w-0 flex-col gap-3 border-t border-line-soft pt-3">
-      <div className="flex min-w-0 flex-col gap-1">
-        <h4 className="text-body font-semibold text-ink">{claim.title || "主張標題未提供"}</h4>
-        <p className="whitespace-pre-wrap text-body leading-relaxed text-ink-2">{claim.claim_statement ? <InlineText text={claim.claim_statement} /> : "主張原文未提供。"}</p>
+  return <CardSection as="article" density="normal" aria-label="主張與證據" data-claim-evidence-state={view.state} data-claim-evidence-snapshot={snapshot} className="judgment-claims min-w-0 break-words [overflow-wrap:anywhere]">
+    <div className="judgment-section-header"><h3><span aria-hidden="true">≋</span>主張與證據</h3><span>{view.claims.length} 個來源主張</span></div>
+    {snapshot !== "available" ? <p role="status" className="judgment-notice">{snapshot === "cached" ? "本次讀取失敗；以下保留上次讀取的主張與關係，尚未重新確認目前狀態。" : snapshot === "unavailable" ? "來源目前不可用；以下保留已有主張與關係，尚未重新確認目前狀態。" : "來源整體標為較舊；以下保留原有主張與關係，尚未重新確認目前狀態。"}</p> : null}
+    <p className="judgment-help">{view.notice}</p>
+    {view.claims.map(({ claim, rows }, index) => <details key={claim.claim_id} open={index === 0} className="judgment-claim" data-claim-id={claim.claim_id}>
+      <summary><span className="judgment-claim-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span><span><h4>{claim.title || "主張標題未提供"}</h4><span className="judgment-claim-description">{claim.claim_statement ? <InlineText text={claim.claim_statement} /> : "主張原文未提供。"}</span><span className="judgment-claim-counts">{(["supports", "challenges", "mixed", "unknown"] as const).filter(direction => rows.some(row => row.direction === direction)).map(direction => <span key={direction} data-direction={direction}><span aria-hidden="true">{DIRECTION_ICON[direction]} </span>{DIRECTIONS[direction]} {rows.filter(row => row.direction === direction).length} 筆</span>)}{!rows.length ? "關係尚未確認" : null}</span></span></summary>
+      <div className="judgment-claim-body">
+        <div className="judgment-relations-grid">
+          {(["supports", "challenges", "mixed", "unknown"] as const).map(direction => <RelationGroup key={direction} direction={direction} rows={rows.filter(row => row.direction === direction)} snapshot={snapshot} />)}
+        </div>
+        {rows.length && !rows.some(row => row.direction === "challenges") ? <p className="judgment-help">此主張尚無明確連結的挑戰關係；不代表沒有反方。</p> : null}
+        {!rows.length ? <p className="judgment-help">{view.state === "unavailable" ? "此主張的關係資料尚未提供。" : "目前沒有可明確對應到此主張的關係列；不代表沒有支持或反方。"}</p> : null}
+        <details className="judgment-source-detail"><summary>主張原文出處</summary><div className="flex min-w-0 flex-col gap-1 pt-1"><p className="break-all">主張 ID：{claim.claim_id}</p><Source label="主張來源" source={claim.source} />{claim.supersedes ? <p className="break-all">來源明示取代的主張 ID：{claim.supersedes}</p> : null}</div></details>
       </div>
-      {(["supports", "challenges", "mixed", "unknown"] as const).map(direction => {
-        const items = rows.filter(row => row.direction === direction)
-        return items.length ? <div key={direction} className="flex min-w-0 flex-col gap-2">
-          <h5 className="text-caption font-semibold text-ink">{DIRECTIONS[direction]}</h5>
-          <ul className="flex min-w-0 flex-col">{items.map((row, index) => <RelationRow key={`${row.relation.evidence_id}:${index}`} row={row} snapshotState={snapshot} />)}</ul>
-        </div> : null
-      })}
-      {!rows.length ? <p className="text-caption leading-relaxed text-ink-3">{view.state === "unavailable" ? "此主張的關係資料尚未提供。" : "目前沒有可明確對應到此主張的關係列；不代表沒有支持或反方。"}</p> : null}
-      <details className="text-caption leading-relaxed text-ink-3"><summary className="cursor-pointer py-1">主張原文出處</summary><div className="flex min-w-0 flex-col gap-1 pt-1"><p className="break-all">主張 ID：{claim.claim_id}</p><Source label="主張來源" source={claim.source} />{claim.supersedes ? <p className="break-all">來源明示取代的主張 ID：{claim.supersedes}</p> : null}</div></details>
-    </section>)}
-    {view.issues.length ? <details className="text-caption leading-relaxed text-ink-3"><summary className="cursor-pointer py-1">未連結或有衝突的資料 · {view.issues.length} 項</summary><ul className="flex min-w-0 flex-col pt-2">{view.issues.map((issue, index) => <Issue key={index} issue={issue} />)}</ul></details> : null}
-    {view.reasons.length || view.sources.length ? <details className="text-caption leading-relaxed text-ink-3"><summary className="cursor-pointer py-1">關係資料的範圍與來源</summary><div className="flex min-w-0 flex-col gap-1 pt-1">{view.reasons.map((reason, index) => <p key={index}>{reason}</p>)}{view.sources.map((source, index) => <Source key={index} label="資料來源" source={source} />)}</div></details> : null}
+    </details>)}
+    {view.issues.length ? <details className="judgment-source-detail"><summary>未連結或有衝突的資料 · {view.issues.length} 項</summary><ul className="flex min-w-0 flex-col pt-2">{view.issues.map((issue, index) => <Issue key={index} issue={issue} />)}</ul></details> : null}
+    {view.reasons.length || view.sources.length ? <details className="judgment-source-detail"><summary>關係資料的範圍與來源</summary><div className="flex min-w-0 flex-col gap-1 pt-1">{view.reasons.map((reason, index) => <p key={index}>{reason}</p>)}{view.sources.map((source, index) => <Source key={index} label="資料來源" source={source} />)}</div></details> : null}
   </CardSection>
 }

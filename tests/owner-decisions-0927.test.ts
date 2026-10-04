@@ -280,29 +280,25 @@ function narrativePayload(): InvestmentNarrative {
 
 // Owner refinement of Q3: the top block is 目前判斷 (the latest summary); the
 // long-held thesis is 長期論點, kept in place below it but folded by default.
-test("我的判斷 opens with the 目前判斷 block, folds 長期論點 below it, and keeps the rest in order", async () => {
+test("我的判斷 uses a source-authored overview and progressively disclosed detail", async () => {
   const { InvestmentNarrativeSection } = await server.ssrLoadModule("/src/components/investment/InvestmentNarrative.tsx")
   const html = withQueryData(createElement(InvestmentNarrativeSection, { enabled: false, onOpenHistory: () => undefined }), [[["investment-narrative"], narrativePayload()]])
-  assert.doesNotMatch(html, /摘要|論點全文/, "the interim names are gone")
-  const order = [">目前判斷</h3>", ">長期論點</h3>", ">支持訊號</h3>", ">挑戰訊號</h3>", ">最近一次明確記錄的判斷與驗證</h3>", ">下一驗證點</h3>", ">五層詳細證據</h3>"]
-  const positions = order.map(marker => html.indexOf(marker))
-  assert.ok(positions.every(position => position > 0), `every section renders: ${positions.join(",")}`)
-  assert.deepEqual([...positions].sort((a, b) => a - b), positions, "目前判斷 first, 長期論點 right below it, everything else in its previous order")
   assert.equal((html.match(/>目前判斷<\/h3>/g) ?? []).length, 1)
-
-  const current = html.slice(html.indexOf(">目前判斷</h3>"), html.indexOf(">長期論點</h3>"))
+  const current = html.slice(html.indexOf('aria-label="目前判斷"'), html.indexOf('class="judgment-overview-side"'))
   assert.match(current, /<dt[^>]*>現在的張力<\/dt><dd[^>]*>合成張力：回報晚到時誰先撐不住。<\/dd>/)
-  assert.match(current, /<dt[^>]*>最近一次記錄<\/dt><dd[^>]*>2026-09-26 · <strong>Bound synthetic L0 evidence to the registry without changing the thesis.<\/strong><\/dd>/)
-  assert.match(current, /<dt[^>]*>接下來看<\/dt><dd class="[^"]*text-ink-3[^"]*">來源沒有把下一個檢查點連到這個論點<\/dd>/)
-  assert.match(current, /<dt[^>]*>訊號<\/dt><dd[^>]*>支持 1 條・挑戰 1 條 · 支持首條：Synthetic paid usage；挑戰首條：Synthetic customer return<\/dd>/)
-
-  const fold = /<details aria-label="長期論點"([^>]*)><summary[^>]*><h3[^>]*>長期論點<\/h3><\/summary>/.exec(html)
-  assert.ok(fold, "長期論點 is a details whose summary is its heading")
-  assert.doesNotMatch(fold[1], /\bopen\b/, "collapsed by default")
-  const thesis = html.slice(html.indexOf(">長期論點</h3>"), html.indexOf(">支持訊號</h3>"))
-  assert.match(thesis, /合成 AI 基礎設施案例/, "the thesis content itself is unchanged inside the fold")
-  assert.match(thesis, /現在的張力/)
-  assert.match(html, /先看目前判斷與支持／挑戰訊號，再回看最近一次明確記錄與下一驗證點，最後展開五層來源證據。/)
+  assert.match(current, /支持 1 條・挑戰 1 條/)
+  assert.match(html, /2026-09-26 · <strong>Bound synthetic L0 evidence to the registry without changing the thesis.<\/strong>/)
+  assert.match(html, /來源尚未把下一個檢查點連到此論點/)
+  for (const marker of ['aria-label="長期論點"', 'data-testid="judgment-signals"', 'data-testid="judgment-layers"']) {
+    const at = html.indexOf(marker)
+    const start = html.lastIndexOf('<details', at)
+    const tag = html.slice(start, html.indexOf('>', at))
+    assert.ok(at > 0)
+    assert.doesNotMatch(tag, /\bopen(?:="")?\b/)
+  }
+  assert.match(html, /合成 AI 基礎設施案例/)
+  assert.match(html, /看目前的主張、支持與挑戰，以及還缺哪些驗證/)
+  assert.match(html, /資料狀態，不代表論點成立/)
 })
 
 test("layer cards keep status readable and fold searchable player evidence with its producer explanation", async () => {
@@ -343,8 +339,8 @@ test("after a failed read, the 目前判斷 block shows 目前無法取得 inste
   query.setState({ status: "error", error: new Error("synthetic read failure"), fetchStatus: "idle" })
   const html = renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(InvestmentNarrativeSection, { enabled: false, onOpenHistory: () => undefined })))
   assert.match(html, /這次論點來源讀取失敗。以下保留上次讀取結果。/)
-  const current = html.slice(html.indexOf(">目前判斷</h3>"), html.indexOf(">長期論點</h3>"))
-  assert.equal((current.match(/<dd class="[^"]*text-ink-3[^"]*">目前無法取得<\/dd>/g) ?? []).length, 4)
+  const current = html.slice(html.indexOf('aria-label="目前判斷"'), html.indexOf('class="judgment-overview-side"'))
+  assert.match(current, /目前無法取得/)
   assert.doesNotMatch(current, /合成張力|Bound synthetic|支持 1 條/, "retained values stay out of the current block")
 })
 
