@@ -106,3 +106,51 @@ export const syntheticBriefWithSameWording = (): InvestmentBrief => {
   ]
   return brief
 }
+
+
+/** Entirely fictional irrigation-system research. No live ticker, portfolio or source content. */
+export function syntheticJudgmentUpdate(state: "reassessed" | "unchanged" | "preserved" | "pending" = "reassessed") {
+  const brief = syntheticPresentationBrief()
+  brief.session = "tw-open-prep"
+  brief.judgment = {
+    class: "watch", judgment: "合成灌溉設備：訂單能否變成持續收入，仍需確認。",
+    why_now: "原先只有單季設備出貨資料，還沒有維護服務續約的證據。",
+    revisit: "下一次服務續約資料公布時", decision_effect: "若續約持續且維修成本沒有上升，再覆核收入的持續性。",
+    provenance: { artifact: "synthetic/irrigation-brief.md", source_revision: "sha256:synthetic-brief-v1", source_cutoff: brief.source_cutoff },
+    same_action_id: "synthetic-formal-action-1",
+  }
+  const assessedAt = "2001-02-03T10:00:00+08:00"
+  const delta = {
+    ...brief.judgment,
+    judgment: "合成灌溉設備：續約增加，短期收入的持續性比原先更有依據；長期維修成本仍未知。",
+    why_now: "新公布的服務續約支持當季收入延續；只涵蓋一個季度，還不能回答未來三年的維修成本。",
+    provenance: { artifact: "synthetic/irrigation-update.md", source_revision: "sha256:synthetic-update-v2", source_cutoff: assessedAt,
+      baseline_revision: "sha256:synthetic-brief-v1", baseline_cutoff_at: brief.source_cutoff, assessed_at: assessedAt,
+      validated_story_ids: ["synthetic-irrigation-renewals"] },
+  }
+  const latest = {
+    state, reason_code: state === "pending" ? "baseline_mismatch" : null,
+    reason: state === "reassessed" ? "這次提高了對當季收入的把握，但長期成本還沒回答，因此仍先觀察。"
+      : state === "unchanged" ? "有新增續約資料，但觀察時間仍短；覆核後維持原先判斷。"
+        : state === "preserved" ? "本次查核範圍內沒有重要增量，沿用先前判斷。" : "本次來源版本未能核對，暫時不能採用新判斷。",
+    baseline_cutoff_at: brief.source_cutoff, assessed_at: assessedAt, source_revision: "sha256:synthetic-update-v2",
+  }
+  const currentDelta = state === "reassessed" ? delta : null
+  const today: InvestmentTodayView = {
+    ...syntheticPresentationToday(), updates: [], timeline: [],
+    current_judgment: { market: "tw", state,
+      baseline: { artifact: "synthetic/irrigation-brief.md", revision: "sha256:synthetic-brief-v1", source_cutoff: brief.source_cutoff },
+      formal_judgment: brief.judgment, effective_judgment: currentDelta ?? brief.judgment,
+      current_delta: currentDelta, effective_source: currentDelta ? "last_successful_reassessment" : "formal_baseline", latest_assessment: latest },
+    intraday_refresh: { schema_version: "1.0", markets: { tw: {
+      state: state === "preserved" ? "no_material_update" : "updated", freshness: "fresh",
+      baseline_cutoff: brief.source_cutoff, baseline_revision: "sha256:synthetic-brief-v1",
+      input_cutoff: assessedAt, last_successful_cutoff: assessedAt, last_successful_refresh: null,
+      latest_receipt: { result: state === "preserved" ? "no_material_update" : "updated", coverage_state: "complete",
+        finished_at: assessedAt, baseline_generated_at: brief.generated_at, baseline_cutoff_at: brief.source_cutoff,
+        baseline_artifact_sha256: "synthetic-brief-v1" },
+      current_judgment: { state, current_delta: currentDelta, latest_assessment: { ...latest } }, story_states: [], limitations: [],
+    } }, timeline_updates: [], updates: [], market_observations: [], limitations: [] },
+  }
+  return { brief, today }
+}

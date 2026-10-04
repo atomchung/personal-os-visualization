@@ -358,6 +358,50 @@ export type InvestmentNarrativeLayerPlayer = {
   recorded_at: string | null
   source: InvestmentNarrativeSource | null
 }
+/** Source-owned exact identities. These relations do not inherit layer polarity. */
+export type InvestmentEvidenceClaimRelation = {
+  evidence_id: string
+  claim_id: string
+  direction: "supports" | "challenges" | "mixed" | "unknown"
+  reason: string
+  assessed_at: string
+  relation_state: "linked"
+  state: "ready" | "unknown"
+  limitations: string[]
+  source: InvestmentNarrativeSource
+}
+export type InvestmentClaim = {
+  claim_id: string
+  title: string
+  claim_statement: string
+  supersedes: string
+  state: "ready"
+  source: InvestmentNarrativeSource
+}
+export type InvestmentClaimRegistry = {
+  schema_version: 1
+  state: "ready" | "partial" | "unknown" | "conflict"
+  claims: InvestmentClaim[]
+  unlinked_claims: Array<Record<string, unknown>>
+  conflicts: Array<Record<string, unknown>>
+  reason: string | null
+  source: InvestmentNarrativeSource
+}
+export type InvestmentEvidenceClaimRelations = {
+  schema_version: 1
+  state: "ready" | "partial" | "unknown" | "conflict"
+  relations: InvestmentEvidenceClaimRelation[]
+  unlinked_relations: Array<Record<string, unknown>>
+  conflicts: Array<{
+    evidence_id: string
+    claim_id: string
+    rows: InvestmentEvidenceClaimRelation[]
+    state: "conflict"
+  }>
+  unlinked_evidence_ids: string[]
+  reason: string | null
+  source: InvestmentNarrativeSource
+}
 export type InvestmentNarrativeLayerEvidence = {
   evidence_id: string
   pillar_id: string
@@ -381,6 +425,9 @@ export type InvestmentNarrativeLayerEvidence = {
   source: InvestmentNarrativeSource | null
   state: InvestmentNarrativeState | "conflict"
   limitations: string[]
+  claim_relations?: InvestmentEvidenceClaimRelation[]
+  claim_link_state?: "linked" | "unlinked" | "partial"
+  claim_link_reason?: string | null
 }
 export type InvestmentNarrativeEvidenceLayer = {
   layer_id: string
@@ -469,6 +516,8 @@ export type InvestmentNarrativeRecordedChange = {
 }
 export type InvestmentNarrativeThesisEvidence = {
   state: InvestmentNarrativeState
+  claim_registry?: InvestmentClaimRegistry | null
+  evidence_claim_relations?: InvestmentEvidenceClaimRelations | null
   layers: InvestmentNarrativeEvidenceLayer[]
   directional_signals: InvestmentNarrativeDirectionalSignal[]
   scorecard_update?: InvestmentNarrativeScorecardUpdate | null
@@ -1574,6 +1623,9 @@ export type InvestmentNarrativeLayerRow = {
   state?: InvestmentNarrativeEvidenceState | "unlinked"
   limitations?: string[]
   source?: InvestmentNarrativeSource | null
+  claim_relations?: InvestmentEvidenceClaimRelation[]
+  claim_link_state?: "linked" | "unlinked" | "partial"
+  claim_link_reason?: string | null
 }
 
 export type InvestmentNarrativeLayerEvidenceItem = string | InvestmentNarrativeLayerRow | InvestmentNarrativeLayerEvidence
