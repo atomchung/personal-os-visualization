@@ -20,6 +20,8 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - name: Synthetic browser read-back
+        env:
+          SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           # Browser tooling is CI-only; generated package/runtime boundaries stay unchanged.
           npm install --no-save --package-lock=false --ignore-scripts playwright@1.56.1
@@ -34,7 +36,38 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: investment-hub-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .artifacts/investment-hub/
+          path: |
+            .artifacts/investment-hub/
+            !.artifacts/investment-hub/1440-*.png
+            !.artifacts/investment-hub/390-*.png
+            !.artifacts/investment-hub/320-*.png
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Retain 1440px full-tab stress screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: investment-hub-1440-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/investment-hub/1440-*.png
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Retain 390px full-tab stress screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: investment-hub-390-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/investment-hub/390-*.png
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Retain 320px full-tab stress screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: investment-hub-320-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/investment-hub/320-*.png
           if-no-files-found: warn
           retention-days: 7
 
@@ -67,7 +100,7 @@ jobs:
           (cd .visual-baseline && npm run preview -- --host 127.0.0.1 --port 4174) > "$RUNNER_TEMP/judgment-baseline.log" 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
-          UI_URL=http://127.0.0.1:4174 DESIGN_STAGE=before node tests/browser-judgment-design.mjs
+          SOURCE_REVISION=60cda8102fd90292278cbde04fd06a9014523b92 UI_URL=http://127.0.0.1:4174 DESIGN_STAGE=before node tests/browser-judgment-design.mjs
       - name: Retain normal-content judgment comparison
         if: always()
         uses: actions/upload-artifact@v4

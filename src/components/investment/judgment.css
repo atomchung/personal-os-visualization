@@ -99,3 +99,11 @@
 .judgment-lead-missing { font-size: 14px; font-weight: 400; letter-spacing: 0; }
 .judgment-claim-counts { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: 11px; color: var(--color-ink-3); }
 .judgment-claim-counts > span { color: var(--direction-color); }
+
+.judgment-additional-relation > summary { list-style: none; }
+.judgment-additional-relation > summary::-webkit-details-marker { display: none; }
+.judgment-relation-preview { display: block; margin-top: 8px; white-space: pre-wrap; font-size: 14px; line-height: 1.65; color: var(--color-ink-2); }
+.judgment-thesis-row { padding: 8px 20px; font-size: 14px; }
+.judgment-thesis-row > summary::after { content: '+'; margin-left: auto; color: var(--color-ink-3); }
+.judgment-thesis-row[open] > summary::after { content: '−'; }
+.judgment-thesis-row > article { padding: 8px 0 0; }

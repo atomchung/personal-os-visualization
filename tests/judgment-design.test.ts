@@ -53,3 +53,42 @@ test("judgment direction colors have AA normal-text contrast on white", () => {
     assert.ok(1.05 / (luminance + .05) >= 4.5, hex)
   }
 })
+
+test("folded relation rows keep authored adverse reasons and timing in their summaries", async () => {
+  const server = await createServer({ server: { middlewareMode: true }, appType: "custom" })
+  try {
+    const { ClaimEvidence } = await server.ssrLoadModule("/src/components/investment/ClaimEvidence.tsx")
+    const evidence = judgmentDesignFixture().data.narratives[0].thesis_evidence
+    const original = evidence.evidence_claim_relations!.relations[1]
+    const current = { ...original, evidence_id: "garden-current-challenge", reason: "目前反方原文：新維修需求已增加總用水。" }
+    evidence.evidence_claim_relations!.relations.push(current)
+    evidence.layers[0].evidence!.push({ ...evidence.layers[0].evidence![0], evidence_id: current.evidence_id, freshness: "current", claim_relations: [current] } as never)
+    const html = renderToStaticMarkup(createElement(ClaimEvidence, { evidence }))
+    const at = html.indexOf('class="judgment-additional-relation"')
+    const summary = html.slice(at, html.indexOf('</summary>', at))
+    assert.match(summary, /來源標示目前有效/)
+    assert.match(summary, /目前反方原文：新維修需求已增加總用水。/)
+    assert.match(html, /挑戰此主張 2 筆 · 目前有效 1、歷史 1/)
+    const cached = renderToStaticMarkup(createElement(ClaimEvidence, { evidence, snapshotState: "cached" }))
+    assert.doesNotMatch(cached, /來源標示目前有效/)
+    assert.match(cached, /挑戰此主張 2 筆 · 歷史 1、尚未重查 1/)
+  } finally { await server.close() }
+})
+
+test("every briefing change exposes its authored title/direction and notes-only remains readable", async () => {
+  const server = await createServer({ server: { middlewareMode: true }, appType: "custom" })
+  try {
+    const { InvestmentThesis } = await server.ssrLoadModule("/src/components/investment/InvestmentThesis.tsx")
+    const { brief } = judgmentDesignFixture()
+    brief.thesis_changes.push({ thesis: "後列主張下調", change: "↓ 下調來源主張，維修成本比原先高。", reason: "來源列出的理由。", event_index: null })
+    const html = renderToStaticMarkup(createElement(InvestmentThesis, { b: brief }))
+    const second = html.split('class="judgment-thesis-row"')[2].split('</summary>')[0]
+    assert.match(second, /後列主張下調/)
+    assert.match(second, /↓ 下調/)
+    brief.thesis_changes = []; brief.thesis_notes = ["只有原文的來源判斷，必須直接看得到。"]
+    const notes = renderToStaticMarkup(createElement(InvestmentThesis, { b: brief }))
+    assert.match(notes, /<details open=""><summary>論點補充原文/)
+    assert.match(notes, /只有原文的來源判斷，必須直接看得到。/)
+    assert.doesNotMatch(notes, /本日評估 · 0 條記錄/)
+  } finally { await server.close() }
+})

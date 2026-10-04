@@ -25,18 +25,20 @@ export function thesisDirectionCounts(rows: InvestmentBrief["thesis_changes"]): 
   return counts
 }
 
-function ThesisCard({ row, events }: { row: InvestmentBrief["thesis_changes"][number]; events: InvestmentBrief["events"] }) {
+function ThesisCard({ row, events, expanded }: { expanded: boolean; row: InvestmentBrief["thesis_changes"][number]; events: InvestmentBrief["events"] }) {
   const { arrow, rest } = splitDirection(row.change || "")
   const event = row.event_index !== null ? events[row.event_index] : undefined
-  return <CardSection as="article" density="normal">
-    <div className="flex min-w-0 flex-wrap items-baseline gap-2">
+  return <details open={expanded} className="judgment-thesis-row">
+    <summary className="flex min-w-0 flex-wrap items-baseline gap-2">
       <h3 className="min-w-0 text-body font-semibold leading-relaxed text-ink"><InlineText text={row.thesis} /></h3>
       {arrow ? <Chip tone="mute">{`${arrow} ${ARROWS[arrow]}`}</Chip> : null}
-    </div>
+    </summary>
+    <CardSection as="article" density="compact">
     {rest ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">今天的變化：</span><InlineText text={rest} /></p> : null}
     {row.reason ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">依據：</span><InlineText text={row.reason} /></p> : null}
     {event ? <p className="text-caption text-ink-3">來自今日事件：<InlineText text={event.event} /></p> : null}
   </CardSection>
+  </details>
 }
 
 function AlertCard({ text }: { text: string }) {
@@ -89,12 +91,11 @@ export function InvestmentThesis({ b }: { b: InvestmentBrief }) {
     <Card className="judgment-brief-grid min-w-0 overflow-hidden">
       <CardSection as="section" density="reading" aria-label="今天的論點變化">
         <SubsectionHeading>今天的論點變化</SubsectionHeading>
-        <details><summary>本日評估 · {b.thesis_changes.length} 條記錄</summary><p>↑ ↓ → 是簡報自己標的方向。這裡呈現本日評估；事件卡上的「現在要注意」則是當日盯盤項。{unlinked ? `本日 ${unlinked} 條沒有標出對應事件，只列在這裡。` : ""}</p></details>
+        <details><summary>本日評估 · {b.thesis_changes.length ? `${b.thesis_changes.length} 條記錄` : b.thesis_notes.length ? "以來源原文呈現" : "未列出結構化記錄"}</summary><p>↑ ↓ → 是簡報自己標的方向。這裡呈現本日評估；事件卡上的「現在要注意」則是當日盯盤項。{unlinked ? `本日 ${unlinked} 條沒有標出對應事件，只列在這裡。` : ""}</p></details>
         {b.thesis_changes.length ? <div className="-mx-4 divide-y divide-line-soft sm:-mx-5">
-          <ThesisCard row={b.thesis_changes[0]} events={b.events} />
-          {b.thesis_changes.length > 1 ? <details className="px-4 py-2 text-caption sm:px-5"><summary>其餘 {b.thesis_changes.length - 1} 條論點變化</summary>{b.thesis_changes.slice(1).map((row, index) => <ThesisCard key={`${row.thesis}-${index}`} row={row} events={b.events} />)}</details> : null}
+          {b.thesis_changes.map((row, index) => <ThesisCard key={`${row.thesis}-${index}`} row={row} events={b.events} expanded={index === 0} />)}
         </div> : !b.thesis_notes.length ? <p className="text-body text-ink-3">{emptyThesisCopy}</p> : null}
-        {b.thesis_notes.length ? <details><summary>論點補充原文 · {b.thesis_notes.length} 則</summary><ReadingText text={b.thesis_notes.join("\n\n")} /></details> : null}
+        {b.thesis_notes.length ? <details open={!b.thesis_changes.length}><summary>論點補充原文 · {b.thesis_notes.length} 則</summary><ReadingText text={b.thesis_notes.join("\n\n")} /></details> : null}
       </CardSection>
 
       <CardSection as="section" density="reading" aria-label="持續觀察的風險">

@@ -8,14 +8,22 @@ const stage = process.env.DESIGN_STAGE || 'after'
 await mkdir(output, { recursive: true })
 for (let i = 0; i < 40; i++) { try { if ((await fetch(origin)).ok) break } catch {} await new Promise(resolve => setTimeout(resolve, 250)) }
 const browser = await chromium.launch({ headless: true })
-const report = { stage, revision: process.env.GITHUB_SHA || '', mode: 'synthetic-only', views: [], checks: [] }
-async function open(width, stress = false) {
+const report = { stage, source_revision: process.env.SOURCE_REVISION || '', build_revision: stage === 'before' ? process.env.SOURCE_REVISION : process.env.GITHUB_SHA || '', mode: 'synthetic-only', views: [], checks: [] }
+async function open(width, stress = false, variant = null) {
   const page = await browser.newPage({ viewport: { width, height: 1000 } })
   page.setDefaultTimeout(7000)
   const errors = [], external = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('request', request => { if (!request.url().startsWith(origin)) external.push(request.url()) })
   const fixture = judgmentDesignFixture()
+  if (variant === 'adverse') {
+    const evidence = fixture.data.narratives[0].thesis_evidence
+    const relation = { ...evidence.evidence_claim_relations.relations[1], evidence_id: 'garden-current-challenge', reason: '目前反方原文：新維修需求已增加總用水。' }
+    evidence.evidence_claim_relations.relations.push(relation)
+    evidence.layers[0].evidence.push({ ...evidence.layers[0].evidence[0], evidence_id: relation.evidence_id, freshness: 'current', claim_relations: [relation] })
+    fixture.brief.thesis_changes.push({ thesis: '後列主張下調', change: '↓ 下調來源主張，維修成本比原先高。', reason: '來源列出的理由。', event_index: null })
+  }
+  if (variant === 'notes-only') { fixture.brief.thesis_changes = []; fixture.brief.thesis_notes = ['只有原文的來源判斷，必須直接看得到。'] }
   await page.addInitScript(({ fixture, stress }) => {
     window.__investmentReadHook = async data => {
       if (data?.narratives?.[0]?.thesis_evidence) {
@@ -41,7 +49,7 @@ async function measure(page) {
   return page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight, panel: document.querySelector('#investment-panel-thesis').getBoundingClientRect().width, overview: document.querySelector('[aria-label="目前判斷"]').getBoundingClientRect().width }))
 }
 try {
-  for (const width of [1080, 390, 320]) {
+  for (const width of [1080, 820, 390, 320]) {
     const { page, errors, external } = await open(width)
     const panel = page.locator('#investment-panel-thesis')
     const metrics = await measure(page)
@@ -53,7 +61,7 @@ try {
       assert.ok(Math.abs(box.width - metrics.panel) < 2, 'overview uses the sibling page width')
       const support = await panel.locator('.judgment-relation-group[data-direction="supports"]').boundingBox()
       const challenge = await panel.locator('.judgment-relation-group[data-direction="challenges"]').boundingBox()
-      if (width >= 1000) assert.equal(Math.round(support.y), Math.round(challenge.y), 'support and challenge are peers')
+      if (width >= 800) assert.equal(Math.round(support.y), Math.round(challenge.y), 'support and challenge are peers')
       assert.match(await panel.innerText(), /歷史資料，來源已過期/)
       assert.match(await panel.innerText(), /對此主張有混合影響/)
     }
@@ -77,6 +85,19 @@ try {
     }
     assert.deepEqual(errors, []); assert.deepEqual(external, [])
     report.views.push({ width, ...metrics, errors, external }); await page.close()
+  }
+  if (stage === 'after') for (const variant of ['adverse', 'notes-only']) {
+    const { page, errors, external } = await open(390, false, variant)
+    const panel = page.locator('#investment-panel-thesis')
+    const text = await panel.innerText()
+    if (variant === 'adverse') {
+      assert.match(text, /目前反方原文：新維修需求已增加總用水。/)
+      assert.match(text, /挑戰此主張 2 筆 · 目前有效 1、歷史 1/)
+      assert.match(text, /後列主張下調/)
+      assert.match(text, /↓ 下調/)
+    } else assert.match(text, /只有原文的來源判斷，必須直接看得到。/)
+    assert.deepEqual(errors, []); assert.deepEqual(external, [])
+    report.checks.push({ name: variant, ...await measure(page) }); await page.close()
   }
   if (stage === 'after') for (const width of [1080, 390, 320]) {
     const { page, errors, external } = await open(width, true)

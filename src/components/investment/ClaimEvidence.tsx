@@ -17,13 +17,23 @@ function Source({ label, source }: { label: string; source?: InvestmentNarrative
   return <p className="break-all">{label}：{source ? <>{source.label ? `${source.label} · ` : ""}{source.path}{source.line ? `:${source.line}` : ""}</> : "來源位置未提供"}</p>
 }
 
+const TIMING_LABEL = { historical: "歷史資料，來源已過期", snapshot: "保留來源關係記錄，目前尚未重新確認", current: "來源標示目前有效", unknown: "證據時效尚未確認" }
+function relationTiming(row: ClaimEvidenceRow, snapshot: SnapshotState): keyof typeof TIMING_LABEL {
+  return row.timing === "historical" ? "historical" : snapshot !== "available" ? "snapshot" : row.timing
+}
+function timingSummary(rows: ClaimEvidenceRow[], snapshot: SnapshotState) {
+  const labels = { current: "目前有效", historical: "歷史", unknown: "時效待確認", snapshot: "尚未重查" }
+  return (Object.keys(labels) as Array<keyof typeof labels>).map(timing => {
+    const count = rows.filter(row => relationTiming(row, snapshot) === timing).length
+    return count ? `${labels[timing]} ${count}` : null
+  }).filter(Boolean).join("、")
+}
+
 function RelationRow({ row, snapshotState }: { row: ClaimEvidenceRow; snapshotState: SnapshotState }) {
   const item = row.evidence
   const date = item && "source_date" in item ? item.source_date : item?.evidence_date
-  // Transport/snapshot freshness qualifies the presentation only. It cannot
-  // rewrite the producer's explicit direction or make expired evidence current.
-  const timing = row.timing === "historical" ? "historical" : snapshotState !== "available" ? "snapshot" : row.timing
-  const timingLabel = timing === "historical" ? "歷史資料，來源已過期" : timing === "snapshot" ? "保留來源關係記錄，目前尚未重新確認" : timing === "current" ? "來源標示目前有效" : "證據時效尚未確認"
+  const timing = relationTiming(row, snapshotState)
+  const timingLabel = TIMING_LABEL[timing]
   return <li data-claim-direction={row.direction} data-evidence-timing={timing} className="judgment-relation-row">
     <p className="judgment-timing" data-timing={timing}>{timingLabel}</p>
     <p className="whitespace-pre-wrap text-body leading-relaxed text-ink-2">{row.relation.reason ? <InlineText text={row.relation.reason} /> : "來源尚未提供關係理由。"}</p>
@@ -75,8 +85,14 @@ function RelationGroup({ direction, rows, snapshot }: { direction: ClaimEvidence
   if (!rows.length) return null
   return <section className="judgment-relation-group" data-direction={direction} aria-label={DIRECTIONS[direction]}>
     <h5><span className="judgment-direction-icon" aria-hidden="true">{DIRECTION_ICON[direction]}</span><span>{DIRECTIONS[direction]}</span><span className="judgment-count">{rows.length} 筆</span></h5>
-    <ul><RelationRow row={rows[0]} snapshotState={snapshot} /></ul>
-    {rows.length > 1 ? <details className="judgment-more-rows"><summary>其餘 {rows.length - 1} 筆{DIRECTIONS[direction]}</summary><ul>{rows.slice(1).map((row, index) => <RelationRow key={`${row.relation.evidence_id}:${index}`} row={row} snapshotState={snapshot} />)}</ul></details> : null}
+    <ul>{rows.map((row, index) => index === 0
+      ? <RelationRow key={`${row.relation.evidence_id}:${index}`} row={row} snapshotState={snapshot} />
+      : <li key={`${row.relation.evidence_id}:${index}`} className="judgment-relation-row">
+        <details className="judgment-additional-relation">
+          <summary><span className="judgment-timing" data-timing={relationTiming(row, snapshot)}>{TIMING_LABEL[relationTiming(row, snapshot)]}</span><span className="judgment-relation-preview"><InlineText text={row.relation.reason || "來源尚未提供關係理由。"} /></span><span className="judgment-detail-link">查看完整關係與來源</span></summary>
+          <ul className="pt-3"><RelationRow row={row} snapshotState={snapshot} /></ul>
+        </details>
+      </li>)}</ul>
   </section>
 }
 
@@ -88,7 +104,7 @@ export function ClaimEvidence({ evidence, snapshotState = "available" }: { evide
     {snapshot !== "available" ? <p role="status" className="judgment-notice">{snapshot === "cached" ? "本次讀取失敗；以下保留上次讀取的主張與關係，尚未重新確認目前狀態。" : snapshot === "unavailable" ? "來源目前不可用；以下保留已有主張與關係，尚未重新確認目前狀態。" : "來源整體標為較舊；以下保留原有主張與關係，尚未重新確認目前狀態。"}</p> : null}
     <p className="judgment-help">{view.notice}</p>
     {view.claims.map(({ claim, rows }, index) => <details key={claim.claim_id} open={index === 0} className="judgment-claim" data-claim-id={claim.claim_id}>
-      <summary><span className="judgment-claim-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span><span><h4>{claim.title || "主張標題未提供"}</h4><span className="judgment-claim-description">{claim.claim_statement ? <InlineText text={claim.claim_statement} /> : "主張原文未提供。"}</span><span className="judgment-claim-counts">{(["supports", "challenges", "mixed", "unknown"] as const).filter(direction => rows.some(row => row.direction === direction)).map(direction => <span key={direction} data-direction={direction}><span aria-hidden="true">{DIRECTION_ICON[direction]} </span>{DIRECTIONS[direction]} {rows.filter(row => row.direction === direction).length} 筆</span>)}{!rows.length ? "關係尚未確認" : null}</span></span></summary>
+      <summary><span className="judgment-claim-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span><span><h4>{claim.title || "主張標題未提供"}</h4><span className="judgment-claim-description">{claim.claim_statement ? <InlineText text={claim.claim_statement} /> : "主張原文未提供。"}</span><span className="judgment-claim-counts">{(["supports", "challenges", "mixed", "unknown"] as const).filter(direction => rows.some(row => row.direction === direction)).map(direction => <span key={direction} data-direction={direction}><span aria-hidden="true">{DIRECTION_ICON[direction]} </span>{DIRECTIONS[direction]} {rows.filter(row => row.direction === direction).length} 筆 · {timingSummary(rows.filter(row => row.direction === direction), snapshot)}</span>)}{!rows.length ? "關係尚未確認" : null}</span></span></summary>
       <div className="judgment-claim-body">
         <div className="judgment-relations-grid">
           {(["supports", "challenges", "mixed", "unknown"] as const).map(direction => <RelationGroup key={direction} direction={direction} rows={rows.filter(row => row.direction === direction)} snapshot={snapshot} />)}
