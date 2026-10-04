@@ -767,7 +767,7 @@ export function providerCompletionNote(status: Pick<InvestmentRefreshStatus, "pr
   const failedBefore = typeof status.fallback_depth === "number" && status.fallback_depth > 0
     ? `（先前 ${status.fallback_depth} 個模型未成功）` : ""
   const outcome = status.state === "failed"
-    ? status.model_work_state === "completed" ? "完成搜尋，結果未採用" : "執行失敗"
+    ? status.model_work_state === "completed" ? "已回傳結果，更新未完成" : "執行失敗"
     : status.state === "running" ? "執行中" : "完成"
   return `由 ${label} ${outcome}${failedBefore}`
 }
