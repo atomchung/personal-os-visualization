@@ -11,7 +11,7 @@ const DIRECTIONS: Record<ClaimEvidenceDirection, string> = {
   unknown: "關係尚待確認",
 }
 
-type SnapshotState = "available" | "cached" | "stale"
+type SnapshotState = "available" | "cached" | "stale" | "unavailable"
 
 function Source({ label, source }: { label: string; source?: InvestmentNarrativeSource | null }) {
   return <p className="break-all">{label}：{source ? <>{source.label ? `${source.label} · ` : ""}{source.path}{source.line ? `:${source.line}` : ""}</> : "來源位置未提供"}</p>
@@ -71,10 +71,10 @@ function Issue({ issue }: { issue: ClaimEvidenceIssue }) {
 
 export function ClaimEvidence({ evidence, snapshotState = "available" }: { evidence: InvestmentNarrativeThesisEvidence; snapshotState?: SnapshotState }) {
   const view = claimEvidenceView(evidence)
-  const snapshot = snapshotState === "cached" ? "cached" : snapshotState === "stale" || evidence.state === "stale" ? "stale" : "available"
+  const snapshot = snapshotState === "cached" || snapshotState === "unavailable" ? snapshotState : snapshotState === "stale" || evidence.state === "stale" ? "stale" : "available"
   return <CardSection as="article" density="normal" aria-label="主張與證據" data-claim-evidence-state={view.state} data-claim-evidence-snapshot={snapshot} className="min-w-0 break-words [overflow-wrap:anywhere]">
     <SubsectionHeading>主張與證據</SubsectionHeading>
-    {snapshot !== "available" ? <p className="text-caption leading-relaxed text-warn">{snapshot === "cached" ? "本次讀取失敗；以下保留上次讀取的主張與關係，尚未重新確認目前狀態。" : "來源整體標為較舊；以下保留原有主張與關係，尚未重新確認目前狀態。"}</p> : null}
+    {snapshot !== "available" ? <p className="text-caption leading-relaxed text-warn">{snapshot === "cached" ? "本次讀取失敗；以下保留上次讀取的主張與關係，尚未重新確認目前狀態。" : snapshot === "unavailable" ? "來源目前不可用；以下保留已有主張與關係，尚未重新確認目前狀態。" : "來源整體標為較舊；以下保留原有主張與關係，尚未重新確認目前狀態。"}</p> : null}
     <p className="text-caption leading-relaxed text-ink-3">{view.notice}</p>
     {view.claims.map(({ claim, rows }) => <section key={claim.claim_id} aria-label={claim.title || "來源主張"} className="flex min-w-0 flex-col gap-3 border-t border-line-soft pt-3">
       <div className="flex min-w-0 flex-col gap-1">

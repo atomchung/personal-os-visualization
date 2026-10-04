@@ -29,7 +29,7 @@ async function expand(panel) {
 }
 async function fault(page, scenario) {
 const judgmentFixture = scenario.startsWith('judgment-')
-  ? syntheticJudgmentUpdate(scenario === 'judgment-unchanged' ? 'unchanged' : scenario === 'judgment-quiet' ? 'preserved' : 'reassessed') : null
+  ? syntheticJudgmentUpdate(scenario === 'judgment-unchanged' ? 'unchanged' : scenario.startsWith('judgment-quiet') ? 'preserved' : 'reassessed') : null
 const claimFixture = scenario.startsWith('claim-') ? syntheticClaimEvidence() : null
 await page.addInitScript(({ scenario, judgmentFixture, claimFixture }) => {
   window.__investmentReadHook = async data => {
@@ -41,6 +41,7 @@ await page.addInitScript(({ scenario, judgmentFixture, claimFixture }) => {
         for (const layer of evidence.layers) for (const row of layer.evidence) delete row.claim_relations
       }
       if (scenario === 'claim-empty') evidence.evidence_claim_relations.relations = []
+      if (scenario === 'claim-unavailable') data.state = 'unavailable'
       if (scenario === 'claim-relations') evidence.evidence_claim_relations.relations[2].reason += ' 這段是合成長文，用來檢查窄畫面的閱讀：' + '同一筆資料對不同假設可能有不同意義，須保留來源限制。'.repeat(5)
     }
     if (judgmentFixture && data?.brief && data?.today) {
@@ -50,6 +51,8 @@ await page.addInitScript(({ scenario, judgmentFixture, claimFixture }) => {
       if (scenario === 'judgment-failed') { market.state = 'failed'; market.latest_receipt.result = 'failed' }
       if (scenario === 'judgment-stale') { market.freshness = 'stale'; data.brief.state = 'stale' }
       if (scenario === 'judgment-mismatch') market.baseline_revision = 'sha256:other-baseline'
+      if (scenario === 'judgment-quiet-partial') market.latest_receipt.coverage_state = 'partial'
+      if (scenario === 'judgment-quiet-unknown') delete market.latest_receipt.coverage_state
       if (scenario === 'judgment-change') data.today.current_judgment.current_delta.why_now += ' 合成長文：' + '一次觀察仍不能代表每季表現，來源需要繼續驗證。'.repeat(6)
       // Mirror the exact same provider payload rather than inventing a second assessment.
       if (scenario === 'judgment-change') market.current_judgment.current_delta = structuredClone(data.today.current_judgment.current_delta)
@@ -481,7 +484,7 @@ try {
     }
   }
   // Preserve legacy degraded-state scenarios, now checked against the converged owner layout.
-  const scenarios = ['claim-relations', 'claim-missing', 'claim-empty', 'judgment-change', 'judgment-unchanged', 'judgment-quiet', 'judgment-failed', 'judgment-stale', 'judgment-mismatch', 'unlinked-long', 'blank-summary', 'missing', 'news-without-timeline', 'market-only-no-timeline', 'market-observation-only-duplicate-timeline', 'market-observation-only-projection-error', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'market-observation-legacy-timeline', 'market-observation-event-projection', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility', 'tw-rs-unavailable', 'tw-rs-read-error', 'structured-judgment', 'structured-judgment-generic-action', 'structured-judgment-multiple-primary', 'structured-judgment-invalid-watch', 'structured-judgment-invalid-provenance', 'layer-reading', 'quote-cached-error', 'pulse-cached-error', 'market-empty-refetch', 'market-omitted-refetch', 'legacy-evidence']
+  const scenarios = ['claim-unavailable', 'judgment-quiet-partial', 'judgment-quiet-unknown', 'claim-relations', 'claim-missing', 'claim-empty', 'judgment-change', 'judgment-unchanged', 'judgment-quiet', 'judgment-failed', 'judgment-stale', 'judgment-mismatch', 'unlinked-long', 'blank-summary', 'missing', 'news-without-timeline', 'market-only-no-timeline', 'market-observation-only-duplicate-timeline', 'market-observation-only-projection-error', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'market-observation-legacy-timeline', 'market-observation-event-projection', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility', 'tw-rs-unavailable', 'tw-rs-read-error', 'structured-judgment', 'structured-judgment-generic-action', 'structured-judgment-multiple-primary', 'structured-judgment-invalid-watch', 'structured-judgment-invalid-provenance', 'layer-reading', 'quote-cached-error', 'pulse-cached-error', 'market-empty-refetch', 'market-omitted-refetch', 'legacy-evidence']
   for (const scenario of scenarios) {
     console.log(`Checking ${scenario}`)
     const { page, errors, externalRequests } = await openPage(320, scenario)
@@ -531,6 +534,22 @@ try {
       ? await page.locator('#investment-panel-today section[aria-label="今天怎麼做"]').innerText()
       : ''
     switch (scenario) {
+      case 'claim-unavailable': {
+        const claimText = await panel.getByRole('article', { name: '主張與證據', exact: true }).innerText()
+        assert.doesNotMatch(claimText, /來源標示目前有效/)
+        assert.match(claimText, /尚未重新確認/)
+        assert.match(claimText, /支持此主張/)
+        break
+      }
+      case 'judgment-quiet-partial':
+      case 'judgment-quiet-unknown': {
+        const receipt = await page.getByRole('region', { name: '台美盤中刷新回執', exact: true }).innerText()
+        assert.match(receipt, /不能確認有無重要增量|完整度未確認/)
+        assert.doesNotMatch(receipt, /此次掃描範圍內沒有重要增量|完成，沒有重大更新/)
+        assert.match(text, /本次無法確認，保留既有判斷/)
+        assert.doesNotMatch(text, /本次查核：/)
+        break
+      }
       case 'claim-relations': {
         const claim = panel.getByRole('article', { name: '主張與證據', exact: true })
         assert.match(await claim.innerText(), /支持此主張/)

@@ -37,6 +37,11 @@ async function renderTodayBrief(today: ReturnType<typeof syntheticPresentationTo
   })))
 }
 
+function receiptFor(latest: { assessed_at: string | null; baseline_cutoff_at: string | null }, revision: string, result = "updated") {
+  return { result, coverage_state: "complete", finished_at: latest.assessed_at,
+    baseline_cutoff_at: latest.baseline_cutoff_at, baseline_artifact_sha256: revision.replace(/^sha256:/, "") }
+}
+
 test("a valid projection keeps the formal judgment primary and labels the update with source identity and time", async () => {
   const brief = syntheticPresentationBrief()
   const today = syntheticPresentationToday()
@@ -124,7 +129,7 @@ test("only the exact per-market receipt readback can replace the formal Today ju
       effective_judgment: delta, current_delta: delta, effective_source: "last_successful_reassessment", latest_assessment: latest },
     intraday_refresh: { schema_version: "1.0", markets: { tw: { state: "ready", freshness: "current",
       baseline_cutoff: "2001-02-03T08:00:00+08:00", baseline_revision: "sha256:brief-v2", baseline_path: "wiki/morning/briefs/2001-02-03.md",
-      input_cutoff: null, last_successful_cutoff: null, latest_receipt: null, last_successful_refresh: null,
+      input_cutoff: null, last_successful_cutoff: null, latest_receipt: receiptFor(latest, "sha256:brief-v2"), last_successful_refresh: null,
       current_judgment: { state: "reassessed", current_delta: delta, latest_assessment: latest }, story_states: [], limitations: [] } },
       timeline_updates: [], updates: [], market_observations: [], limitations: [] },
   }
@@ -155,7 +160,7 @@ test("unchanged or pending current judgments preserve the formal brief", async (
       market: "us", state, baseline: { artifact: null, revision: "sha256:us-brief", source_cutoff: latest.baseline_cutoff_at },
       formal_judgment: formal, effective_judgment: formal, effective_source: "formal_baseline", current_delta: null, latest_assessment: latest,
     }, intraday_refresh: { schema_version: "1.0", markets: { us: { state: "ready", freshness: "current", baseline_cutoff: latest.baseline_cutoff_at,
-      baseline_revision: "sha256:us-brief", input_cutoff: null, last_successful_cutoff: null, last_successful_refresh: null, latest_receipt: null,
+      baseline_revision: "sha256:us-brief", input_cutoff: null, last_successful_cutoff: null, last_successful_refresh: null, latest_receipt: receiptFor(latest, "sha256:us-brief"),
       current_judgment: { state, current_delta: pendingDelta, latest_assessment: latest }, story_states: [], limitations: [] } },
       timeline_updates: [], updates: [], market_observations: [], limitations: [] } }
     const html = await renderTodayBrief(today, false, brief)
@@ -180,7 +185,7 @@ test("later quiet/unchanged scan states keep the last successful reassessment wh
       current_delta: delta, latest_assessment: latest,
     }, intraday_refresh: { schema_version: "1.0", markets: { tw: { state: "ready", freshness: "current",
       baseline_cutoff: latest.baseline_cutoff_at, baseline_revision: "sha256:brief-v2", input_cutoff: null,
-      last_successful_cutoff: null, last_successful_refresh: null, latest_receipt: null,
+      last_successful_cutoff: null, last_successful_refresh: null, latest_receipt: receiptFor(latest, "sha256:brief-v2"),
       current_judgment: { state, current_delta: delta, latest_assessment: latest }, story_states: [], limitations: [] } },
       timeline_updates: [], updates: [], market_observations: [], limitations: [] } }
     const html = await renderTodayBrief(today, false, brief)
@@ -203,7 +208,7 @@ test("a healthy quiet scan with no prior delta keeps the formal judgment without
     current_delta: null, latest_assessment: latest,
   }, intraday_refresh: { schema_version: "1.0", markets: { tw: { state: "ready", freshness: "current",
     baseline_cutoff: baselineCutoff, baseline_revision: "sha256:brief-v2", input_cutoff: null,
-    last_successful_cutoff: null, last_successful_refresh: null, latest_receipt: null,
+    last_successful_cutoff: null, last_successful_refresh: null, latest_receipt: receiptFor(latest, "sha256:brief-v2", "no_material_update"),
     current_judgment: { state: "preserved", current_delta: null, latest_assessment: latest }, story_states: [], limitations: [] } },
     timeline_updates: [], updates: [], market_observations: [], limitations: [] } }
   const html = await renderTodayBrief(today, false, brief)
@@ -345,5 +350,26 @@ test("failed, stale, baseline-mismatched and contradictory receipts never claim 
     assert.match(html, /上次讀取的判斷（目前未確認）/)
     assert.match(html, /合成灌溉設備：訂單能否變成持續收入，仍需確認。/)
     assert.doesNotMatch(html, /判斷已更新|本次查核：/)
+  }
+})
+
+test("no-material result needs complete same-assessment receipt before claiming a fresh confirmation", async () => {
+  const { TodayIntradayReceipts } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  for (const coverage of ["partial", "failed", "unknown", undefined]) {
+    const { brief, today } = syntheticJudgmentUpdate("preserved")
+    today.intraday_refresh!.markets.tw!.latest_receipt!.coverage_state = coverage
+    const receiptHtml = renderToStaticMarkup(createElement(TodayIntradayReceipts, { refresh: today.intraday_refresh, readFailed: false }))
+    assert.match(receiptHtml, coverage === "partial" ? /僅部分完成，不能確認/ : coverage === "failed" ? /掃描失敗，不能確認/ : /完整度未確認，不能判定/)
+    assert.doesNotMatch(receiptHtml, /此次掃描範圍內沒有重要增量|完成，沒有重大更新/)
+    const html = await renderTodayBrief(today, false, brief)
+    assert.match(html, /本次無法確認，保留既有判斷/)
+    assert.doesNotMatch(html, /本次查核：|判斷已更新|完成，沒有重大更新|此次掃描範圍內沒有重要增量/)
+  }
+  for (const field of ["finished_at", "baseline_cutoff_at", "baseline_artifact_sha256"] as const) {
+    const { brief, today } = syntheticJudgmentUpdate("unchanged")
+    today.intraday_refresh!.markets.tw!.latest_receipt![field] = "another-assessment"
+    const html = await renderTodayBrief(today, false, brief)
+    assert.match(html, /本次無法確認，保留既有判斷/)
+    assert.doesNotMatch(html, /本次查核：|已重評，判斷維持不變/)
   }
 })

@@ -564,7 +564,8 @@ export function todayJudgmentTimeMetadata(
     const resultCode = receipt.result ?? marketProjection?.state
     const failed = resultCode === "failed" || receipt.coverage_state === "failed"
     const partial = !failed && (resultCode === "partial" || receipt.coverage_state === "partial")
-    const result = resultCode === "no_material_update" ? "完成，沒有重大更新"
+    const result = resultCode === "no_material_update" ? receipt.coverage_state === "complete"
+      ? "此次掃描範圍內沒有重要增量" : "掃描完整度未確認，不能判定沒有重要增量"
       : resultCode === "updated" ? "有新增事件"
       : resultCode === "needs_deeper_analysis" ? "仍有候選待深入分析"
       : resultCode === "unavailable" ? "來源不可用"
@@ -1278,3 +1279,4 @@ export function visibleActionItems<T extends { text: string }>(items: readonly T
   const kept = new Set(briefActions(items.map(item => item.text)))
   return items.filter(item => kept.has(item.text))
 }
+

@@ -54,7 +54,7 @@ const INTRADAY_MARKET_LABEL = { tw: "台股", us: "美股" } as const
 
 function intradayResultLabel(result: string | undefined): string {
   switch (result) {
-    case "no_material_update": return "完成，沒有重大更新"
+    case "no_material_update": return "來源回報沒有重要增量"
     case "updated": return "已更新事件"
     case "needs_deeper_analysis": return "有候選仍待深入分析"
     case "partial": return "部分來源完成"
@@ -77,10 +77,17 @@ function intradayMarketSummary(market: InvestmentIntradayMarketProjection | unde
   if (!market) return "刷新狀態未提供"
   if (!market.latest_receipt && market.state === "not_requested") return "尚無可採用的盤中更新；沿用正式簡報"
   const result = market.latest_receipt?.result ?? market.state
-  const boundedNoChange = result === "no_material_update"
-    && market.latest_receipt?.coverage_state === "complete"
-    && ["fresh", "current"].includes(market.freshness)
-  return `${boundedNoChange ? "此次掃描範圍內沒有重要增量" : intradayResultLabel(result)} · ${intradayFreshnessLabel(market.freshness)}`
+  if (result === "no_material_update") {
+    const coverage = market.latest_receipt?.coverage_state
+    const summary = coverage === "complete" && ["fresh", "current"].includes(market.freshness)
+      ? "此次掃描範圍內沒有重要增量"
+      : coverage === "partial" ? "本次掃描僅部分完成，不能確認有無重要增量"
+        : coverage === "failed" ? "本次掃描失敗，不能確認有無重要增量"
+          : coverage === "complete" ? "較早掃描回報沒有重要增量，目前未確認"
+            : "掃描完整度未確認，不能判定沒有重要增量"
+    return `${summary} · ${intradayFreshnessLabel(market.freshness)}`
+  }
+  return `${intradayResultLabel(result)} · ${intradayFreshnessLabel(market.freshness)}`
 }
 
 function qualifiedDuration(start: string | null | undefined, finish: string | null | undefined): string | null {
@@ -387,13 +394,17 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
     && latestAssessment?.reason_code === marketLatestAssessment?.reason_code
     && latestAssessment?.baseline_cutoff_at === currentJudgment?.baseline?.source_cutoff
     && latestAssessment?.baseline_cutoff_at === marketLatestAssessment?.baseline_cutoff_at
+  const assessmentReceipt = marketProjection?.latest_receipt
   const assessmentCurrent = assessmentMatches
     && ["fresh", "current"].includes(marketProjection?.freshness ?? "")
     && ["ready", "updated", "no_material_update"].includes(marketProjection?.state ?? "")
     && today?.state !== "unavailable"
-    && marketProjection?.latest_receipt?.coverage_state !== "failed"
-    && marketProjection?.latest_receipt?.coverage_state !== "partial"
-    && marketProjection?.latest_receipt?.result !== "failed"
+    && assessmentReceipt?.coverage_state === "complete"
+    && ["updated", "no_material_update"].includes(assessmentReceipt?.result ?? "")
+    && assessmentReceipt?.finished_at === latestAssessment?.assessed_at
+    && assessmentReceipt?.baseline_cutoff_at === currentJudgment?.baseline?.source_cutoff
+    && hasIdentity(assessmentReceipt?.baseline_artifact_sha256)
+    && `sha256:${assessmentReceipt.baseline_artifact_sha256}` === currentJudgment?.baseline?.revision
   const assessmentConfirmed = assessmentCurrent && latestAssessment?.state === currentJudgment?.state
     && (currentJudgment?.state === "reassessed" ? Boolean(acceptedDelta)
       : currentJudgment?.state === "unchanged" || currentJudgment?.state === "preserved"

@@ -3,16 +3,17 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createServer, type ViteDevServer } from "vite"
 import { claimEvidenceSourceUrl, claimEvidenceView } from "../src/lib/investmentClaimEvidence.ts"
-import type { InvestmentNarrativeThesisEvidence } from "../src/lib/investment.ts"
+import type { InvestmentNarrative, InvestmentNarrativeThesisEvidence } from "../src/lib/investment.ts"
 import { syntheticClaimEvidence } from "./fixtures/claim-evidence.ts"
 
 let server: ViteDevServer
 before(async () => { server = await createServer({ server: { middlewareMode: true }, appType: "custom" }) })
 after(async () => { await server.close() })
 
-async function renderEvidence(evidence: InvestmentNarrativeThesisEvidence, snapshotState?: "available" | "cached" | "stale") {
+async function renderEvidence(evidence: InvestmentNarrativeThesisEvidence, snapshotState?: "available" | "cached" | "stale" | "unavailable") {
   const { ClaimEvidence } = await server.ssrLoadModule("/src/components/investment/ClaimEvidence.tsx")
   return renderToStaticMarkup(createElement(ClaimEvidence, { evidence, snapshotState }))
 }
@@ -91,7 +92,40 @@ test("failed cached rereads and stale parent snapshots retain direction without 
   assert.match(await renderEvidence(evidence), /data-claim-evidence-snapshot="stale"/)
   assert.doesNotMatch(await renderEvidence(evidence), /來源標示目前有效/)
   const narrative = readFileSync(new URL("../src/components/investment/InvestmentNarrative.tsx", import.meta.url), "utf8")
-  assert.match(narrative, /snapshotState=\{!readable \? "cached" : narrative\.state === "stale" \|\| evidence\.state === "stale" \? "stale" : "available"\}/)
+  assert.match(narrative, /snapshotState=\{!readable \? "cached" : data\.state === "unavailable" \? "unavailable" : narrative\.state === "stale" \|\| evidence\.state === "stale" \? "stale" : "available"\}/)
+})
+
+test("full narrative section qualifies ready rows when the provider is unavailable or its parent is stale", async () => {
+  const { InvestmentNarrativeSection } = await server.ssrLoadModule("/src/components/investment/InvestmentNarrative.tsx")
+  for (const scenario of ["unavailable", "stale-narrative", "stale-evidence"] as const) {
+    const evidence = syntheticClaimEvidence()
+    if (scenario === "stale-evidence") evidence.state = "stale"
+    const emptySection = { state: "unknown" as const, text: null, reason: null, source: null }
+    const data: InvestmentNarrative = {
+      artifact: "personalos-investment-hub", schema_version: "1", id: "demo-garden-narrative", state: scenario === "unavailable" ? "unavailable" : "ready",
+      as_of: "2001-02-03", generated_at: "2001-02-03", source_cutoff: "2001-02-03", producer: "synthetic-garden", limitations: [],
+      today: { state: "unknown", baseline: null, limitations: [] },
+      narratives: [{
+        narrative_id: "demo-garden", title: "虛構雲庭花園", status: "synthetic", updated: "2001-02-03", state: scenario === "stale-narrative" ? "stale" : "ready", state_reason: null, source: null,
+        what_i_bet: { state: "unknown", narrative: emptySection, owner_thesis: emptySection, reason: null },
+        current_tension: emptySection, thesis_evidence: evidence,
+        expressions: { state: "unknown", items: [], reason: null },
+        latest_change: { state: "unknown", item: null, reason: null }, references: [],
+      }],
+    }
+    const client = new QueryClient()
+    client.setQueryData(["investment-narrative"], data)
+    try {
+      const html = renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(InvestmentNarrativeSection, { enabled: false, onOpenHistory: () => {} })))
+      assert.ok(html.includes(`data-claim-evidence-snapshot="${scenario === "unavailable" ? "unavailable" : "stale"}"`))
+      assert.doesNotMatch(html, /來源標示目前有效|data-evidence-timing="current"/)
+      assert.match(html, /data-claim-direction="supports" data-evidence-timing="snapshot"/)
+      assert.match(html, /data-claim-direction="mixed" data-evidence-timing="snapshot"/)
+      assert.match(html, /data-claim-direction="challenges" data-evidence-timing="historical"/)
+      for (const relation of evidence.evidence_claim_relations!.relations) assert.ok(html.includes(relation.reason))
+      if (scenario === "unavailable") assert.match(html, /來源目前不可用；以下保留已有主張與關係/)
+    } finally { client.clear() }
+  }
 })
 
 test("absent fields and explicitly empty global or embedded arrays have different meanings", async () => {

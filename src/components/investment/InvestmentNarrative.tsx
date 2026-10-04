@@ -551,7 +551,7 @@ function NarrativeContent({ data, narrative, readable }: { data: InvestmentNarra
       </FieldList>
     </CardSection>
 
-    <ClaimEvidence evidence={evidence} snapshotState={!readable ? "cached" : narrative.state === "stale" || evidence.state === "stale" ? "stale" : "available"} />
+    <ClaimEvidence evidence={evidence} snapshotState={!readable ? "cached" : data.state === "unavailable" ? "unavailable" : narrative.state === "stale" || evidence.state === "stale" ? "stale" : "available"} />
 
     {/* The long-held thesis rarely changes and the owner already knows it:
         kept in place, folded by default, one click away. */}
