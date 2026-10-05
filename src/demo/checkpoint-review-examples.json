@@ -1,0 +1,984 @@
+{
+  "contract": "today.checkpoint_reviews/v1",
+  "evidence_class": "synthetic_only",
+  "renderer_rule": "Render source display fields verbatim. Never infer status, identity, result, judgment, or action from prose/ticker/date. Keep independent of today.state/current_judgment.",
+  "examples": {
+    "day2": {
+      "schema_version": 1,
+      "items": [
+        {
+          "checkpoint_id": "synthetic-demand-supply",
+          "story_id": "synthetic-demand",
+          "question": "同一更新中的合成產能是否持平？",
+          "expectation": "合成產能年增 0% 至 1%。",
+          "due_at": "2026-10-02T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+            "checkpoint_id": "synthetic-demand-supply"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "completed",
+          "assessment": "challenged",
+          "assessment_origin": "source",
+          "reason_code": "reviewed",
+          "review": {
+            "origin": {
+              "path": "wiki/morning/briefs/2026-10-01.md",
+              "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+              "checkpoint_id": "synthetic-demand-supply"
+            },
+            "story_id": "synthetic-demand",
+            "checked_at": "2026-10-02T07:50:00+08:00",
+            "evidence_cutoff": "2026-10-02T07:45:00+08:00",
+            "result": "同一合成更新顯示產能增加 8%，推翻原先持平的預期。",
+            "assessment": "challenged",
+            "judgment_effect": {
+              "state": "changed",
+              "summary": "合成供給判斷轉弱。",
+              "reason": "合成結果推翻原定供給上限。"
+            },
+            "action_effect": {
+              "state": "maintained",
+              "summary": "保留原定合成觀察清單。",
+              "reason": "本次證據尚不足以新增交易動作。"
+            },
+            "evidence": [
+              {
+                "kind": "event",
+                "source_url": "https://example.test/synthetic/synthetic-demand-supply",
+                "data_as_of": "2026-10-02T07:20:00+08:00",
+                "published_at": "2026-10-02T07:30:00+08:00",
+                "checked_at": "2026-10-02T07:40:00+08:00",
+                "summary": "同一合成更新顯示產能增加 8%，推翻原先持平的預期。"
+              }
+            ]
+          },
+          "last_review": null,
+          "judgment_effect": {
+            "state": "changed",
+            "summary": "合成供給判斷轉弱。",
+            "reason": "合成結果推翻原定供給上限。"
+          },
+          "action_effect": {
+            "state": "maintained",
+            "summary": "保留原定合成觀察清單。",
+            "reason": "本次證據尚不足以新增交易動作。"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": {
+              "path": "wiki/morning/briefs/2026-10-02.md",
+              "source_revision": "sha256:0bc8c5c137740a9e91cda3ebd2ae42fb4f6308322d16b3a7090424158953d56a",
+              "source_cutoff": "2026-10-02T08:04:00+08:00",
+              "generated_at": "2026-10-02T08:05:00+08:00"
+            },
+            "read_at": "2026-10-02T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "挑戰原預期",
+            "result": "同一合成更新顯示產能增加 8%，推翻原先持平的預期。",
+            "judgment_label": "判斷改變",
+            "action_label": "行動維持"
+          }
+        },
+        {
+          "checkpoint_id": "synthetic-demand-volume",
+          "story_id": "synthetic-demand",
+          "question": "合成訂單是否至少增加 5%？",
+          "expectation": "合成訂單年增 5% 至 7%。",
+          "due_at": "2026-10-02T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+            "checkpoint_id": "synthetic-demand-volume"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "completed",
+          "assessment": "supported",
+          "assessment_origin": "source",
+          "reason_code": "reviewed",
+          "review": {
+            "origin": {
+              "path": "wiki/morning/briefs/2026-10-01.md",
+              "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+              "checkpoint_id": "synthetic-demand-volume"
+            },
+            "story_id": "synthetic-demand",
+            "checked_at": "2026-10-02T07:50:00+08:00",
+            "evidence_cutoff": "2026-10-02T07:45:00+08:00",
+            "result": "合成訂單增加 6%，符合原先 5% 至 7% 的預期。",
+            "assessment": "supported",
+            "judgment_effect": {
+              "state": "maintained",
+              "summary": "維持原先合成判斷。",
+              "reason": "合成觀察未改變既有判準。"
+            },
+            "action_effect": {
+              "state": "maintained",
+              "summary": "保留原定合成觀察清單。",
+              "reason": "本次證據尚不足以新增交易動作。"
+            },
+            "evidence": [
+              {
+                "kind": "event",
+                "source_url": "https://example.test/synthetic/synthetic-demand-volume",
+                "data_as_of": "2026-10-02T07:20:00+08:00",
+                "published_at": "2026-10-02T07:30:00+08:00",
+                "checked_at": "2026-10-02T07:40:00+08:00",
+                "summary": "合成訂單增加 6%，符合原先 5% 至 7% 的預期。"
+              }
+            ]
+          },
+          "last_review": null,
+          "judgment_effect": {
+            "state": "maintained",
+            "summary": "維持原先合成判斷。",
+            "reason": "合成觀察未改變既有判準。"
+          },
+          "action_effect": {
+            "state": "maintained",
+            "summary": "保留原定合成觀察清單。",
+            "reason": "本次證據尚不足以新增交易動作。"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": {
+              "path": "wiki/morning/briefs/2026-10-02.md",
+              "source_revision": "sha256:0bc8c5c137740a9e91cda3ebd2ae42fb4f6308322d16b3a7090424158953d56a",
+              "source_cutoff": "2026-10-02T08:04:00+08:00",
+              "generated_at": "2026-10-02T08:05:00+08:00"
+            },
+            "read_at": "2026-10-02T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "支持原預期",
+            "result": "合成訂單增加 6%，符合原先 5% 至 7% 的預期。",
+            "judgment_label": "判斷維持",
+            "action_label": "行動維持"
+          }
+        },
+        {
+          "checkpoint_id": "synthetic-disclosure",
+          "story_id": "synthetic-disclosure-story",
+          "question": "合成附註是否提供現金拆分？",
+          "expectation": "合成附註提供現金拆分。",
+          "due_at": "2026-10-02T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+            "checkpoint_id": "synthetic-disclosure"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "pending",
+          "assessment": "no_data",
+          "assessment_origin": "source",
+          "reason_code": "reviewed",
+          "review": {
+            "origin": {
+              "path": "wiki/morning/briefs/2026-10-01.md",
+              "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+              "checkpoint_id": "synthetic-disclosure"
+            },
+            "story_id": "synthetic-disclosure-story",
+            "checked_at": "2026-10-02T07:50:00+08:00",
+            "evidence_cutoff": "2026-10-02T07:45:00+08:00",
+            "result": "合成附註尚未取得，無法回答現金拆分問題。",
+            "assessment": "no_data",
+            "judgment_effect": {
+              "state": "maintained",
+              "summary": "維持原先合成判斷。",
+              "reason": "合成觀察未改變既有判準。"
+            },
+            "action_effect": {
+              "state": "maintained",
+              "summary": "保留原定合成觀察清單。",
+              "reason": "本次證據尚不足以新增交易動作。"
+            },
+            "evidence": []
+          },
+          "last_review": null,
+          "judgment_effect": {
+            "state": "maintained",
+            "summary": "維持原先合成判斷。",
+            "reason": "合成觀察未改變既有判準。"
+          },
+          "action_effect": {
+            "state": "maintained",
+            "summary": "保留原定合成觀察清單。",
+            "reason": "本次證據尚不足以新增交易動作。"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": {
+              "path": "wiki/morning/briefs/2026-10-02.md",
+              "source_revision": "sha256:0bc8c5c137740a9e91cda3ebd2ae42fb4f6308322d16b3a7090424158953d56a",
+              "source_cutoff": "2026-10-02T08:04:00+08:00",
+              "generated_at": "2026-10-02T08:05:00+08:00"
+            },
+            "read_at": "2026-10-02T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "缺資料，尚無法確認",
+            "result": "合成附註尚未取得，無法回答現金拆分問題。",
+            "judgment_label": "判斷維持",
+            "action_label": "行動維持"
+          }
+        },
+        {
+          "checkpoint_id": "synthetic-shipping",
+          "story_id": "synthetic-shipping-story",
+          "question": "合成出貨是否符合原定時間？",
+          "expectation": "合成出貨在排定日期完成。",
+          "due_at": "2026-10-02T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+            "checkpoint_id": "synthetic-shipping"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "pending",
+          "assessment": "no_data",
+          "assessment_origin": "reader_gap",
+          "reason_code": "overdue_unreviewed",
+          "review": null,
+          "last_review": null,
+          "judgment_effect": {
+            "state": "unknown"
+          },
+          "action_effect": {
+            "state": "unknown"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": null,
+            "read_at": "2026-10-02T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "缺資料，尚無法確認",
+            "result": "已到檢查時間，來源尚未提供可用回查；不能確認原預期。",
+            "judgment_label": "判斷影響未確認",
+            "action_label": "行動影響未確認"
+          }
+        },
+        {
+          "checkpoint_id": "synthetic-volume-stability",
+          "story_id": "synthetic-volume",
+          "question": "合成成交量是否仍落在區間內？",
+          "expectation": "合成成交量指數維持 95 至 105。",
+          "due_at": "2026-10-02T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+            "checkpoint_id": "synthetic-volume-stability"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "completed",
+          "assessment": "no_change",
+          "assessment_origin": "source",
+          "reason_code": "reviewed",
+          "review": {
+            "origin": {
+              "path": "wiki/morning/briefs/2026-10-01.md",
+              "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+              "checkpoint_id": "synthetic-volume-stability"
+            },
+            "story_id": "synthetic-volume",
+            "checked_at": "2026-10-02T07:50:00+08:00",
+            "evidence_cutoff": "2026-10-02T07:45:00+08:00",
+            "result": "合成成交量指數為 100，仍在原定區間，未改變判斷。",
+            "assessment": "no_change",
+            "judgment_effect": {
+              "state": "maintained",
+              "summary": "維持原先合成判斷。",
+              "reason": "合成觀察未改變既有判準。"
+            },
+            "action_effect": {
+              "state": "maintained",
+              "summary": "保留原定合成觀察清單。",
+              "reason": "本次證據尚不足以新增交易動作。"
+            },
+            "evidence": [
+              {
+                "kind": "market_observation",
+                "source_url": "https://example.test/synthetic/synthetic-volume-stability",
+                "data_as_of": "2026-10-02T07:20:00+08:00",
+                "published_at": "2026-10-02T07:30:00+08:00",
+                "checked_at": "2026-10-02T07:40:00+08:00",
+                "summary": "合成成交量指數為 100，仍在原定區間，未改變判斷。"
+              }
+            ]
+          },
+          "last_review": null,
+          "judgment_effect": {
+            "state": "maintained",
+            "summary": "維持原先合成判斷。",
+            "reason": "合成觀察未改變既有判準。"
+          },
+          "action_effect": {
+            "state": "maintained",
+            "summary": "保留原定合成觀察清單。",
+            "reason": "本次證據尚不足以新增交易動作。"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": {
+              "path": "wiki/morning/briefs/2026-10-02.md",
+              "source_revision": "sha256:0bc8c5c137740a9e91cda3ebd2ae42fb4f6308322d16b3a7090424158953d56a",
+              "source_cutoff": "2026-10-02T08:04:00+08:00",
+              "generated_at": "2026-10-02T08:05:00+08:00"
+            },
+            "read_at": "2026-10-02T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "無新變化，已完成回查",
+            "result": "合成成交量指數為 100，仍在原定區間，未改變判斷。",
+            "judgment_label": "判斷維持",
+            "action_label": "行動維持"
+          }
+        },
+        {
+          "checkpoint_id": "synthetic-backlog",
+          "story_id": "synthetic-backlog-story",
+          "question": "合成積壓訂單是否仍覆蓋兩季？",
+          "expectation": "下一次合成更新顯示覆蓋兩季。",
+          "due_at": "2026-10-04T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+            "checkpoint_id": "synthetic-backlog"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "pending",
+          "assessment": "not_due",
+          "assessment_origin": "source",
+          "reason_code": "reviewed",
+          "review": {
+            "origin": {
+              "path": "wiki/morning/briefs/2026-10-01.md",
+              "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+              "checkpoint_id": "synthetic-backlog"
+            },
+            "story_id": "synthetic-backlog-story",
+            "checked_at": "2026-10-02T07:50:00+08:00",
+            "evidence_cutoff": "2026-10-02T07:45:00+08:00",
+            "result": "合成更新安排在 10 月 4 日，目前尚未到原定核對時間。",
+            "assessment": "not_due",
+            "judgment_effect": {
+              "state": "maintained",
+              "summary": "維持原先合成判斷。",
+              "reason": "合成觀察未改變既有判準。"
+            },
+            "action_effect": {
+              "state": "maintained",
+              "summary": "保留原定合成觀察清單。",
+              "reason": "本次證據尚不足以新增交易動作。"
+            },
+            "evidence": []
+          },
+          "last_review": null,
+          "judgment_effect": {
+            "state": "maintained",
+            "summary": "維持原先合成判斷。",
+            "reason": "合成觀察未改變既有判準。"
+          },
+          "action_effect": {
+            "state": "maintained",
+            "summary": "保留原定合成觀察清單。",
+            "reason": "本次證據尚不足以新增交易動作。"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": {
+              "path": "wiki/morning/briefs/2026-10-02.md",
+              "source_revision": "sha256:0bc8c5c137740a9e91cda3ebd2ae42fb4f6308322d16b3a7090424158953d56a",
+              "source_cutoff": "2026-10-02T08:04:00+08:00",
+              "generated_at": "2026-10-02T08:05:00+08:00"
+            },
+            "read_at": "2026-10-02T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "尚未到期",
+            "result": "合成更新安排在 10 月 4 日，目前尚未到原定核對時間。",
+            "judgment_label": "判斷維持",
+            "action_label": "行動維持"
+          }
+        }
+      ],
+      "completed_count": 3,
+      "problems": [],
+      "candidate_problems": [],
+      "coverage": {
+        "untracked_recent_artifacts": [],
+        "history_complete": true,
+        "scope": "available_brief_files",
+        "identity_coverage": "explicit_declarations_only"
+      },
+      "state": "ready",
+      "display": {
+        "title": "昨天觀察的事",
+        "empty_message": "",
+        "coverage_label": ""
+      }
+    },
+    "day3": {
+      "schema_version": 1,
+      "items": [
+        {
+          "checkpoint_id": "synthetic-disclosure",
+          "story_id": "synthetic-disclosure-story",
+          "question": "合成附註是否提供現金拆分？",
+          "expectation": "合成附註提供現金拆分。",
+          "due_at": "2026-10-02T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+            "checkpoint_id": "synthetic-disclosure"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "pending",
+          "assessment": "no_data",
+          "assessment_origin": "source",
+          "reason_code": "reviewed",
+          "review": {
+            "origin": {
+              "path": "wiki/morning/briefs/2026-10-01.md",
+              "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+              "checkpoint_id": "synthetic-disclosure"
+            },
+            "story_id": "synthetic-disclosure-story",
+            "checked_at": "2026-10-03T07:50:00+08:00",
+            "evidence_cutoff": "2026-10-03T07:45:00+08:00",
+            "result": "合成附註仍未取得，不能把缺資料當作現金改善。",
+            "assessment": "no_data",
+            "judgment_effect": {
+              "state": "maintained",
+              "summary": "維持原先合成判斷。",
+              "reason": "合成觀察未改變既有判準。"
+            },
+            "action_effect": {
+              "state": "maintained",
+              "summary": "保留原定合成觀察清單。",
+              "reason": "本次證據尚不足以新增交易動作。"
+            },
+            "evidence": [
+              {
+                "kind": "source_check",
+                "source_url": "https://example.test/synthetic/synthetic-disclosure",
+                "data_as_of": "2026-10-03T07:20:00+08:00",
+                "published_at": "2026-10-03T07:30:00+08:00",
+                "checked_at": "2026-10-03T07:40:00+08:00",
+                "summary": "合成附註仍未取得，不能把缺資料當作現金改善。"
+              }
+            ]
+          },
+          "last_review": null,
+          "judgment_effect": {
+            "state": "maintained",
+            "summary": "維持原先合成判斷。",
+            "reason": "合成觀察未改變既有判準。"
+          },
+          "action_effect": {
+            "state": "maintained",
+            "summary": "保留原定合成觀察清單。",
+            "reason": "本次證據尚不足以新增交易動作。"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": {
+              "path": "wiki/morning/briefs/2026-10-03.md",
+              "source_revision": "sha256:5a812c166bb9d790586bd0f3bc8029bcf105a089882b3a73027232bc9f13fe3c",
+              "source_cutoff": "2026-10-03T08:04:00+08:00",
+              "generated_at": "2026-10-03T08:05:00+08:00"
+            },
+            "read_at": "2026-10-03T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "缺資料，尚無法確認",
+            "result": "合成附註仍未取得，不能把缺資料當作現金改善。",
+            "judgment_label": "判斷維持",
+            "action_label": "行動維持"
+          }
+        },
+        {
+          "checkpoint_id": "synthetic-shipping",
+          "story_id": "synthetic-shipping-story",
+          "question": "合成出貨是否符合原定時間？",
+          "expectation": "合成出貨在排定日期完成。",
+          "due_at": "2026-10-02T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+            "checkpoint_id": "synthetic-shipping"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "pending",
+          "assessment": "no_data",
+          "assessment_origin": "reader_gap",
+          "reason_code": "overdue_unreviewed",
+          "review": null,
+          "last_review": null,
+          "judgment_effect": {
+            "state": "unknown"
+          },
+          "action_effect": {
+            "state": "unknown"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": null,
+            "read_at": "2026-10-03T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "缺資料，尚無法確認",
+            "result": "已到檢查時間，來源尚未提供可用回查；不能確認原預期。",
+            "judgment_label": "判斷影響未確認",
+            "action_label": "行動影響未確認"
+          }
+        },
+        {
+          "checkpoint_id": "synthetic-backlog",
+          "story_id": "synthetic-backlog-story",
+          "question": "合成積壓訂單是否仍覆蓋兩季？",
+          "expectation": "下一次合成更新顯示覆蓋兩季。",
+          "due_at": "2026-10-04T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+            "checkpoint_id": "synthetic-backlog"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "pending",
+          "assessment": "not_due",
+          "assessment_origin": "source",
+          "reason_code": "reviewed",
+          "review": {
+            "origin": {
+              "path": "wiki/morning/briefs/2026-10-01.md",
+              "source_revision": "sha256:2bfbd35078a83d78676525d9ed28e3e407733ceb26fd0502bd68ea8a9d9a52d2",
+              "checkpoint_id": "synthetic-backlog"
+            },
+            "story_id": "synthetic-backlog-story",
+            "checked_at": "2026-10-03T07:50:00+08:00",
+            "evidence_cutoff": "2026-10-03T07:45:00+08:00",
+            "result": "再次核對排程，合成更新仍在明日，尚未到期。",
+            "assessment": "not_due",
+            "judgment_effect": {
+              "state": "maintained",
+              "summary": "維持原先合成判斷。",
+              "reason": "合成觀察未改變既有判準。"
+            },
+            "action_effect": {
+              "state": "maintained",
+              "summary": "保留原定合成觀察清單。",
+              "reason": "本次證據尚不足以新增交易動作。"
+            },
+            "evidence": [
+              {
+                "kind": "source_check",
+                "source_url": "https://example.test/synthetic/synthetic-backlog",
+                "data_as_of": "2026-10-03T07:20:00+08:00",
+                "published_at": "2026-10-03T07:30:00+08:00",
+                "checked_at": "2026-10-03T07:40:00+08:00",
+                "summary": "再次核對排程，合成更新仍在明日，尚未到期。"
+              }
+            ]
+          },
+          "last_review": null,
+          "judgment_effect": {
+            "state": "maintained",
+            "summary": "維持原先合成判斷。",
+            "reason": "合成觀察未改變既有判準。"
+          },
+          "action_effect": {
+            "state": "maintained",
+            "summary": "保留原定合成觀察清單。",
+            "reason": "本次證據尚不足以新增交易動作。"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": {
+              "path": "wiki/morning/briefs/2026-10-03.md",
+              "source_revision": "sha256:5a812c166bb9d790586bd0f3bc8029bcf105a089882b3a73027232bc9f13fe3c",
+              "source_cutoff": "2026-10-03T08:04:00+08:00",
+              "generated_at": "2026-10-03T08:05:00+08:00"
+            },
+            "read_at": "2026-10-03T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "尚未到期",
+            "result": "再次核對排程，合成更新仍在明日，尚未到期。",
+            "judgment_label": "判斷維持",
+            "action_label": "行動維持"
+          }
+        }
+      ],
+      "completed_count": 3,
+      "problems": [],
+      "candidate_problems": [],
+      "coverage": {
+        "untracked_recent_artifacts": [],
+        "history_complete": true,
+        "scope": "available_brief_files",
+        "identity_coverage": "explicit_declarations_only"
+      },
+      "state": "ready",
+      "display": {
+        "title": "昨天觀察的事",
+        "empty_message": "",
+        "coverage_label": ""
+      }
+    },
+    "untracked": {
+      "schema_version": 1,
+      "items": [],
+      "completed_count": 0,
+      "problems": [],
+      "candidate_problems": [],
+      "coverage": {
+        "untracked_recent_artifacts": [],
+        "history_complete": true,
+        "scope": "available_brief_files",
+        "identity_coverage": "explicit_declarations_only"
+      },
+      "state": "untracked",
+      "display": {
+        "title": "昨天觀察的事",
+        "empty_message": "來源尚未提供可逐題核對的觀察身分與回查。",
+        "coverage_label": ""
+      }
+    },
+    "revision_mismatch": {
+      "schema_version": 1,
+      "items": [
+        {
+          "checkpoint_id": "synthetic-demand-supply",
+          "story_id": "synthetic-demand",
+          "question": "同一更新中的合成產能是否持平？",
+          "expectation": "合成產能年增 0% 至 1%。",
+          "due_at": "2026-10-02T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:7a7c7ca09a10f8c02eb4a528adf4a7d25faa541c7d386c0875c65909408a631c",
+            "checkpoint_id": "synthetic-demand-supply"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "invalid",
+          "assessment": null,
+          "assessment_origin": "reader_gap",
+          "reason_code": "revision_mismatch",
+          "review": null,
+          "last_review": null,
+          "judgment_effect": {
+            "state": "unknown"
+          },
+          "action_effect": {
+            "state": "unknown"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": null,
+            "read_at": "2026-10-02T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "來源驗證失敗，結果未採用",
+            "result": "回查來源不一致，不能確認結果。",
+            "judgment_label": "判斷影響未確認",
+            "action_label": "行動影響未確認"
+          }
+        },
+        {
+          "checkpoint_id": "synthetic-demand-volume",
+          "story_id": "synthetic-demand",
+          "question": "合成訂單是否至少增加 5%？",
+          "expectation": "合成訂單年增 5% 至 7%。",
+          "due_at": "2026-10-02T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:7a7c7ca09a10f8c02eb4a528adf4a7d25faa541c7d386c0875c65909408a631c",
+            "checkpoint_id": "synthetic-demand-volume"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "invalid",
+          "assessment": null,
+          "assessment_origin": "reader_gap",
+          "reason_code": "revision_mismatch",
+          "review": null,
+          "last_review": null,
+          "judgment_effect": {
+            "state": "unknown"
+          },
+          "action_effect": {
+            "state": "unknown"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": null,
+            "read_at": "2026-10-02T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "來源驗證失敗，結果未採用",
+            "result": "回查來源不一致，不能確認結果。",
+            "judgment_label": "判斷影響未確認",
+            "action_label": "行動影響未確認"
+          }
+        },
+        {
+          "checkpoint_id": "synthetic-disclosure",
+          "story_id": "synthetic-disclosure-story",
+          "question": "合成附註是否提供現金拆分？",
+          "expectation": "合成附註提供現金拆分。",
+          "due_at": "2026-10-02T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:7a7c7ca09a10f8c02eb4a528adf4a7d25faa541c7d386c0875c65909408a631c",
+            "checkpoint_id": "synthetic-disclosure"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "invalid",
+          "assessment": null,
+          "assessment_origin": "reader_gap",
+          "reason_code": "revision_mismatch",
+          "review": null,
+          "last_review": null,
+          "judgment_effect": {
+            "state": "unknown"
+          },
+          "action_effect": {
+            "state": "unknown"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": null,
+            "read_at": "2026-10-02T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "來源驗證失敗，結果未採用",
+            "result": "回查來源不一致，不能確認結果。",
+            "judgment_label": "判斷影響未確認",
+            "action_label": "行動影響未確認"
+          }
+        },
+        {
+          "checkpoint_id": "synthetic-shipping",
+          "story_id": "synthetic-shipping-story",
+          "question": "合成出貨是否符合原定時間？",
+          "expectation": "合成出貨在排定日期完成。",
+          "due_at": "2026-10-02T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:7a7c7ca09a10f8c02eb4a528adf4a7d25faa541c7d386c0875c65909408a631c",
+            "checkpoint_id": "synthetic-shipping"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "pending",
+          "assessment": "no_data",
+          "assessment_origin": "reader_gap",
+          "reason_code": "overdue_unreviewed",
+          "review": null,
+          "last_review": null,
+          "judgment_effect": {
+            "state": "unknown"
+          },
+          "action_effect": {
+            "state": "unknown"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": null,
+            "read_at": "2026-10-02T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "缺資料，尚無法確認",
+            "result": "已到檢查時間，來源尚未提供可用回查；不能確認原預期。",
+            "judgment_label": "判斷影響未確認",
+            "action_label": "行動影響未確認"
+          }
+        },
+        {
+          "checkpoint_id": "synthetic-volume-stability",
+          "story_id": "synthetic-volume",
+          "question": "合成成交量是否仍落在區間內？",
+          "expectation": "合成成交量指數維持 95 至 105。",
+          "due_at": "2026-10-02T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:7a7c7ca09a10f8c02eb4a528adf4a7d25faa541c7d386c0875c65909408a631c",
+            "checkpoint_id": "synthetic-volume-stability"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "invalid",
+          "assessment": null,
+          "assessment_origin": "reader_gap",
+          "reason_code": "revision_mismatch",
+          "review": null,
+          "last_review": null,
+          "judgment_effect": {
+            "state": "unknown"
+          },
+          "action_effect": {
+            "state": "unknown"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": null,
+            "read_at": "2026-10-02T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "來源驗證失敗，結果未採用",
+            "result": "回查來源不一致，不能確認結果。",
+            "judgment_label": "判斷影響未確認",
+            "action_label": "行動影響未確認"
+          }
+        },
+        {
+          "checkpoint_id": "synthetic-backlog",
+          "story_id": "synthetic-backlog-story",
+          "question": "合成積壓訂單是否仍覆蓋兩季？",
+          "expectation": "下一次合成更新顯示覆蓋兩季。",
+          "due_at": "2026-10-04T07:00:00+08:00",
+          "origin": {
+            "path": "wiki/morning/briefs/2026-10-01.md",
+            "source_revision": "sha256:7a7c7ca09a10f8c02eb4a528adf4a7d25faa541c7d386c0875c65909408a631c",
+            "checkpoint_id": "synthetic-backlog"
+          },
+          "baseline": {
+            "judgment": "合成基線：需求穩定，供給變化仍需觀察。",
+            "action": "維持合成觀察清單，不新增部位。",
+            "reason": "需要已排定的合成資料，才能判斷原先預期。",
+            "source_refs": "https://example.test/synthetic/baseline"
+          },
+          "state": "invalid",
+          "assessment": null,
+          "assessment_origin": "reader_gap",
+          "reason_code": "revision_mismatch",
+          "review": null,
+          "last_review": null,
+          "judgment_effect": {
+            "state": "unknown"
+          },
+          "action_effect": {
+            "state": "unknown"
+          },
+          "provenance": {
+            "origin_generated_at": "2026-10-01T08:05:00+08:00",
+            "origin_cutoff": "2026-10-01T08:04:00+08:00",
+            "review": null,
+            "read_at": "2026-10-02T09:00:00+08:00"
+          },
+          "display": {
+            "status_label": "來源驗證失敗，結果未採用",
+            "result": "回查來源不一致，不能確認結果。",
+            "judgment_label": "判斷影響未確認",
+            "action_label": "行動影響未確認"
+          }
+        }
+      ],
+      "completed_count": 0,
+      "problems": [
+        "wiki/morning/briefs/2026-10-02.md: revision_mismatch",
+        "wiki/morning/briefs/2026-10-02.md: revision_mismatch",
+        "wiki/morning/briefs/2026-10-02.md: revision_mismatch",
+        "wiki/morning/briefs/2026-10-02.md: revision_mismatch",
+        "wiki/morning/briefs/2026-10-02.md: revision_mismatch"
+      ],
+      "candidate_problems": [],
+      "coverage": {
+        "untracked_recent_artifacts": [],
+        "history_complete": true,
+        "scope": "available_brief_files",
+        "identity_coverage": "explicit_declarations_only"
+      },
+      "state": "partial",
+      "display": {
+        "title": "昨天觀察的事",
+        "empty_message": "",
+        "coverage_label": "部分來源無法驗證，以下只呈現可讀回的項目。"
+      }
+    }
+  }
+}

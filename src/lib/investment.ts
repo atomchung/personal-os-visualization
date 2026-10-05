@@ -284,6 +284,8 @@ export type InvestmentIntradayRefresh = {
 
 export type InvestmentTodayView = {
   state: "ready" | "partial" | "unavailable"
+  /** Source-owned question reviews; independent of Today/judgment freshness. */
+  checkpoint_reviews?: import("./investmentCheckpointReviews").InvestmentCheckpointReviews | null
   decision_summary: string | null
   decision_summary_date?: string | null
   current_judgment?: InvestmentCurrentJudgment | null

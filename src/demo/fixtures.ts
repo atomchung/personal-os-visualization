@@ -2,6 +2,8 @@
 import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
 import type { TwRelativeStrength, InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentMarketObservation, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchDetail, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, RelativeStrength, StockMomentumData, StockQuote } from "../lib/investment"
 import { investmentScenario } from "./generated/investment-scenario.ts"
+import checkpointReviewExamples from "./checkpoint-review-examples.json" with { type: "json" }
+import { checkpointReviewsView } from "../lib/investmentCheckpointReviews.ts"
 
 export const DATE = investmentScenario.as_of
 export const STAMP = `${DATE}T12:00:00+08:00`
@@ -190,6 +192,8 @@ export const investment: InvestmentData = {
   as_of: UPDATE_OBSERVED_AT,
   today: {
     state: "ready",
+    // Frozen, entirely synthetic source output; no private or production fallback.
+    checkpoint_reviews: checkpointReviewsView(checkpointReviewExamples.examples.day2).projection,
     decision_summary: "今天不需要因這則新訊號調整部位。",
     decision_summary_date: DATE,
     limitations: [],

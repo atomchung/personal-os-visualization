@@ -31,6 +31,7 @@ jobs:
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           UI_URL=http://127.0.0.1:4173 node tests/browser-investment.mjs
           UI_URL=http://127.0.0.1:4173 DESIGN_STAGE=after node tests/browser-judgment-design.mjs
+          UI_URL=http://127.0.0.1:4173 node tests/browser-checkpoint-reviews.mjs
       - name: Retain synthetic screenshots and read-back
         if: always()
         uses: actions/upload-artifact@v4
@@ -107,5 +108,14 @@ jobs:
         with:
           name: judgment-design-${{ github.run_id }}-${{ github.run_attempt }}
           path: .artifacts/judgment-design/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Retain synthetic checkpoint review read-back
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-reviews-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/checkpoint-reviews/
           if-no-files-found: warn
           retention-days: 7
