@@ -770,7 +770,10 @@ export function providerCompletionNote(status: Pick<InvestmentRefreshStatus, "pr
     ? `（先前 ${status.fallback_depth} 個模型未成功）` : ""
   const outcome = status.state === "failed"
     ? status.model_work_state === "completed" ? "已回傳結果，更新未完成" : "執行失敗"
-    : status.state === "running" ? "執行中" : "完成"
+    : status.state === "partial"
+      ? status.model_work_state === "completed" ? "已回傳結果，更新未完成"
+        : status.model_work_state === "failed" ? "執行失敗" : "執行狀態未知"
+      : status.state === "running" ? "執行中" : "完成"
   return `由 ${label} ${outcome}${failedBefore}`
 }
 
@@ -1282,4 +1285,3 @@ export function visibleActionItems<T extends { text: string }>(items: readonly T
   const kept = new Set(briefActions(items.map(item => item.text)))
   return items.filter(item => kept.has(item.text))
 }
-

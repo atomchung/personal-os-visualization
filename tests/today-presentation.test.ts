@@ -75,6 +75,19 @@ test("refresh status reads show request failures instead of presenting them as i
     message: "Antigravity 權限遭拒", error: "permission_denied", discovery_state: "failed", discovery_updated_at: null,
     trigger: null, new_update_count: null, sync_note: "", reconciled_at: null, provider: "agy", model: "gemini-3.7-flash-high",
     fallback_depth: 0, provider_errors: { agy: "permission_denied" } }), /更新失敗：Antigravity 權限遭拒.*由 Antigravity 執行失敗/)
+  const partialNewsStatus = (model_work_state: "failed" | "completed" | null): InvestmentRefreshStatus => ({
+    action: "news", state: "partial", started_at: null, last_updated: "2026-10-06T21:20:00+08:00",
+    message: "合成快掃部分完成，來源覆蓋仍不完整", error: null, discovery_state: "idle", discovery_updated_at: null,
+    trigger: null, new_update_count: null, sync_note: "", reconciled_at: null, provider: "agy", model: "gemini-3.7-flash-high",
+    fallback_depth: 0, provider_errors: {}, model_work_state, market_scope: "us", scan_mode: "quick",
+  })
+  const failedPartial = refreshStateLabel("news", partialNewsStatus("failed"))
+  assert.match(failedPartial, /部分完成：合成快掃部分完成，來源覆蓋仍不完整.*由 Antigravity 執行失敗/)
+  assert.doesNotMatch(failedPartial, /由 Antigravity 完成/)
+  const unknownPartial = refreshStateLabel("news", partialNewsStatus(null))
+  assert.match(unknownPartial, /由 Antigravity 執行狀態未知/)
+  assert.doesNotMatch(unknownPartial, /由 Antigravity 完成/)
+  assert.match(refreshStateLabel("news", partialNewsStatus("completed")), /由 Antigravity 已回傳結果，更新未完成/)
   assert.match(refreshStateLabel("news", { action: "news", state: "idle", started_at: null, last_updated: null,
     message: "", error: null, discovery_state: "idle", discovery_updated_at: null, trigger: null,
     new_update_count: null, sync_note: "", reconciled_at: null, provider: null, model: null,

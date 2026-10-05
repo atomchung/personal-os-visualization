@@ -1461,7 +1461,7 @@ export async function postInvestmentRefresh(
 }
 
 export const getInvestmentRefreshStatus = (action: InvestmentRefreshAction, signal?: AbortSignal) =>
-  refreshOperations().getRefreshStatus?.(action, signal)
+  refreshOperations().getRefreshStatus?.(action, signal).then(applyReferenceReadHook)
     ?? Promise.reject(new Error("Investment refresh status is unavailable."))
 
 /** Re-read only the two persisted status queries; this accepts read callbacks, never a refresh/write operation. */
