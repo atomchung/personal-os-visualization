@@ -719,15 +719,16 @@ export const JUDGMENT_CLASS_LABEL: Record<InvestmentBriefJudgmentClass, string> 
 
 const MARKET_SCAN_LABEL: Record<InvestmentNewsMarket, string> = { tw: "台股", us: "美股" }
 
-/** Plain-language wording for a completed/failed/no-change news scan, from
+/** Plain-language wording for a completed/partial/failed/no-change news scan, from
  * the real producer's own state machine (core/investment_refresh.py):
  * "no-change" is always zero new updates; "success" carries a positive
  * count, or null specifically when a server restart made counting
  * impossible (that path never reports a real zero -- a same-run zero is
- * "no-change" instead). An exactly-zero "success" is still read the same as
- * "no-change" defensively, rather than left unworded. */
-function scanResultWording(state: "success" | "failed" | "no-change", newUpdateCount: number | null | undefined): string {
+ * "no-change" instead). A partial result never claims zero; an exactly-zero
+ * "success" is still read the same as "no-change" defensively. */
+function scanResultWording(state: "success" | "partial" | "failed" | "no-change", newUpdateCount: number | null | undefined): string {
   if (state === "failed") return "失敗，保留上一版"
+  if (state === "partial") return "部分完成，結果不完整"
   if (state === "success") {
     if (typeof newUpdateCount === "number" && Number.isFinite(newUpdateCount)) {
       return newUpdateCount > 0 ? `有 ${newUpdateCount} 則新消息` : "沒有影響判斷的新消息"
@@ -769,7 +770,10 @@ export function providerCompletionNote(status: Pick<InvestmentRefreshStatus, "pr
     ? `（先前 ${status.fallback_depth} 個模型未成功）` : ""
   const outcome = status.state === "failed"
     ? status.model_work_state === "completed" ? "已回傳結果，更新未完成" : "執行失敗"
-    : status.state === "running" ? "執行中" : "完成"
+    : status.state === "partial"
+      ? status.model_work_state === "completed" ? "已回傳結果，更新未完成"
+        : status.model_work_state === "failed" ? "執行失敗" : "執行狀態未知"
+      : status.state === "running" ? "執行中" : "完成"
   return `由 ${label} ${outcome}${failedBefore}`
 }
 
@@ -1281,4 +1285,3 @@ export function visibleActionItems<T extends { text: string }>(items: readonly T
   const kept = new Set(briefActions(items.map(item => item.text)))
   return items.filter(item => kept.has(item.text))
 }
-

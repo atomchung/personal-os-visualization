@@ -715,7 +715,7 @@ export type InvestmentRefreshAction = "market" | "news"
 export type InvestmentNewsMarket = "tw" | "us"
 export type InvestmentRefreshStatus = {
   action: InvestmentRefreshAction
-  state: "idle" | "running" | "success" | "failed" | "no-change"
+  state: "idle" | "running" | "success" | "partial" | "failed" | "no-change"
   started_at: string | null
   last_updated: string | null
   message: string
@@ -1463,7 +1463,7 @@ export async function postInvestmentRefresh(
 }
 
 export const getInvestmentRefreshStatus = (action: InvestmentRefreshAction, signal?: AbortSignal) =>
-  refreshOperations().getRefreshStatus?.(action, signal)
+  refreshOperations().getRefreshStatus?.(action, signal).then(applyReferenceReadHook)
     ?? Promise.reject(new Error("Investment refresh status is unavailable."))
 
 /** Re-read only the two persisted status queries; this accepts read callbacks, never a refresh/write operation. */
