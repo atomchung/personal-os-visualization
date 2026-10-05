@@ -18,22 +18,16 @@ for (let attempt = 0; attempt < 40; attempt++) {
   await new Promise(resolve => setTimeout(resolve, 250))
 }
 
-// Fail if the execution environment cannot support Chromium's sandbox.
-// Do not disable the sandbox to make a restricted cloud environment pass.
-const browser = await chromium.launch({
-  headless: true,
-  chromiumSandbox: true,
-  executablePath: process.env.CHROMIUM_EXECUTABLE,
-})
 const report = {
   revision: process.env.GITHUB_SHA || 'local-preview',
   sourceRevision: process.env.SOURCE_REVISION || 'local-preview',
   producerRevision,
-  browser: browser.version(),
+  browser: null,
   mode: 'synthetic-only',
   result: 'running',
   scenarios: [],
 }
+let browser = null
 
 async function openPage(width, scenario, projection) {
   const page = await browser.newPage({ viewport: { width, height: 1000 } })
@@ -157,7 +151,17 @@ const cases = [
   { width: 320, name: 'untracked', projection: examples.untracked },
 ]
 
+let executionError
 try {
+  // Fail if the execution environment cannot support Chromium's sandbox.
+  // Do not disable the sandbox to make a restricted cloud environment pass.
+  browser = await chromium.launch({
+    headless: true,
+    chromiumSandbox: true,
+    executablePath: process.env.CHROMIUM_EXECUTABLE,
+  })
+  report.browser = browser.version()
+
   for (const { width, name, projection } of cases) {
     const label = `${name}-${width}`
     console.log(`Checking checkpoint reviews: ${label}`)
@@ -228,8 +232,16 @@ try {
 } catch (error) {
   report.result = 'failed'
   report.error = error instanceof Error ? error.message : String(error)
-  throw error
-} finally {
-  await writeFile(`${output}/report.json`, JSON.stringify(report, null, 2))
-  await browser.close()
+  report.errorStack = error instanceof Error ? error.stack : undefined
+  executionError = error
 }
+
+try {
+  await browser?.close()
+} catch (error) {
+  report.browserCloseError = error instanceof Error ? error.message : String(error)
+  if (report.result !== 'failed') report.result = 'failed'
+  executionError ??= error
+}
+await writeFile(`${output}/report.json`, JSON.stringify(report, null, 2))
+if (executionError) throw executionError
