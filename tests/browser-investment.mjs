@@ -628,7 +628,7 @@ try {
         break
       case 'actions-partial': assert.match(text, /沒有可確認的下一步/); assert.doesNotMatch(text, /今天不用動。/); break
       case 'research-only': assert.match(text, /補研究：核對合成公開資料/); break
-      case 'initial-error': assert.match(text, /簡報讀取失敗/); assert.equal(await panel.getByLabel('主要下一步').count(), 0); assert.doesNotMatch(text, /Today 讀回未提供台美分市場增量回執/); assert.match(text, /SYNTH · 15:00 合成公司 Q3 線上法說[\s\S]*2026-10-12/); break
+      case 'initial-error': assert.match(text, /簡報讀取失敗/); assert.equal(await panel.getByLabel('主要下一步').count(), 0); assert.doesNotMatch(text, /Today 讀回未提供台美分市場增量回執/); assert.match(text, /10\/12｜虛構記憶體（SYNTH）｜Q3 線上法說[\s\S]*時間 15:00/); break
       case 'refresh-error': {
         assert.equal(await panel.getByLabel('主要下一步').count(), 1)
         assert.match(text, /本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動/)
@@ -740,4 +740,3 @@ try {
   await writeFile(`${output}/report.json`, JSON.stringify(report, null, 2))
   await browser.close()
 }
-

@@ -405,7 +405,7 @@ function FutureEventHeading({ heading }: { heading: ReturnType<typeof futureChec
   const companyLabels = heading.companies.map(company => company.label).join("、")
   return <>
     <p className="min-w-0 break-words text-body font-medium leading-relaxed text-ink-2">
-      <span className="font-semibold text-ink-1">{heading.date}</span>
+      <span className="font-semibold text-ink">{heading.date}</span>
       {companyLabels ? <><span aria-hidden="true">｜</span><span className="break-words">{companyLabels}</span></> : null}
       {heading.title ? <><span aria-hidden="true">｜</span><InlineText text={heading.title} /></> : null}
     </p>

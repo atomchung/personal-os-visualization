@@ -18,7 +18,7 @@ after(async () => {
   await server.close()
 })
 
-const SOURCE_TITLE = "2026-10-12 15:00 SYNTH Q3 線上法說（公司 2026-09-18 公告）"
+const SOURCE_TITLE = "2026-10-12 15:00 SYNTH｜Q3 線上法說（公司 2026-09-18 公告）"
 
 function checkpoint(overrides: Partial<FutureCheckpoint> = {}): FutureCheckpoint {
   const title = overrides.title ?? SOURCE_TITLE
@@ -72,12 +72,12 @@ test("an exact source date leads once, source company and ticker are explicit, a
   assert.doesNotMatch(headline, /15:00/)
   assert.match(html, /<p class="text-caption text-ink-3">時間 15:00<\/p>/)
   assert.match(html, /來源註記：合成公司公告/)
-  assert.match(html, /來源事件標題：2026-10-12 15:00 SYNTH Q3 線上法說（公司 2026-09-18 公告）/)
+  assert.match(html, /來源事件標題：2026-10-12 15:00 SYNTH｜Q3 線上法說（公司 2026-09-18 公告）/)
 })
 
-test("all explicit affected tickers stay paired with their source display names", () => {
+test("a verified leading multi-company identity prefix is compacted once", () => {
   const item = checkpoint({
-    title: "2026-10-12 15:00 SYNTH-A、SYNTH-B Q3 線上法說",
+    title: "2026-10-12 15:00 SYNTH-A、SYNTH-B｜Q3 線上法說",
     affected_tickers: ["SYNTH-A", "SYNTH-B"],
     affected_companies: [
       { ticker: "SYNTH-A", display_name: "虛構甲公司" },
@@ -92,6 +92,26 @@ test("all explicit affected tickers stay paired with their source display names"
   assert.equal(headline.split("SYNTH-B").length - 1, 1)
 })
 
+test("role-bearing company mentions stay in opposite-direction event titles", () => {
+  const companies = [
+    { ticker: "SYNTH-A", display_name: "虛構甲公司" },
+    { ticker: "SYNTH-B", display_name: "虛構乙公司" },
+  ]
+  const companyTitles = [
+    "2026-10-12 15:00 SYNTH-A｜sells division to SYNTH-B",
+    "2026-10-12 15:00 SYNTH-B｜sells division to SYNTH-A",
+  ]
+  const headings = companyTitles.map(title => futureCheckpointHeading(checkpoint({
+    title,
+    affected_tickers: ["SYNTH-A", "SYNTH-B"],
+    affected_companies: companies,
+  })))
+
+  assert.equal(headings[0].title, "SYNTH-A｜sells division to SYNTH-B")
+  assert.equal(headings[1].title, "SYNTH-B｜sells division to SYNTH-A")
+  assert.notEqual(headings[0].title, headings[1].title)
+})
+
 test("a missing Chinese name falls back to the original ticker without inventing a label", () => {
   const item = checkpoint({ affected_companies: [{ ticker: "SYNTH", display_name: null }] })
   const heading = futureCheckpointHeading(item)
@@ -99,33 +119,63 @@ test("a missing Chinese name falls back to the original ticker without inventing
   assert.equal(compactHeadline(render([item])), "10/12｜SYNTH｜Q3 線上法說")
 })
 
-test("month precision stays literal and is not expanded to an exact day", () => {
+test("month precision stays literal and does not truncate a full day in the raw title", () => {
+  const rawTitle = "2026-10-12 15:00 SYNTH｜Q3 線上法說"
   const item = checkpoint({
     state: "partial",
     date: null,
     date_label: "2026-10",
     date_precision: "month",
-    title: "2026-10 15:00 SYNTH Q3 線上法說",
+    title: rawTitle,
   })
   const heading = futureCheckpointHeading(item)
   assert.equal(heading.date, "2026-10")
-  assert.equal(heading.time, "15:00")
-  assert.equal(heading.title, "Q3 線上法說")
-  assert.equal(compactHeadline(render([item])), "2026-10｜虛構記憶體（SYNTH）｜Q3 線上法說")
+  assert.equal(heading.time, null)
+  assert.equal(heading.title, rawTitle)
 })
 
-test("conflicting dates remain in the source title without selecting one", () => {
+test("conflicting dates remain unresolved even if candidate date fields are populated", () => {
   const rawTitle = "2026-10-12 / 2026-10-13 15:00 SYNTH Q3 線上法說"
   const heading = futureCheckpointHeading(checkpoint({
     state: "conflict",
-    date: null,
-    date_label: null,
-    date_precision: "imprecise",
+    date: "2026-10-12",
+    date_label: "2026-10-13",
+    date_precision: "day",
     title: rawTitle,
   }))
   assert.equal(heading.date, "日期衝突")
   assert.equal(heading.time, null)
   assert.equal(heading.title, rawTitle)
+})
+
+test("approximate day labels keep their qualifier and do not repeat the raw date", () => {
+  const item = checkpoint({
+    state: "partial",
+    date: null,
+    date_label: "2026-10-12",
+    date_precision: "approximate_day",
+    title: "~2026-10-12 15:00 SYNTH｜Q3 線上法說",
+  })
+  const heading = futureCheckpointHeading(item)
+  assert.equal(heading.date, "約 2026-10-12")
+  assert.equal(heading.time, "15:00")
+  assert.equal(heading.title, "Q3 線上法說")
+  assert.equal(`${heading.date} ${heading.title}`.split("2026-10-12").length - 1, 1)
+})
+
+test("an explicit timezone stays with the secondary time", () => {
+  const heading = futureCheckpointHeading(checkpoint({
+    title: "2026-10-12 15:00 UTC SYNTH｜Q3 線上法說",
+  }))
+  assert.equal(heading.time, "15:00 UTC")
+  assert.equal(heading.title, "Q3 線上法說")
+})
+
+test("an unrecognized timezone-like token keeps the entire time prefix in the source title", () => {
+  const rawTitle = "2026-10-12 15:00 XYZ SYNTH｜Q3 線上法說"
+  const heading = futureCheckpointHeading(checkpoint({ title: rawTitle }))
+  assert.equal(heading.time, null)
+  assert.equal(heading.title, "15:00 XYZ SYNTH｜Q3 線上法說")
 })
 
 test("an unparsed date remains unchanged", () => {
@@ -144,7 +194,7 @@ test("an unparsed date remains unchanged", () => {
 
 test("long source titles remain intact and the rendered heading can wrap", () => {
   const longEventTitle = `Q3 線上法說 ${"QuarterlyDisclosure".repeat(8)}`
-  const item = checkpoint({ title: `2026-10-12 15:00 SYNTH ${longEventTitle}` })
+  const item = checkpoint({ title: `2026-10-12 15:00 SYNTH｜${longEventTitle}` })
   const heading = futureCheckpointHeading(item)
   assert.equal(heading.title, longEventTitle)
   const html = render([item])
@@ -155,7 +205,7 @@ test("long source titles remain intact and the rendered heading can wrap", () =>
 test("source title and source references remain available in the collapsed disclosure", () => {
   const html = render([checkpoint()])
   assert.match(html, /<details class="text-caption text-ink-3"><summary class="cursor-pointer py-1">原始事件標題與來源 · 1<\/summary>/)
-  assert.match(html, /來源事件標題：2026-10-12 15:00 SYNTH Q3 線上法說（公司 2026-09-18 公告）/)
+  assert.match(html, /來源事件標題：2026-10-12 15:00 SYNTH｜Q3 線上法說（公司 2026-09-18 公告）/)
   const detailsIndex = html.indexOf("<details")
   assert.ok(detailsIndex > -1)
   assert.ok(html.indexOf("來源註記：合成公司公告") < detailsIndex)

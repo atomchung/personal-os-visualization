@@ -4,7 +4,9 @@ export type FutureCheckpointHeadingInput = Pick<FutureCheckpoint, "date" | "date
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
 const COMPANY_ANNOUNCEMENT_SUFFIX = /\s*[（(]\s*公司(?:\s+\d{4}-\d{2}-\d{2})?\s*公告\s*[）)]\s*$/
-const TIME_PREFIX = /^(\d{1,2}:\d{2})(?=$|[\s｜|·,，:：—–-])/u
+const TIME_PREFIX = /^(\d{1,2}:\d{2})(?=$|[\s｜|·,，:：—–])/u
+const TIMEZONE_PREFIX = /^[\t ]+((?:UTC|GMT)(?:[+-]\d{1,2}(?::?\d{2})?)?|(?:AKST|AKDT|AST|ADT|AEST|AEDT|ACST|ACDT|AWST|BST|CET|CEST|CDT|CST|EDT|EST|EET|EEST|GMT|HKT|HST|IST|JST|KST|MDT|MST|NZDT|NZST|PDT|PST|SGT|WET|WEST)(?=$|[\t ｜|·,，:：—–-])|(?:Africa|America|Antarctica|Asia|Atlantic|Australia|Europe|Indian|Pacific)\/[A-Za-z_+-]+(?:\/[A-Za-z_+-]+)*)(?=$|[\t ｜|·,，:：—–-])/iu
+const POSSIBLE_TIMEZONE_PREFIX = /^[\t ]+[A-Z]{2,8}(?=$|[\t ｜|·,，:：—–-])/u
 
 function isCalendarDay(value: string): boolean {
   if (!ISO_DAY.test(value)) return false
@@ -12,43 +14,111 @@ function isCalendarDay(value: string): boolean {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
-/** Remove only a literal source date prefix with a clear boundary. */
-function removeRepeatedDatePrefix(title: string, date: string): string {
-  if (!date || !title.startsWith(date)) return title
+/** Remove a literal source date prefix, never a partial ISO date token. */
+function removeRepeatedDatePrefix(title: string, date: string, approximate = false): string {
+  if (!date) return title
 
-  const remainder = title.slice(date.length)
+  const marker = approximate ? title.match(/^(?:~[\t ]*|約(?:略)?[\t ]*)/u)?.[0] ?? "" : ""
+  const withoutMarker = title.slice(marker.length)
+  if (!withoutMarker.startsWith(date)) return title
+
+  const remainder = withoutMarker.slice(date.length)
   let separatorLength = 0
   if (isCalendarDay(date) && /^T\d{2}:\d{2}(?:\s|$)/.test(remainder)) {
     separatorLength = 1 // Preserve the source time after an ISO timestamp separator.
   } else {
-    const separator = remainder.match(/^(?:[\t ]+|[\t ]*[·,，:：—–｜| -][\t ]*)/u)
+    // A hyphen can continue a YYYY-MM prefix into YYYY-MM-DD, so it is not a
+    // safe separator for a date label.
+    const separator = remainder.match(/^(?:[\t ]+|[\t ]*[·,，:：—–｜|][\t ]*)/u)
     if (separator) separatorLength = separator[0].length
     else if (remainder) return title
   }
 
-  const withoutDate = remainder.slice(separatorLength).trimStart()
-  return withoutDate ? withoutDate : title
+  return withoutMarker.slice(date.length + separatorLength).trim()
 }
 
 function formatExactDay(date: string): string {
   return `${date.slice(5, 7)}/${date.slice(8, 10)}`
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+type HeadingCompany = { ticker: string; display_name: string | null; label: string }
+
+function companyIdentityTokens(company: HeadingCompany): string[] {
+  return [company.label, company.ticker, company.ticker.replace(/\.TWO?$/iu, ""), ...(company.display_name ? [company.display_name] : [])]
 }
 
-function removeIdentityTokens(title: string, tokens: string[]): string {
-  let cleaned = title
-  for (const token of [...new Set(tokens.filter(Boolean))].sort((a, b) => b.length - a.length)) {
-    const expression = new RegExp(`(^|[^\\p{L}\\p{N}_])${escapeRegExp(token)}(?=$|[^\\p{L}\\p{N}_])`, "giu")
-    cleaned = cleaned.replace(expression, "$1")
+function containsIdentityToken(text: string, token: string): boolean {
+  if (!token) return false
+  const isWordCharacter = (value: string | undefined) => value !== undefined && /[\p{L}\p{N}_]/u.test(value)
+  let offset = 0
+  while (offset < text.length) {
+    const index = text.indexOf(token, offset)
+    if (index < 0) return false
+    const before = Array.from(text.slice(0, index)).at(-1)
+    const after = Array.from(text.slice(index + token.length))[0]
+    if (!isWordCharacter(before) && !isWordCharacter(after)) return true
+    offset = index + token.length
   }
-  return cleaned
-    .replace(/[（(]\s*[）)]/gu, " ")
-    .replace(/^[\s｜|·、，,:：;；—–-]+|[\s｜|·、，,:：;；—–-]+$/gu, "")
-    .replace(/\s+/gu, " ")
-    .trim()
+  return false
+}
+
+function stripLeadingIdentityPrefix(title: string, companies: HeadingCompany[], identityTokens: string[]): string {
+  const orderedTokens = [...new Set(identityTokens.filter(Boolean))].sort((a, b) => b.length - a.length)
+  let remaining = title.trimStart()
+  let strippedAny = false
+  const matchedCompanies = new Set<string>()
+
+  while (remaining) {
+    const token = orderedTokens.find(candidate => remaining.startsWith(candidate))
+    if (!token) return title
+    const company = companies.find(candidate => companyIdentityTokens(candidate).includes(token))
+    if (company) matchedCompanies.add(company.ticker)
+
+    const suffix = remaining.slice(token.length)
+    const separator = suffix.match(/^[\t ]*[｜|·][\t ]*/u)
+    if (separator) {
+      const eventTitle = suffix.slice(separator[0].length).trimStart()
+      const everyCompanyIsListed = matchedCompanies.size === companies.length
+      const identityStillHasARole = identityTokens.some(identity => containsIdentityToken(eventTitle, identity))
+      return everyCompanyIsListed && !identityStillHasARole ? eventTitle : title
+    }
+
+    // Multiple verified identities may be listed as a prefix; continue only
+    // across an explicit list separator, and require a final display separator.
+    const listSeparator = suffix.match(/^[\t ]*[、,，][\t ]*/u)
+    if (!listSeparator) return title
+    remaining = suffix.slice(listSeparator[0].length).trimStart()
+    strippedAny = true
+  }
+
+  return strippedAny ? "" : title
+}
+
+function startsWithIdentityToken(title: string, identityTokens: string[]): boolean {
+  const leading = title.trimStart()
+  return identityTokens.some(token => {
+    if (!token || !leading.startsWith(token)) return false
+    const next = leading.slice(token.length, token.length + 1)
+    return !next || /[\s｜|·、,，:：—–]/u.test(next)
+  })
+}
+
+function extractTimePrefix(title: string, identityTokens: string[]): { title: string; time: string } | { title: string; time: null } {
+  const match = title.match(TIME_PREFIX)
+  if (!match) return { title, time: null }
+
+  const afterTime = title.slice(match[0].length)
+  const identityPrefix = startsWithIdentityToken(afterTime, identityTokens)
+  const timezone = identityPrefix ? null : afterTime.match(TIMEZONE_PREFIX)
+  if (!timezone && !identityPrefix && POSSIBLE_TIMEZONE_PREFIX.test(afterTime)) return { title, time: null }
+  const time = timezone ? `${match[1]} ${timezone[1]}` : match[1]
+  return { title: afterTime.slice(timezone?.[0].length ?? 0).trimStart(), time }
+}
+
+function formatApproximateDate(item: FutureCheckpointHeadingInput): string {
+  const label = item.date_label?.trim() || item.date?.trim()
+  if (!label) return "日期未確認"
+  return /^(?:~|約(?:略)?)/u.test(label) ? label : `約 ${label}`
 }
 
 /** Compose a compact title from producer date/company fields. The original
@@ -58,10 +128,15 @@ export function futureCheckpointHeading(item: FutureCheckpointHeadingInput) {
   const exactDay = !conflict && item.date_precision === "day" && isCalendarDay(item.date?.trim() ?? "")
     ? item.date!.trim()
     : null
-  const sourceDate = conflict ? "" : item.date?.trim() || item.date_label?.trim() || ""
-  const date = exactDay
-    ? formatExactDay(exactDay)
-    : item.date_label?.trim() || item.date?.trim() || (conflict ? "日期衝突" : "日期未確認")
+  const sourceDate = conflict ? "" : exactDay || item.date_label?.trim() || item.date?.trim() || ""
+  const approximate = item.date_precision === "approximate_day"
+  const date = conflict
+    ? "日期衝突"
+    : exactDay
+      ? formatExactDay(exactDay)
+      : approximate
+        ? formatApproximateDate(item)
+        : item.date_label?.trim() || item.date?.trim() || "日期未確認"
 
   const companyByTicker = new Map(
     (item.affected_companies ?? [])
@@ -82,24 +157,18 @@ export function futureCheckpointHeading(item: FutureCheckpointHeadingInput) {
   let title = item.title
   let time: string | null = null
   if (!conflict) {
-    if (sourceDate) title = removeRepeatedDatePrefix(title, sourceDate)
-    if (exactDay) title = removeRepeatedDatePrefix(title, date)
-    if (sourceDate) {
-      const match = title.match(TIME_PREFIX)
-      if (match) {
-        const remainder = title.slice(match[0].length).trimStart()
-        if (remainder) {
-          time = match[1]
-          title = remainder
-        }
-      }
+    if (exactDay) {
+      title = removeRepeatedDatePrefix(title, exactDay)
+      title = removeRepeatedDatePrefix(title, formatExactDay(exactDay))
+    } else if (sourceDate) {
+      const dateToken = approximate ? sourceDate.replace(/^(?:~|約(?:略)?)[\t ]*/u, "") : sourceDate
+      title = removeRepeatedDatePrefix(title, dateToken, approximate)
     }
-    const identityTokens = companies.flatMap(company => [
-      company.ticker,
-      company.ticker.replace(/\.TWO?$/iu, ""),
-      ...(company.display_name ? [company.display_name] : []),
-    ])
-    title = removeIdentityTokens(title, identityTokens)
+    const identityTokens = companies.flatMap(companyIdentityTokens)
+    const extractedTime = sourceDate ? extractTimePrefix(title, identityTokens) : { title, time: null }
+    title = extractedTime.title
+    time = extractedTime.time
+    title = stripLeadingIdentityPrefix(title, companies, identityTokens)
       .replace(COMPANY_ANNOUNCEMENT_SUFFIX, "")
       .trim()
   }
