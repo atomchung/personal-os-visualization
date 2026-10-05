@@ -401,12 +401,23 @@ function FutureProvenanceDetails({ item }: { item: FutureCheckpoint }) {
   </details>
 }
 
+function FutureEventHeading({ heading }: { heading: ReturnType<typeof futureCheckpointHeading> }) {
+  const companyLabels = heading.companies.map(company => company.label).join("、")
+  return <>
+    <p className="min-w-0 break-words text-body font-medium leading-relaxed text-ink-2">
+      <span className="font-semibold text-ink-1">{heading.date}</span>
+      {companyLabels ? <><span aria-hidden="true">｜</span><span className="break-words">{companyLabels}</span></> : null}
+      {heading.title ? <><span aria-hidden="true">｜</span><InlineText text={heading.title} /></> : null}
+    </p>
+    {heading.time ? <p className="text-caption text-ink-3">時間 {heading.time}</p> : null}
+  </>
+}
+
 function FutureRow({ item, showIdentity = false }: { item: FutureCheckpoint; showIdentity?: boolean }) {
   const heading = futureCheckpointHeading(item)
   const impacts = item.affected_scopes.length ? `影響範圍：${item.affected_scopes.join("、")}` : null
   return <li className="flex min-w-0 flex-col gap-2 border-t border-line-soft py-3 first:border-0 first:pt-0">
-    <p className="text-body font-medium leading-relaxed text-ink-2">{heading.tickers.length ? `${heading.tickers.join("、")} · ` : ""}<InlineText text={heading.title} /></p>
-    <p className="text-caption text-ink-3">{heading.date}</p>
+    <FutureEventHeading heading={heading} />
     {item.source_qualifiers?.length ? <p className="text-caption text-ink-3">來源註記：{item.source_qualifiers.join("、")}</p> : null}
     {impacts ? <p className="text-caption text-ink-3">{impacts}</p> : null}
     {!item.affected_tickers.length && !item.affected_scopes.length ? <p className="text-caption text-ink-3">影響標的與範圍：來源未提供</p> : null}
@@ -424,8 +435,7 @@ function FutureRow({ item, showIdentity = false }: { item: FutureCheckpoint; sho
 function FutureFoldARow({ item }: { item: FutureCheckpoint }) {
   const heading = futureCheckpointHeading(item)
   return <li className="flex min-w-0 flex-col gap-1 border-t border-line-soft py-2 first:border-0 first:pt-0">
-    <p className="text-body leading-relaxed text-ink-2">{heading.tickers.length ? `${heading.tickers.join("、")} · ` : ""}<InlineText text={heading.title} /></p>
-    <p className="text-caption text-ink-3">{heading.date}</p>
+    <FutureEventHeading heading={heading} />
     {item.source_qualifiers?.length ? <p className="text-caption text-ink-3">來源註記：{item.source_qualifiers.join("、")}</p> : null}
     <p className="text-caption text-ink-3">{nonExactDateReason(item)}</p>
     <FutureProvenanceDetails item={item} />

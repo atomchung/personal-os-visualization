@@ -565,6 +565,8 @@ export type FutureCheckpoint = {
   story_id: string | null; title: string; state: string
   date: string | null; date_label: string | null; date_precision: string; window_membership: string
   source_qualifiers?: string[]; affected_tickers: string[]; affected_scopes: string[]
+  /** Source-index display names keyed by their explicit affected ticker identity. */
+  affected_companies?: { ticker: string; display_name: string | null }[]
   checks: { scope: string; check: string | null; state: string; result_state: string; source: EventSource; result?: EventCheckResult }[]
   sources: EventSource[]; limitations: string[]
 }

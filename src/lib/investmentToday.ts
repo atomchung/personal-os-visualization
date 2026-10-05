@@ -1,9 +1,10 @@
 import type { FutureCheckpoint, InvestmentBrief, InvestmentCatalysts30d, InvestmentTodayUpdate } from "./investment"
 
-export type FutureCheckpointHeadingInput = Pick<FutureCheckpoint, "date" | "date_label" | "title" | "affected_tickers">
+export type FutureCheckpointHeadingInput = Pick<FutureCheckpoint, "date" | "date_label" | "date_precision" | "state" | "title" | "affected_tickers" | "affected_companies">
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
 const COMPANY_ANNOUNCEMENT_SUFFIX = /\s*[（(]\s*公司(?:\s+\d{4}-\d{2}-\d{2})?\s*公告\s*[）)]\s*$/
+const TIME_PREFIX = /^(\d{1,2}:\d{2})(?=$|[\s｜|·,，:：—–-])/u
 
 function isCalendarDay(value: string): boolean {
   if (!ISO_DAY.test(value)) return false
@@ -11,17 +12,16 @@ function isCalendarDay(value: string): boolean {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
-/** Remove a title's duplicate date only when it exactly matches the explicit
- * source date and has a clear boundary. Keep all unparsed/raw date text. */
+/** Remove only a literal source date prefix with a clear boundary. */
 function removeRepeatedDatePrefix(title: string, date: string): string {
-  if (!isCalendarDay(date) || !title.startsWith(date)) return title
+  if (!date || !title.startsWith(date)) return title
 
   const remainder = title.slice(date.length)
   let separatorLength = 0
-  if (/^T\d{2}:\d{2}(?:\s|$)/.test(remainder)) {
+  if (isCalendarDay(date) && /^T\d{2}:\d{2}(?:\s|$)/.test(remainder)) {
     separatorLength = 1 // Preserve the source time after an ISO timestamp separator.
   } else {
-    const separator = remainder.match(/^(?:[\t ]+|[\t ]*[·,，:：—–-][\t ]*)/)
+    const separator = remainder.match(/^(?:[\t ]+|[\t ]*[·,，:：—–｜| -][\t ]*)/u)
     if (separator) separatorLength = separator[0].length
     else if (remainder) return title
   }
@@ -30,16 +30,85 @@ function removeRepeatedDatePrefix(title: string, date: string): string {
   return withoutDate ? withoutDate : title
 }
 
-/** Presentation-only compaction. The original producer title remains visible
- * in the disclosure, and identity comes only from the explicit ticker field. */
+function formatExactDay(date: string): string {
+  return `${date.slice(5, 7)}/${date.slice(8, 10)}`
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function removeIdentityTokens(title: string, tokens: string[]): string {
+  let cleaned = title
+  for (const token of [...new Set(tokens.filter(Boolean))].sort((a, b) => b.length - a.length)) {
+    const expression = new RegExp(`(^|[^\\p{L}\\p{N}_])${escapeRegExp(token)}(?=$|[^\\p{L}\\p{N}_])`, "giu")
+    cleaned = cleaned.replace(expression, "$1")
+  }
+  return cleaned
+    .replace(/[（(]\s*[）)]/gu, " ")
+    .replace(/^[\s｜|·、，,:：;；—–-]+|[\s｜|·、，,:：;；—–-]+$/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+}
+
+/** Compose a compact title from producer date/company fields. The original
+ * producer title and source remain available in the collapsed provenance row. */
 export function futureCheckpointHeading(item: FutureCheckpointHeadingInput) {
-  const date = item.date?.trim() || item.date_label?.trim() || "日期未確認"
-  const withoutDate = removeRepeatedDatePrefix(item.title, date)
-  const title = withoutDate.replace(COMPANY_ANNOUNCEMENT_SUFFIX, "").trim() || item.title
+  const conflict = item.state === "conflict"
+  const exactDay = !conflict && item.date_precision === "day" && isCalendarDay(item.date?.trim() ?? "")
+    ? item.date!.trim()
+    : null
+  const sourceDate = conflict ? "" : item.date?.trim() || item.date_label?.trim() || ""
+  const date = exactDay
+    ? formatExactDay(exactDay)
+    : item.date_label?.trim() || item.date?.trim() || (conflict ? "日期衝突" : "日期未確認")
+
+  const companyByTicker = new Map(
+    (item.affected_companies ?? [])
+      .filter(company => company && typeof company.ticker === "string")
+      .map(company => [company.ticker, company.display_name?.trim() || null]),
+  )
+  const companies = [...new Set(item.affected_tickers.map(ticker => ticker.trim()).filter(Boolean))]
+    .map(ticker => {
+      const displayName = companyByTicker.get(ticker) ?? null
+      const displayTicker = displayName ? ticker.replace(/\.TWO?$/iu, "") : ticker
+      return {
+        ticker,
+        display_name: displayName,
+        label: displayName ? `${displayName}（${displayTicker}）` : ticker,
+      }
+    })
+
+  let title = item.title
+  let time: string | null = null
+  if (!conflict) {
+    if (sourceDate) title = removeRepeatedDatePrefix(title, sourceDate)
+    if (exactDay) title = removeRepeatedDatePrefix(title, date)
+    if (sourceDate) {
+      const match = title.match(TIME_PREFIX)
+      if (match) {
+        const remainder = title.slice(match[0].length).trimStart()
+        if (remainder) {
+          time = match[1]
+          title = remainder
+        }
+      }
+    }
+    const identityTokens = companies.flatMap(company => [
+      company.ticker,
+      company.ticker.replace(/\.TWO?$/iu, ""),
+      ...(company.display_name ? [company.display_name] : []),
+    ])
+    title = removeIdentityTokens(title, identityTokens)
+      .replace(COMPANY_ANNOUNCEMENT_SUFFIX, "")
+      .trim()
+  }
+
   return {
     date,
     title,
-    tickers: item.affected_tickers.map(ticker => ticker.trim()).filter(Boolean),
+    time,
+    companies,
   }
 }
 

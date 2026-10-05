@@ -187,7 +187,7 @@ test("FutureContent keeps undated event records separate from source coverage ga
     assert.match(html, /只知月份/)
     assert.match(html, /事件資料待確認 · 2 筆/)
     assert.match(html, /來源覆蓋缺口 · 2 項/)
-    assert.equal((html.match(/<p class="text-body font-medium leading-relaxed text-ink-2">[^<]*相同標題的合成事件/g) ?? []).length, 2, "same-title records remain two visible rows")
+    assert.equal((html.match(/<p class="min-w-0 break-words text-body font-medium leading-relaxed text-ink-2">[\s\S]*?相同標題的合成事件<\/p>/g) ?? []).length, 2, "same-title records remain two visible rows")
     assert.equal((html.match(/來源事件標題：相同標題的合成事件/g) ?? []).length, 2, "each row keeps its original title in provenance")
     assert.match(html, /來源事件 story_id：未提供/)
     assert.match(html, /來源事件 story_id：synthetic-story-b/)
