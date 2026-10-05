@@ -655,7 +655,7 @@ try {
         assert.equal(payload.provider, 'agy')
         assert.equal(payload.model_work_state, null)
         assert.equal(payload.new_update_count, null)
-        const status = panel.locator('p').filter({ hasText: /美股消息快掃部分完成/ })
+        const status = page.locator('main div[aria-live="polite"] p').filter({ hasText: /美股消息快掃部分完成/ })
         await status.waitFor()
         assert.equal(await status.evaluate(element => element.classList.contains('text-warn')), true)
         const statusText = await status.innerText()
