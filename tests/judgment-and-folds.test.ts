@@ -110,6 +110,7 @@ test("newsScanNote excludes running/idle entirely, requires a timezone-qualified
   assert.equal(newsScanNote({ state: "no-change", market_scope: "tw", last_updated: "2026-09-27T18:47:07+08:00", new_update_count: 0 }, "2026-09-27"), null, "a date-only cutoff is not timezone-qualified")
   assert.equal(newsScanNote({ state: "no-change", market_scope: "tw", last_updated: "2026-09-27", new_update_count: 0 }, cutoff), null, "a date-only scan timestamp is not timezone-qualified either")
   assert.equal(newsScanNote({ state: "failed", market_scope: "us", last_updated: "2026-09-27T21:20:00+08:00", new_update_count: null }, cutoff), "美股快掃 21:20：失敗，保留上一版")
+  assert.equal(newsScanNote({ state: "partial", market_scope: "us", last_updated: "2026-09-27T21:20:00+08:00", new_update_count: null }, cutoff), "美股快掃 21:20：部分完成，結果不完整")
   assert.equal(newsScanNote({ state: "no-change", market_scope: "tw", last_updated: "2026-09-27T18:47:07+08:00", new_update_count: 0 }, cutoff), "台股快掃 18:47：沒有影響判斷的新消息")
   assert.equal(newsScanNote({ state: "success", market_scope: "tw", last_updated: "2026-09-27T18:47:07+08:00", new_update_count: 3 }, cutoff), "台股快掃 18:47：有 3 則新消息")
   assert.equal(newsScanNote({ state: "success", market_scope: "tw", last_updated: "2026-09-27T18:47:07+08:00", new_update_count: 0 }, cutoff), "台股快掃 18:47：沒有影響判斷的新消息", "a defensive exactly-zero success reads the same as no-change")

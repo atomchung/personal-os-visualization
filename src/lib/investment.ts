@@ -713,7 +713,7 @@ export type InvestmentRefreshAction = "market" | "news"
 export type InvestmentNewsMarket = "tw" | "us"
 export type InvestmentRefreshStatus = {
   action: InvestmentRefreshAction
-  state: "idle" | "running" | "success" | "failed" | "no-change"
+  state: "idle" | "running" | "success" | "partial" | "failed" | "no-change"
   started_at: string | null
   last_updated: string | null
   message: string

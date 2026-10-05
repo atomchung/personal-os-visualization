@@ -67,6 +67,10 @@ test("refresh status reads show request failures instead of presenting them as i
   const { refreshStateLabel } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
   assert.match(refreshStateLabel("news", undefined), /狀態讀取中/)
   assert.match(refreshStateLabel("news", undefined, new Error("本機資料暫時無法讀取（503）")), /狀態讀取失敗：本機資料暫時無法讀取（503）/)
+  assert.match(refreshStateLabel("market", { action: "market", state: "partial", started_at: null, last_updated: "2001-02-03T09:00:00+08:00",
+    message: "7 項報價可用；另有來源未完成", error: null, discovery_state: "partial", discovery_updated_at: null,
+    trigger: null, new_update_count: null, sync_note: "", reconciled_at: null, provider: null, model: null,
+    fallback_depth: null, provider_errors: {} }), /盤面部分完成：7 項報價可用；另有來源未完成/)
   assert.match(refreshStateLabel("news", { action: "news", state: "failed", started_at: null, last_updated: "2001-02-03T09:00:00+08:00",
     message: "Antigravity 權限遭拒", error: "permission_denied", discovery_state: "failed", discovery_updated_at: null,
     trigger: null, new_update_count: null, sync_note: "", reconciled_at: null, provider: "agy", model: "gemini-3.7-flash-high",

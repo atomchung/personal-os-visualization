@@ -184,6 +184,7 @@ export function refreshStateLabel(action: InvestmentRefreshAction, status: Inves
     ? ` · 總耗時 ${durationLabel(status.duration_seconds)}`
     : ""
   if (status.state === "failed") return `${name}更新失敗：${status.message}${duration}${route}`
+  if (status.state === "partial") return `${name}部分完成：${status.message}${duration}${route}`
   if (action === "news" && status.state === "no-change") return `${name}於 ${sourceTimestamp(status.last_updated)} 完成，無影響當前判斷的新消息${duration}${route}`
   return `${name}完成於 ${sourceTimestamp(status.last_updated)}${status.message ? ` · ${status.message}` : ""}${duration}${route}`
 }
@@ -717,8 +718,8 @@ export function InvestmentPage() {
         {marketRefresh.isError || newsRefresh.isError ? <Button disabled={marketRefresh.isFetching || newsRefresh.isFetching} title="只重新讀取狀態，不會啟動行情或新聞刷新" onClick={() => void rereadInvestmentRefreshStatuses(() => marketRefresh.refetch(), () => newsRefresh.refetch())}>重新讀取狀態</Button> : null}
       </div>
       <div className="flex min-w-0 flex-col gap-1 text-caption text-ink-3" aria-live="polite">
-        <p>{refreshStateLabel("market", marketRefresh.data, marketRefresh.error)}{marketRefresh.data?.discovery_state === "running" ? " · 市場資金掃描仍在背景整理" : marketRefresh.data?.discovery_state === "partial" ? " · 市場資金掃描部分完成" : marketRefresh.data?.discovery_state === "failed" ? " · 市場資金掃描失敗" : ""}</p>
-        <p title={providerDetailTitle(newsRefresh.data)}>{refreshStateLabel("news", newsRefresh.data, newsRefresh.error)}</p>
+        <p className={marketRefresh.data?.state === "partial" || marketRefresh.data?.state === "failed" ? "text-warn" : "text-ink-3"}>{refreshStateLabel("market", marketRefresh.data, marketRefresh.error)}{marketRefresh.data?.discovery_state === "running" ? " · 市場資金掃描仍在背景整理" : marketRefresh.data?.discovery_state === "partial" ? " · 市場資金掃描部分完成" : marketRefresh.data?.discovery_state === "failed" ? " · 市場資金掃描失敗" : ""}</p>
+        <p className={newsRefresh.data?.state === "partial" || newsRefresh.data?.state === "failed" ? "text-warn" : "text-ink-3"} title={providerDetailTitle(newsRefresh.data)}>{refreshStateLabel("news", newsRefresh.data, newsRefresh.error)}</p>
       </div>
     </div> : null}
     {refreshError ? <p role="alert" aria-live="polite" className="text-caption text-warn">{refreshError}</p> : null}
