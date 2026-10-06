@@ -33,6 +33,15 @@ const judgmentFixture = scenario.startsWith('judgment-')
 const claimFixture = scenario.startsWith('claim-') ? syntheticClaimEvidence() : null
 await page.addInitScript(({ scenario, judgmentFixture, claimFixture }) => {
   window.__investmentReadHook = async data => {
+    if (scenario === 'refresh-partial-news' && data?.action === 'news') {
+      Object.assign(data, {
+        state: 'partial', last_updated: '2026-10-06T21:20:00+08:00',
+        message: '合成快掃部分完成，來源覆蓋仍不完整。', error: null,
+        provider: 'agy', model_work_state: null, new_update_count: null,
+        market_scope: 'us', scan_mode: 'quick',
+      })
+      window.__partialRefreshPayload = structuredClone(data)
+    }
     if (claimFixture && data?.narratives?.[0]?.thesis_evidence) {
       data.narratives[0].thesis_evidence = structuredClone(claimFixture)
       const evidence = data.narratives[0].thesis_evidence
@@ -501,7 +510,7 @@ try {
     }
   }
   // Preserve legacy degraded-state scenarios, now checked against the converged owner layout.
-  const scenarios = ['claim-unavailable', 'judgment-quiet-partial', 'judgment-quiet-unknown', 'claim-relations', 'claim-missing', 'claim-empty', 'judgment-change', 'judgment-unchanged', 'judgment-quiet', 'judgment-failed', 'judgment-stale', 'judgment-mismatch', 'unlinked-long', 'blank-summary', 'missing', 'news-without-timeline', 'market-only-no-timeline', 'market-observation-only-duplicate-timeline', 'market-observation-only-projection-error', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'market-observation-legacy-timeline', 'market-observation-event-projection', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility', 'tw-rs-unavailable', 'tw-rs-read-error', 'structured-judgment', 'structured-judgment-generic-action', 'structured-judgment-multiple-primary', 'structured-judgment-invalid-watch', 'structured-judgment-invalid-provenance', 'layer-reading', 'quote-cached-error', 'pulse-cached-error', 'market-empty-refetch', 'market-omitted-refetch', 'legacy-evidence']
+  const scenarios = ['claim-unavailable', 'judgment-quiet-partial', 'judgment-quiet-unknown', 'claim-relations', 'claim-missing', 'claim-empty', 'judgment-change', 'judgment-unchanged', 'judgment-quiet', 'judgment-failed', 'judgment-stale', 'judgment-mismatch', 'unlinked-long', 'blank-summary', 'missing', 'news-without-timeline', 'market-only-no-timeline', 'market-observation-only-duplicate-timeline', 'market-observation-only-projection-error', 'actions-partial', 'research-only', 'initial-error', 'refresh-error', 'refresh-partial-news', 'quote-unavailable', 'narrative-stale-partial', 'narrative-delayed', 'market-empty', 'market-unavailable', 'market-cached-unavailable', 'market-initial-error', 'market-refresh-error', 'market-refresh-delayed', 'market-refresh-unavailable', 'market-mixed-dates', 'market-known-breadth-no-ratio', 'market-observation-legacy-timeline', 'market-observation-event-projection', 'session-tw', 'session-stale-us', 'session-missing', 'session-malformed-times', 'watch-read-error', 'watch-eligibility', 'tw-rs-unavailable', 'tw-rs-read-error', 'structured-judgment', 'structured-judgment-generic-action', 'structured-judgment-multiple-primary', 'structured-judgment-invalid-watch', 'structured-judgment-invalid-provenance', 'layer-reading', 'quote-cached-error', 'pulse-cached-error', 'market-empty-refetch', 'market-omitted-refetch', 'legacy-evidence']
   for (const scenario of scenarios) {
     console.log(`Checking ${scenario}`)
     const { page, errors, externalRequests } = await openPage(320, scenario)
@@ -630,7 +639,7 @@ try {
         break
       case 'actions-partial': assert.match(text, /沒有可確認的下一步/); assert.doesNotMatch(text, /今天不用動。/); break
       case 'research-only': assert.match(text, /補研究：核對合成公開資料/); break
-      case 'initial-error': assert.match(text, /簡報讀取失敗/); assert.equal(await panel.getByLabel('主要下一步').count(), 0); assert.doesNotMatch(text, /Today 讀回未提供台美分市場增量回執/); assert.match(text, /SYNTH · 15:00 合成公司 Q3 線上法說[\s\S]*2026-10-12/); break
+      case 'initial-error': assert.match(text, /簡報讀取失敗/); assert.equal(await panel.getByLabel('主要下一步').count(), 0); assert.doesNotMatch(text, /Today 讀回未提供台美分市場增量回執/); assert.match(text, /10\/12｜虛構記憶體（SYNTH）｜Q3 線上法說[\s\S]*時間 15:00/); break
       case 'refresh-error': {
         assert.equal(await panel.getByLabel('主要下一步').count(), 1)
         assert.match(text, /本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動/)
@@ -638,6 +647,22 @@ try {
         assert.match(await receipts.innerText(), /本次簡報重讀失敗；以下保留上次成功讀到的回執，不代表目前狀態/)
         assert.match(await page.locator('main').innerText(), /讀取失敗|更新失敗|本次更新失敗/)
         assert.match(text, /收盤前再看一次量能是否延續/)
+        break
+      }
+      case 'refresh-partial-news': {
+        const payload = await page.evaluate(() => window.__partialRefreshPayload)
+        assert.equal(payload.state, 'partial')
+        assert.equal(payload.provider, 'agy')
+        assert.equal(payload.model_work_state, null)
+        assert.equal(payload.new_update_count, null)
+        const status = page.locator('main div[aria-live="polite"] p').filter({ hasText: /美股消息快掃部分完成/ })
+        await status.waitFor()
+        assert.equal(await status.evaluate(element => element.classList.contains('text-warn')), true)
+        const statusText = await status.innerText()
+        assert.match(statusText, /由 Antigravity 執行狀態未知/)
+        assert.doesNotMatch(statusText, /由 Antigravity 完成/)
+        assert.match(text, /美股快掃 21:20：部分完成，結果不完整/)
+        assert.doesNotMatch(text, /美股快掃 21:20：沒有影響判斷的新消息|美股快掃 21:20：已完成/)
         break
       }
       case 'quote-unavailable': assert.match(text, /未取得|—/); break
@@ -742,4 +767,3 @@ try {
   await writeFile(`${output}/report.json`, JSON.stringify(report, null, 2))
   await browser.close()
 }
-
