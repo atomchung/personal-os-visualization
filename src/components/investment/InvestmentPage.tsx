@@ -24,6 +24,7 @@ import { PendingBoard } from "./InvestmentPending"
 import { InvestmentHistory } from "./InvestmentHistory"
 import { InvestmentNarrativeSection, TodayCatalysts } from "./InvestmentNarrative"
 import { InvestmentThesis } from "./InvestmentThesis"
+import { TodayCheckpointReviews } from "./TodayCheckpointReviews"
 import {
   BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentResearch,
   getInvestmentHistory, getInvestmentContext, getInvestmentSource,
@@ -614,6 +615,7 @@ export function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: {
   const scanNote = newsScanNote(newsStatus, b.source_cutoff)
   return <section aria-label="今日簡報" className="flex min-w-0 flex-col gap-6 break-words">
     <TodayNextSteps b={b} today={today} readFailed={readFailed} />
+    <TodayCheckpointReviews projection={today?.checkpoint_reviews} readFailed={readFailed} synthetic={DEMO_MODE} />
     <section aria-label="今天發生了什麼" className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <TodayAnchor>今天發生了什麼</TodayAnchor>
@@ -732,6 +734,7 @@ export function InvestmentPage() {
       {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次內容。" : ""}請按更新資料重試。</p> : null}
       {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
       {b ? <TodayBrief b={b} today={query.data?.today} readFailed={query.isError} newsStatus={newsRefresh.data} onOpenThesis={() => openView("thesis")} /> : null}
+      {!b && !query.isPending ? <TodayCheckpointReviews projection={query.data?.today?.checkpoint_reviews} readFailed={query.isError} synthetic={DEMO_MODE} /> : null}
       <TodayCatalysts enabled={view === "today"} />
       <section className="flex min-w-0 flex-col gap-3" aria-label="現在盤面">
         <TodayAnchor>現在盤面</TodayAnchor>
