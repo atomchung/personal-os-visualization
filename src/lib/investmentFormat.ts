@@ -594,7 +594,7 @@ export function todayJudgmentTimeMetadata(
       : resultCode === "needs_deeper_analysis" ? "快掃仍待深入分析"
       : resultCode === "unavailable" ? "快掃來源不可用，沿用判斷"
       : "快掃結果未確認"
-    summaryLine += ` · ${scanTime} ${compactOutcome}`
+    summaryLine += ` · ${scanTime} ${marketName}${compactOutcome}`
   }
 
   return { summaryLine, judgmentLine, sourceCutoffLine, laterScanLine }
@@ -740,6 +740,20 @@ export const JUDGMENT_CLASS_LABEL: Record<InvestmentBriefJudgmentClass, string> 
 
 const MARKET_SCAN_LABEL: Record<InvestmentNewsMarket, string> = { tw: "台股", us: "美股" }
 
+/** Presentation gate for the backend's single two-market job. Never use older
+ * Today receipts to fill missing child results or amend the source state. */
+export function newsRefreshResultsConfirmed(status: Pick<InvestmentRefreshStatus, "state" | "market_scope" | "markets">): boolean {
+  if (status.market_scope !== "both") return true
+  const saved = new Set(["written", "already_present"])
+  return (["tw", "us"] as const).every(market => {
+    const child = status.markets?.[market]
+    return child?.market_scope === market
+      && (status.state === "no-change" ? child.state === "no-change" : ["success", "no-change"].includes(child.state))
+      && saved.has(child.receipt_write_state ?? "")
+      && (child.state !== "success" || saved.has(child.news_write_state ?? ""))
+  })
+}
+
 /** Plain-language wording for a completed/partial/failed/no-change news scan, from
  * the real producer's own state machine (core/investment_refresh.py):
  * "no-change" is always zero new updates; "success" carries a positive
@@ -767,7 +781,7 @@ function scanResultWording(state: "success" | "partial" | "failed" | "no-change"
  * "running"/"idle" are never reported here; that progress already has its
  * own place in the refresh-status area above this note. */
 export function newsScanNote(
-  status: Pick<InvestmentRefreshStatus, "state" | "market_scope" | "last_updated" | "new_update_count"> | null | undefined,
+  status: Pick<InvestmentRefreshStatus, "state" | "market_scope" | "last_updated" | "new_update_count" | "markets"> | null | undefined,
   briefSourceCutoff: string | null | undefined,
 ): string | null {
   if (!status || status.state === "idle" || status.state === "running") return null
@@ -775,8 +789,10 @@ export function newsScanNote(
   const cutoff = parseTimezoneQualifiedInstant(briefSourceCutoff)
   if (eventAt === null || cutoff === null || eventAt <= cutoff) return null
   const clock = TIME_FORMAT.format(new Date(eventAt))
-  const market = status.market_scope ? MARKET_SCAN_LABEL[status.market_scope] : ""
-  return `${market}快掃 ${clock}：${scanResultWording(status.state, status.new_update_count)}`
+  const market = status.market_scope === "both" ? "台美消息" : status.market_scope ? MARKET_SCAN_LABEL[status.market_scope] : ""
+  const outcome = ["success", "no-change"].includes(status.state) && !newsRefreshResultsConfirmed(status)
+    ? "結果未完整確認" : scanResultWording(status.state, status.new_update_count)
+  return `${market}快掃 ${clock}：${outcome}`
 }
 
 const PROVIDER_LABEL: Record<string, string> = { agy: "Antigravity", claude: "Claude", codex: "Codex", grok: "Grok" }

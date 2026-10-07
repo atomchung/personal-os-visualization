@@ -1,4 +1,4 @@
-import type { InvestmentBrief, InvestmentTodayUpdate, InvestmentTodayView } from "../../src/lib/investment.ts"
+import type { InvestmentBrief, InvestmentRefreshStatus, InvestmentTodayUpdate, InvestmentTodayView } from "../../src/lib/investment.ts"
 
 const formalAction = {
   id: "synthetic-formal-action-1",
@@ -173,4 +173,21 @@ export function syntheticIntradayReading() {
     event: "合成盤中指數讀數", observation_value: "合成指數 +0.4%", observation_as_of: latest.observed_at,
     interpretation: "合成來源解讀：價格變化不代表成本已確認。", source_path: "synthetic/market-reading.md" }]
   return { brief, today }
+}
+
+/** One fictional parent job; each market retains its own source baseline. */
+export function syntheticBothRefresh(): InvestmentRefreshStatus {
+  return {
+    action: "news", state: "no-change", market_scope: "both", requested_markets: ["tw", "us"], scan_mode: "quick",
+    started_at: "2001-02-03T11:00:00+08:00", last_updated: "2001-02-03T11:05:00+08:00",
+    message: "Synthetic both-market job", error: null, discovery_state: "idle", discovery_updated_at: null,
+    trigger: null, new_update_count: 0, sync_note: "", reconciled_at: null, provider: null, model: null, fallback_depth: null, provider_errors: {},
+    markets: Object.fromEntries((["tw", "us"] as const).map(market => [market, {
+      state: "no-change", market_scope: market, started_at: "2001-02-03T11:00:00+08:00", finished_at: "2001-02-03T11:05:00+08:00",
+      message: `Synthetic ${market} source result`, error: null, intraday_result: "no_material_update", coverage_state: "complete",
+      receipt_write_state: "written", news_write_state: "no_new_update",
+      baseline_cutoff_at: market === "tw" ? "2001-02-03T08:00:00+08:00" : "2001-02-02T21:15:00+08:00",
+      source_cutoff: "2001-02-03T11:04:00+08:00",
+    }])),
+  }
 }

@@ -4,10 +4,10 @@ import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createServer, type ViteDevServer } from "vite"
-import { currentTodayActionPlan } from "../src/lib/investmentFormat.ts"
-import { getInvestmentRefreshStatus, getSelectedInvestmentProvider, rereadInvestmentRefreshStatuses, setInvestmentProvider, type InvestmentTodayView, type InvestmentRefreshStatus } from "../src/lib/investment.ts"
+import { currentTodayActionPlan, newsRefreshResultsConfirmed, newsScanNote } from "../src/lib/investmentFormat.ts"
+import { getInvestmentRefreshStatus, postInvestmentRefresh, getSelectedInvestmentProvider, rereadInvestmentRefreshStatuses, setInvestmentProvider, type InvestmentTodayView, type InvestmentRefreshStatus } from "../src/lib/investment.ts"
 import { demoInvestmentProvider } from "../src/demo/investmentProvider.ts"
-import { syntheticBriefWithSameWording, syntheticJudgmentUpdate, syntheticIntradayUpdate, syntheticPresentationBrief, syntheticPresentationToday, syntheticIntradayReading } from "./fixtures/today-presentation.ts"
+import { syntheticBriefWithSameWording, syntheticJudgmentUpdate, syntheticIntradayUpdate, syntheticPresentationBrief, syntheticPresentationToday, syntheticIntradayReading, syntheticBothRefresh } from "./fixtures/today-presentation.ts"
 import type { InvestmentTimelineNode } from "../src/lib/investment.ts"
 
 let server: ViteDevServer
@@ -168,6 +168,70 @@ test("manual refresh-status reread invokes both read getters and never starts a 
   } finally {
     setInvestmentProvider(originalProvider)
   }
+})
+
+test("a both-market completion requires each supplied result and saved receipt, without amending parent state", () => {
+  for (const fault of ["none", "missing", "unknown", "unavailable", "invalid", "unsaved", "wrong-scope", "mixed"] as const) {
+    const status = syntheticBothRefresh()
+    if (fault === "missing") delete status.markets!.us
+    if (fault === "unknown" || fault === "unavailable") status.markets!.us!.state = fault
+    if (fault === "invalid") Object.assign(status.markets!.us!, { state: "unrecognized" })
+    if (fault === "unsaved") status.markets!.us!.receipt_write_state = "unchanged"
+    if (fault === "wrong-scope") status.markets!.us!.market_scope = "tw"
+    if (fault === "mixed") status.markets!.us!.state = "success"
+    assert.equal(newsRefreshResultsConfirmed(status), fault === "none", fault)
+    assert.equal(status.state, "no-change")
+    assert.match(newsScanNote(status, "2001-02-03T08:00:00+08:00")!, fault === "none" ? /台美消息快掃/ : /結果未完整確認/)
+  }
+  const success = syntheticBothRefresh()
+  success.state = "success"
+  success.markets!.us!.state = "success"
+  success.markets!.us!.news_write_state = "already_present"
+  success.markets!.tw!.receipt_write_state = "already_present"
+  assert.equal(newsRefreshResultsConfirmed(success), true)
+  success.markets!.us!.news_write_state = "unknown"
+  assert.equal(newsRefreshResultsConfirmed(success), false)
+})
+
+test("one-job details preserve mixed outcomes, market clocks and cached-read warnings without old receipt inference", async () => {
+  const { InvestmentRefreshDetails } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  for (const scenario of ["running", "partial", "failed", "malformed", "read-failed"] as const) {
+    const status = syntheticBothRefresh()
+    if (scenario === "running") { status.state = "running"; status.markets!.us!.state = "running" }
+    if (scenario === "partial") { status.state = "partial"; status.markets!.us!.state = "unavailable" }
+    if (scenario === "failed") { status.state = "failed"; status.markets!.tw!.state = "failed"; status.markets!.us!.state = "failed" }
+    if (scenario === "malformed") delete status.markets!.us
+    const { today } = syntheticJudgmentUpdate("preserved")
+    const html = renderToStaticMarkup(createElement(InvestmentRefreshDetails, { newsStatus: status,
+      newsError: scenario === "read-failed" ? new Error("Synthetic status read failure") : null, refresh: today.intraday_refresh, readFailed: false }))
+    const main = html.slice(0, html.indexOf("<details"))
+    assert.doesNotMatch(main, /資料截止時間已更新|重要增量|2001-/)
+    assert.match(main, scenario === "running" ? /消息更新進行中.*台股未發現重要新事件.*美股更新中/
+      : scenario === "partial" ? /消息更新部分完成/ : scenario === "failed" ? /消息更新失敗/
+        : scenario === "malformed" ? /消息更新結果未完整確認/ : /狀態讀取失敗/)
+    if (scenario !== "failed") assert.match(html, /台股 · 未發現重要新事件/)
+    if (scenario === "partial") assert.match(html, /美股 · 來源無法取得/)
+    if (scenario === "read-failed") assert.match(html, /上次回報的分市場結果，目前尚未確認/)
+    if (scenario !== "malformed") assert.ok(html.includes("2001/02/02 21:15 台北"))
+    assert.ok(html.includes("2001/02/03 08:00 台北"))
+  }
+})
+
+test("the selected reference provider receives one both-market operation with two explicit synthetic results", async () => {
+  const original = getSelectedInvestmentProvider()
+  const calls: unknown[] = []
+  setInvestmentProvider({ ...demoInvestmentProvider, async startRefresh(action, market) {
+    calls.push([action, market])
+    return demoInvestmentProvider.startRefresh!(action, market)
+  } })
+  try {
+    const status = await postInvestmentRefresh("news", "both")
+    assert.deepEqual(calls, [["news", "both"]])
+    assert.deepEqual(status.requested_markets, ["tw", "us"])
+    assert.equal(newsRefreshResultsConfirmed(status), true)
+    assert.equal(status.markets!.tw!.market_scope, "tw")
+    assert.equal(status.markets!.us!.market_scope, "us")
+  } finally { setInvestmentProvider(original) }
 })
 
 test("a missing Today projection leaves the formal source judgment readable without claiming there was no update", async () => {
@@ -457,10 +521,10 @@ test("Today leads with the authored judgment and keeps scan receipts out of the 
       assert.equal((main.match(/aria-label="正式判斷時間與後續快掃"/g) ?? []).length, 1)
       assert.doesNotMatch(main, /current Today judgment|material story change|資料截至|來源修訂|本次查核：|沿用既有判斷<\/p>/)
       if (scenario === "formal") assert.doesNotMatch(main, / · \d{2}:\d{2} 快掃|本次無法確認/)
-      if (scenario === "preserved") assert.match(main, /08:01 台股晨報判斷 · 10:00 快掃未發現重要新事件/)
+      if (scenario === "preserved") assert.match(main, /08:01 台股晨報判斷 · 10:00 台股快掃未發現重要新事件/)
       if (scenario === "partial") assert.match(main, /快掃僅部分完成，沿用判斷/)
       if (scenario === "failed") assert.match(main, /快掃失敗，沿用判斷/)
-      if (scenario === "reassessed" && !sourceOnly) assert.match(main, /10:00 重評判斷 · 10:00 快掃有新增事件/)
+      if (scenario === "reassessed" && !sourceOnly) assert.match(main, /10:00 重評判斷 · 10:00 台股快掃有新增事件/)
       assert.match(html, /資料截至/)
       if (scenario !== "formal") assert.match(html, /current Today judgment/)
     }

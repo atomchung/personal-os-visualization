@@ -427,7 +427,7 @@ try {
       await reading.waitFor()
       if (outcome === 'read-failed') {
         await page.evaluate(() => { window.__failBrief = true })
-        await page.getByRole('button', { name: '台股消息快掃', exact: true }).click()
+        await page.getByRole('button', { name: '更新消息', exact: true }).click()
         await reading.getByRole('status').filter({ hasText: /本次盤中資料未確認/ }).waitFor()
       }
       const main = await reading.innerText()
@@ -616,7 +616,7 @@ try {
         if (scenario === 'claim-ready') {
           assert.match(normalText, /來源標示目前有效/)
           assert.doesNotMatch(normalText, /來源目前不可用|尚未重新確認目前狀態/)
-        } else assert.match(normalText, /10:00 重評判斷 · 10:00 快掃有新增事件/)
+        } else assert.match(normalText, /10:00 重評判斷 · 10:00 台股快掃有新增事件/)
         await page.screenshot({ path: `${output}/${scenario}-${width}-full.png`, fullPage: true })
       }
       await section.screenshot({ path: `${output}/${scenario}-${width}.png` })
@@ -646,7 +646,7 @@ try {
         window.__marketUnavailable = scenario === 'market-refresh-unavailable'
         window.__clearMarketCache = scenario === 'market-cached-unavailable'
       }, scenario)
-      await page.getByRole('button', { name: scenario === 'refresh-error' ? '台股消息快掃' : '刷新盤面', exact: true }).click()
+      await page.getByRole('button', { name: scenario === 'refresh-error' ? '更新消息' : '刷新盤面', exact: true }).click()
       await page.waitForTimeout(750)
     }
     if (scenario.startsWith('claim-') || scenario.startsWith('narrative-') || scenario === 'layer-reading' || scenario === 'legacy-evidence') {
@@ -678,7 +678,7 @@ try {
       const primaryBox = await primary.boundingBox()
       const metadataBox = await metadata.boundingBox()
       assert.ok(primaryBox.y + primaryBox.height <= metadataBox.y, 'authored judgment precedes time and scan status')
-      if (scenario === 'judgment-quiet') assert.match(await metadata.innerText(), /08:01 台股晨報判斷 · 10:00 快掃未發現重要新事件/)
+      if (scenario === 'judgment-quiet') assert.match(await metadata.innerText(), /08:01 台股晨報判斷 · 10:00 台股快掃未發現重要新事件/)
       if (scenario === 'judgment-quiet-partial') assert.match(await metadata.innerText(), /快掃僅部分完成，沿用判斷/)
       if (scenario === 'judgment-failed') assert.match(await metadata.innerText(), /快掃失敗，沿用判斷/)
       await panel.getByRole('region', { name: /今天怎麼做|目前可用行動/ }).screenshot({ path: `${output}/${scenario}-320.png` })
