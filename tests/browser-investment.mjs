@@ -28,11 +28,22 @@ async function expand(panel) {
   }
 }
 async function fault(page, scenario) {
-const judgmentFixture = scenario.startsWith('judgment-')
+const judgmentFixture = scenario.startsWith('operations-') ? syntheticJudgmentUpdate('preserved') : scenario.startsWith('judgment-')
   ? syntheticJudgmentUpdate(scenario === 'judgment-unchanged' ? 'unchanged' : scenario.startsWith('judgment-quiet') ? 'preserved' : 'reassessed') : null
 const claimFixture = scenario.startsWith('claim-') ? syntheticClaimEvidence() : null
 await page.addInitScript(({ scenario, judgmentFixture, claimFixture }) => {
   window.__investmentReadHook = async data => {
+    if (scenario.startsWith('operations-') && ['market', 'news'].includes(data?.action)) {
+      const outcome = scenario.slice('operations-'.length)
+      if (outcome === 'pending') await new Promise(() => {})
+      Object.assign(data, {
+        state: outcome === 'no-request' ? 'idle' : outcome === 'quiet' ? data.action === 'news' ? 'no-change' : 'success' : outcome,
+        started_at: new Date(Date.now() - 5000).toISOString(), last_updated: '2001-02-03T10:00:34+08:00',
+        message: 'Synthetic technical partial/null sync adapter record.', error: outcome === 'failed' ? 'synthetic-failure-code' : null,
+        discovery_state: 'idle', provider: data.action === 'news' ? 'agy' : null, model: 'synthetic-model',
+        provider_errors: { agy: 'synthetic-provider-error' }, market_scope: 'tw', scan_mode: 'quick', duration_seconds: 90,
+      })
+    }
     if (scenario === 'refresh-partial-news' && data?.action === 'news') {
       Object.assign(data, {
         state: 'partial', last_updated: '2026-10-06T21:20:00+08:00',
@@ -63,6 +74,15 @@ await page.addInitScript(({ scenario, judgmentFixture, claimFixture }) => {
       data.brief = structuredClone(judgmentFixture.brief)
       data.today = structuredClone(judgmentFixture.today)
       const market = data.today.intraday_refresh.markets.tw
+      if (scenario === 'operations-no-request' || scenario === 'operations-pending') {
+        market.state = 'not_requested'; market.latest_receipt = null
+        data.today.current_judgment.state = 'baseline_only'; data.today.current_judgment.latest_assessment = null
+        market.current_judgment.latest_assessment = null
+      }
+      if (scenario === 'operations-failed' || scenario === 'operations-partial') {
+        market.state = scenario.slice('operations-'.length)
+        market.latest_receipt.result = market.state; market.latest_receipt.coverage_state = market.state
+      }
       if (scenario === 'judgment-failed') { market.state = 'failed'; market.latest_receipt.result = 'failed' }
       if (scenario === 'judgment-stale') { market.freshness = 'stale'; data.brief.state = 'stale' }
       if (scenario === 'judgment-mismatch') market.baseline_revision = 'sha256:other-baseline'
@@ -387,6 +407,43 @@ async function openPage(width, scenario = 'baseline') {
   return { page, errors, externalRequests }
 }
 try {
+  for (const width of [1440, 390]) {
+    for (const outcome of ['pending', 'no-request', 'running', 'failed', 'partial', 'quiet']) {
+      const scenario = `operations-${outcome}`
+      const { page, errors, externalRequests } = await openPage(width, scenario)
+      const operations = page.locator('div[aria-label="更新狀態與紀錄"]')
+      const disclosure = operations.locator('details').first()
+      assert.equal(await disclosure.getAttribute('open'), null)
+      const collapsed = await operations.innerText()
+      assert.doesNotMatch(collapsed, /Synthetic technical|partial\/null|Antigravity|synthetic-model|synthetic-provider-error|總耗時|無影響當前判斷的新消息|沒有重要增量|資料截止時間已更新/)
+      assert.equal(await operations.getByRole('status').count(), ['running', 'failed', 'partial'].includes(outcome) ? 1 : 0)
+      if (outcome === 'running') assert.match(collapsed, /進行中/)
+      if (outcome === 'failed') assert.match(collapsed, /盤面更新失敗|台股快掃失敗/)
+      if (outcome === 'partial') assert.match(collapsed, /盤面更新部分完成|台股快掃部分完成/)
+      const main = await page.locator('main').innerText()
+      if (outcome === 'quiet') {
+        assert.equal((main.match(/快掃無重要增量/g) || []).length, 1)
+        assert.doesNotMatch(main, /無影響當前判斷的新消息|沒有影響判斷的新消息/)
+      }
+      const judgment = page.getByRole('region', { name: '今天怎麼做', exact: true })
+      assert.match(await judgment.innerText(), /合成灌溉設備：訂單能否變成持續收入，仍需確認。/)
+      assert.ok((await judgment.boundingBox()).y < 700, 'completed operation records do not push judgment below the first screen')
+      await page.screenshot({ path: `${output}/${scenario}-${width}.png`, fullPage: false })
+      await disclosure.evaluate(element => { element.open = true })
+      if (outcome !== 'pending') {
+        const expanded = await operations.innerText()
+        assert.match(expanded, /Synthetic technical partial\/null sync adapter record/)
+        assert.match(expanded, /2001-02-03T10:00:34\+08:00|synthetic-model|synthetic-provider-error/)
+      }
+      await page.getByRole('tab', { name: '我的判斷', exact: true }).click()
+      assert.equal(await operations.isVisible(), true, 'operational receipts remain accessible on other investment tabs')
+      assert.equal(await disclosure.getAttribute('open'), '')
+      assert.deepEqual(errors, [])
+      assert.deepEqual(externalRequests, [])
+      report.scenarios.push({ name: `${scenario}-${width}`, ...await layout(page, `${scenario}-${width}`), errors, externalRequests })
+      await page.close()
+    }
+  }
   for (const width of [1440, 390, 320]) {
     const { page, errors, externalRequests } = await openPage(width)
     const steps = page.getByRole('region', { name: '今天怎麼做', exact: true })
@@ -566,6 +623,7 @@ try {
       if (scenario === 'judgment-failed') assert.match(await metadata.innerText(), /快掃失敗，沿用判斷/)
       await panel.getByRole('region', { name: /今天怎麼做|目前可用行動/ }).screenshot({ path: `${output}/${scenario}-320.png` })
     }
+    await page.getByText('更新紀錄與來源回執', { exact: true }).locator('..').evaluate(element => { element.open = true })
     await expand(panel)
     const text = await panel.innerText()
     const todaySteps = scenario.startsWith('structured-judgment')
@@ -667,12 +725,13 @@ try {
         assert.equal(payload.provider, 'agy')
         assert.equal(payload.model_work_state, null)
         assert.equal(payload.new_update_count, null)
-        const status = page.locator('main div[aria-live="polite"] p').filter({ hasText: /美股消息快掃部分完成/ })
+        const status = page.getByRole('status').filter({ hasText: /美股快掃部分完成/ })
         await status.waitFor()
         assert.equal(await status.evaluate(element => element.classList.contains('text-warn')), true)
         const statusText = await status.innerText()
-        assert.match(statusText, /由 Antigravity 執行狀態未知/)
-        assert.doesNotMatch(statusText, /由 Antigravity 完成/)
+        assert.doesNotMatch(statusText, /由 Antigravity|合成快掃部分完成，來源覆蓋仍不完整/)
+        const operationDetails = page.getByText('更新紀錄與來源回執', { exact: true }).locator('..')
+        assert.match(await operationDetails.innerText(), /由 Antigravity 執行狀態未知/)
         assert.match(text, /美股快掃 21:20：部分完成，結果不完整/)
         assert.doesNotMatch(text, /美股快掃 21:20：沒有影響判斷的新消息|美股快掃 21:20：已完成/)
         break
