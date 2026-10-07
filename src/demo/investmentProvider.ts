@@ -135,6 +135,14 @@ export const demoInvestmentProvider: InvestmentProvider = {
   async getRefreshStatus(action) { return refreshStatus(action) },
   async startRefresh(action, marketScope) {
     const status: InvestmentRefreshStatus = { ...refreshStatus(action), state: action === "news" ? "no-change" : "success", started_at: STAMP, last_updated: STAMP, message: "只重讀合成範例；沒有連接或執行外部服務。", discovery_state: action === "market" ? "ready" : "idle", discovery_updated_at: action === "market" ? STAMP : null, scan_mode: action === "news" ? "quick" : null, market_scope: marketScope ?? null, new_update_count: 0 }
+    if (action === "news" && marketScope === "both") {
+      status.requested_markets = ["tw", "us"]
+      status.markets = Object.fromEntries(status.requested_markets.map(market => [market, {
+        state: "no-change", market_scope: market, started_at: STAMP, finished_at: STAMP,
+        message: "只重讀這個市場的合成範例；沒有執行外部掃描。", error: null,
+        intraday_result: "no_material_update", coverage_state: "complete", receipt_write_state: "written", news_write_state: "no_new_update",
+      }]))
+    }
     refreshStates.set(action, status)
     return status
   },

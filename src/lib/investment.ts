@@ -715,6 +715,38 @@ export type InvestmentMarketPulse = {
 
 export type InvestmentRefreshAction = "market" | "news"
 export type InvestmentNewsMarket = "tw" | "us"
+export type InvestmentNewsScope = InvestmentNewsMarket | "both"
+export type InvestmentNewsMarketResult = {
+  state: "running" | "no-change" | "success" | "partial" | "failed" | "unavailable" | "unknown"
+  market_scope?: InvestmentNewsMarket | null
+  intraday_result?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  message?: string | null
+  error?: string | null
+  baseline_path?: string | null
+  baseline_revision?: string | null
+  baseline_cutoff_at?: string | null
+  input_cutoff?: string | null
+  source_cutoff?: string | null
+  output_cutoff?: string | null
+  coverage_state?: string | null
+  receipt_write_state?: string | null
+  news_write_state?: string | null
+  provider?: InvestmentRefreshStatus["provider"]
+  model?: string | null
+  requested_provider?: InvestmentRefreshStatus["provider"]
+  requested_model?: string | null
+  fallback_depth?: number | null
+  provider_errors?: Record<string, string>
+  provider_invocation_count?: number | null
+  provider_call_count?: number | null
+  provider_elapsed_seconds?: number | null
+  model_work_state?: string | null
+  provider_log_path?: string | null
+  duration_seconds?: number | null
+  current_judgment_readback?: unknown
+}
 export type InvestmentRefreshStatus = {
   action: InvestmentRefreshAction
   state: "idle" | "running" | "success" | "partial" | "failed" | "no-change"
@@ -747,7 +779,9 @@ export type InvestmentRefreshStatus = {
   input_cutoff?: string | null
   source_cutoff?: string | null
   scan_mode?: "quick" | "deep" | null
-  market_scope?: InvestmentNewsMarket | null
+  market_scope?: InvestmentNewsScope | null
+  requested_markets?: InvestmentNewsMarket[]
+  markets?: Partial<Record<InvestmentNewsMarket, InvestmentNewsMarketResult>>
   duration_seconds?: number | null
   provider_elapsed_seconds?: number | null
 }
@@ -1321,7 +1355,7 @@ export interface InvestmentProvider {
   getContext?(signal?: AbortSignal): Promise<InvestmentContext>
   getRelativeStrength?(signal?: AbortSignal, refresh?: boolean): Promise<RelativeStrength>
   getRefreshStatus?(action: InvestmentRefreshAction, signal?: AbortSignal): Promise<InvestmentRefreshStatus>
-  startRefresh?(action: InvestmentRefreshAction, market?: InvestmentNewsMarket): Promise<InvestmentRefreshStatus>
+  startRefresh?(action: InvestmentRefreshAction, market?: InvestmentNewsScope): Promise<InvestmentRefreshStatus>
   getMarketData?<K extends InvestmentMarketResource>(resource: K, params?: { symbol?: string; refresh?: boolean; signal?: AbortSignal }): Promise<InvestmentMarketPayloads[K]>
 }
 export interface InvestmentProviderBase {
@@ -1402,7 +1436,7 @@ function marketData<K extends InvestmentMarketResource>(resource: K, params?: { 
 
 type InvestmentRefreshOperations = {
   getRefreshStatus?(action: InvestmentRefreshAction, signal?: AbortSignal): Promise<InvestmentRefreshStatus>
-  startRefresh?(action: InvestmentRefreshAction, market?: InvestmentNewsMarket): Promise<InvestmentRefreshStatus>
+  startRefresh?(action: InvestmentRefreshAction, market?: InvestmentNewsScope): Promise<InvestmentRefreshStatus>
 }
 function refreshOperations(): InvestmentRefreshOperations {
   return getSelectedInvestmentProvider() as InvestmentProviderRuntime & InvestmentRefreshOperations
@@ -1457,7 +1491,7 @@ export const getInvestmentPulse = (signal?: AbortSignal) =>
 
 export async function postInvestmentRefresh(
   action: InvestmentRefreshAction,
-  market?: InvestmentNewsMarket,
+  market?: InvestmentNewsScope,
 ): Promise<InvestmentRefreshStatus> {
   const start = refreshOperations().startRefresh
   if (!start) throw new Error("Investment refresh capability is unavailable.")

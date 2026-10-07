@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import "./judgment.css"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { DEMO_MODE } from "@/lib/transport"
@@ -10,7 +10,7 @@ import { MarketPulse } from "./MarketPulse"
 import { StockMomentum } from "./StockMomentum"
 import {
   actionStatusLabel, actionStatusNote, currentOpenActionItems, groupBriefRows,
-  JUDGMENT_CLASS_LABEL, newsScanNote, pendingActionsCountLine, providerCompletionNote, providerDetailTitle, taipeiClock,
+  JUDGMENT_CLASS_LABEL, newsRefreshResultsConfirmed, newsScanNote, pendingActionsCountLine, providerCompletionNote, providerDetailTitle, taipeiClock,
   sourceTimestamp, structuredBriefJudgmentReplacement, validatedBriefJudgment, todayActionKindLabel, currentTodayActionPlan, todayActionSection, todayGlobalDecisionSummary, todayJudgmentTimeMetadata,
 } from "@/lib/investmentFormat"
 import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
@@ -29,7 +29,7 @@ import {
   BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentResearch,
   getInvestmentHistory, getInvestmentContext, getInvestmentSource,
   getInvestmentActions, getInvestmentNarrative, getInvestmentRefreshStatus, postInvestmentRefresh, rereadInvestmentRefreshStatuses,
-  type InvestmentIntradayMarketProjection, type InvestmentIntradayRefresh, type InvestmentRefreshAction, type InvestmentRefreshStatus,
+  type InvestmentIntradayMarketProjection, type InvestmentIntradayRefresh, type InvestmentNewsScope, type InvestmentRefreshAction, type InvestmentRefreshStatus,
   type InvestmentActionItem, type InvestmentActions, type InvestmentBrief, type InvestmentMarketObservation, type InvestmentSource, type InvestmentTodayUpdate, type InvestmentTodayView,
 } from "@/lib/investment"
 
@@ -168,7 +168,7 @@ export function TodayIntradayReceipts({ refresh, readFailed }: { refresh?: Inves
 export function refreshStateLabel(action: InvestmentRefreshAction, status: InvestmentRefreshStatus | undefined, error?: unknown): string {
   const marketName = status?.market_scope === "tw" ? "台股" : status?.market_scope === "us" ? "美股" : null
   const scanName = status?.scan_mode === "quick" ? "快掃" : status?.scan_mode === "deep" ? "深度掃描" : "掃描"
-  const name = action === "market" ? "盤面" : `${marketName ? `${marketName}消息` : "最新消息"}${scanName}`
+  const name = action === "market" ? "盤面" : status?.market_scope === "both" ? "台股與美股消息更新" : `${marketName ? `${marketName}消息` : "最新消息"}${scanName}`
   if (error) {
     const detail = error instanceof Error && error.message.trim() ? error.message.trim() : "本機狀態讀取失敗"
     return `${name}狀態讀取失敗：${detail}`
@@ -180,6 +180,7 @@ export function refreshStateLabel(action: InvestmentRefreshAction, status: Inves
     const elapsed = Number.isFinite(started) ? Math.max(0, Math.floor((Date.now() - started) / 1000)) : null
     return `${name}進行中${elapsed === null ? "…" : ` · 已進行 ${durationLabel(elapsed)}`}`
   }
+  if (action === "news" && ["success", "no-change"].includes(status.state) && !newsRefreshResultsConfirmed(status)) return `${name}結果未完整確認；請查看分市場結果。`
   const providerNote = action === "news" ? providerCompletionNote(status) : null
   const route = providerNote ? ` · ${providerNote}` : ""
   const duration = action === "news" && typeof status.duration_seconds === "number" && Number.isFinite(status.duration_seconds)
@@ -187,16 +188,20 @@ export function refreshStateLabel(action: InvestmentRefreshAction, status: Inves
     : ""
   if (status.state === "failed") return `${name}更新失敗：${status.message}${duration}${route}`
   if (status.state === "partial") return `${name}部分完成：${status.message}${duration}${route}`
-  if (action === "news" && status.state === "no-change") return `${name}於 ${sourceTimestamp(status.last_updated)} 完成，無影響當前判斷的新消息${duration}${route}`
+  if (action === "news" && status.state === "no-change") return `${name}於 ${sourceTimestamp(status.last_updated)} 完成，${status.market_scope === "both" ? "本次未發現重要新事件" : "無影響當前判斷的新消息"}${duration}${route}`
   return `${name}完成於 ${sourceTimestamp(status.last_updated)}${status.message ? ` · ${status.message}` : ""}${duration}${route}`
 }
 
 /** Surface ongoing work or a degraded outcome; keep completed execution prose in details. */
 function refreshAttentionLabel(action: InvestmentRefreshAction, status: InvestmentRefreshStatus | undefined, error?: unknown): string | null {
   const marketName = status?.market_scope === "tw" ? "台股" : status?.market_scope === "us" ? "美股" : "消息"
-  const name = action === "market" ? "盤面更新" : `${marketName}${status?.scan_mode === "deep" ? "深度掃描" : "快掃"}`
+  const name = action === "market" ? "盤面更新" : status?.market_scope === "both" ? "消息更新" : `${marketName}${status?.scan_mode === "deep" ? "深度掃描" : "快掃"}`
   if (error) return `${name}狀態讀取失敗`
   if (!status) return null
+  if (action === "news" && status.market_scope === "both") {
+    if (status.state === "running") return `消息更新進行中 · ${(["tw", "us"] as const).map(key => `${INTRADAY_MARKET_LABEL[key]}${newsChildStateLabel(status.markets?.[key]?.state)}`).join(" · ")}`
+    if (["success", "no-change"].includes(status.state) && !newsRefreshResultsConfirmed(status)) return "消息更新結果未完整確認"
+  }
   if (status.state === "running") return refreshStateLabel(action, status)
   if (status.state === "failed") return `${name}失敗`
   if (status.state === "partial") return `${name}部分完成`
@@ -206,12 +211,50 @@ function refreshAttentionLabel(action: InvestmentRefreshAction, status: Investme
   return null
 }
 
+function newsChildStateLabel(state: string | undefined): string {
+  switch (state) {
+    case "running": return "更新中"
+    case "success": return "更新完成"
+    case "no-change": return "未發現重要新事件"
+    case "partial": return "部分完成"
+    case "failed": return "更新失敗"
+    case "unavailable": return "來源無法取得"
+    default: return "結果未確認"
+  }
+}
+
+function NewsMarketResults({ status, readFailed }: { status: InvestmentRefreshStatus; readFailed: boolean }) {
+  if (status.market_scope !== "both") return null
+  return <div aria-label="本次台股與美股消息結果" className="flex min-w-0 flex-col gap-3">
+    {readFailed ? <p className="text-warn">本次狀態讀取失敗；以下保留上次回報的分市場結果，目前尚未確認。</p> : null}
+    {(["tw", "us"] as const).map(key => {
+      const child = status.markets?.[key]
+      return <div key={key} className="flex min-w-0 flex-col gap-1 border-l-2 border-line-soft pl-3">
+        <p className="font-medium text-ink-2">{INTRADAY_MARKET_LABEL[key]} · {newsChildStateLabel(child?.state)}</p>
+        {child ? <>
+          {child.message ? <p>來源回報：{child.message}</p> : null}
+          {child.error ? <p className="text-warn">來源錯誤：{child.error}</p> : null}
+          <p>開始：{sourceTimestamp(child.started_at)} · 完成：{sourceTimestamp(child.finished_at)}</p>
+          <p>覆蓋：{child.coverage_state ?? "未確認"} · 回執保存：{child.receipt_write_state ?? "未確認"} · 事件保存：{child.news_write_state ?? "未確認"}</p>
+          {child.baseline_cutoff_at ? <p>正式基準資料截至：{sourceTimestamp(child.baseline_cutoff_at)}</p> : null}
+          {child.input_cutoff ? <p>輸入資料截至：{sourceTimestamp(child.input_cutoff)}</p> : null}
+          {child.source_cutoff ? <p>來源資料截至：{sourceTimestamp(child.source_cutoff)}</p> : null}
+          {child.output_cutoff ? <p>輸出資料截至：{sourceTimestamp(child.output_cutoff)}</p> : null}
+          <details><summary className="cursor-pointer py-1">這個市場的來源回執欄位</summary><pre className="whitespace-pre-wrap break-words pt-2">{JSON.stringify(child, null, 2)}</pre></details>
+        </> : <p>本次未提供這個市場的結果；不採用較早的回執代替。</p>}
+      </div>
+    })}
+  </div>
+}
+
 export function InvestmentRefreshDetails({ marketStatus, newsStatus, marketError, newsError, operationError, refresh, readFailed }: {
   marketStatus?: InvestmentRefreshStatus; newsStatus?: InvestmentRefreshStatus
   marketError?: unknown; newsError?: unknown; operationError?: string
   refresh?: InvestmentIntradayRefresh; readFailed: boolean
 }) {
-  const receiptAttention = (["tw", "us"] as const).flatMap(key => {
+  // This job's child results own its progress. Older Today receipts stay in
+  // the source disclosure and must not masquerade as this job's outcomes.
+  const receiptAttention = newsStatus?.market_scope === "both" ? [] : (["tw", "us"] as const).flatMap(key => {
     const market = refresh?.markets[key]
     const receipt = market?.latest_receipt
     if (!receipt || market?.state === "not_requested") return []
@@ -226,7 +269,8 @@ export function InvestmentRefreshDetails({ marketStatus, newsStatus, marketError
     refreshAttentionLabel("market", marketStatus, marketError), refreshAttentionLabel("news", newsStatus, newsError), ...receiptAttention]
     .filter(Boolean))].join(" · ")
   const degraded = Boolean(operationError || marketError || newsError || receiptAttention.length
-    || [marketStatus?.state, newsStatus?.state, marketStatus?.discovery_state].some(state => state === "failed" || state === "partial"))
+    || [marketStatus?.state, newsStatus?.state, marketStatus?.discovery_state].some(state => state === "failed" || state === "partial")
+    || (newsStatus?.market_scope === "both" && ["success", "no-change"].includes(newsStatus.state) && !newsRefreshResultsConfirmed(newsStatus)))
   return <div className="flex min-w-0 flex-col gap-1 text-caption text-ink-3" aria-label="更新狀態與紀錄">
     {attention ? <p role={operationError ? "alert" : "status"} aria-live="polite" className={degraded ? "text-warn" : "text-ink-3"}>{attention} · 詳情可展開查看</p> : null}
     <details>
@@ -246,6 +290,7 @@ export function InvestmentRefreshDetails({ marketStatus, newsStatus, marketError
               {status.error ? <p className="text-warn">來源錯誤：{status.error}</p> : null}
               {action === "market" ? <p>市場資金掃描：{status.discovery_state} · 更新時間：{status.discovery_updated_at ?? "未提供"}</p> : null}
               {providerDetail ? <p className="break-all">{providerDetail}</p> : null}
+              {action === "news" ? <NewsMarketResults status={status} readFailed={Boolean(error)} /> : null}
             </> : null}
           </div>
         })}
@@ -811,6 +856,8 @@ type View = typeof VIEWS[number][0]
 export function InvestmentPage() {
   const [view, setView] = useState<View>("today")
   const [refreshError, setRefreshError] = useState("")
+  const [startingRefresh, setStartingRefresh] = useState<ReadonlySet<InvestmentRefreshAction>>(() => new Set())
+  const pendingRefresh = useRef(new Set<InvestmentRefreshAction>())
   const client = useQueryClient()
   const query = useQuery({ queryKey: ["investment"], queryFn: ({ signal }) => getInvestment(signal), retry: false, refetchOnWindowFocus: true, staleTime: 60_000 })
   const marketRefresh = useQuery({ queryKey: ["investment-refresh-status", "market"], queryFn: ({ signal }) => getInvestmentRefreshStatus("market", signal), retry: false, refetchOnMount: "always", refetchOnWindowFocus: false, refetchInterval: (q) => q.state.data?.state === "running" ? 2_000 : false })
@@ -850,13 +897,20 @@ export function InvestmentPage() {
     setView(next)
     document.getElementById(`investment-tab-${next}`)?.focus()
   }
-  async function runRefresh(action: InvestmentRefreshAction, market?: "tw" | "us") {
+  async function runRefresh(action: InvestmentRefreshAction, market?: InvestmentNewsScope) {
+    if (pendingRefresh.current.has(action) || (action === "news" ? newsRefresh.data?.state : marketRefresh.data?.state) === "running") return
+    pendingRefresh.current.add(action)
+    setStartingRefresh(current => new Set(current).add(action))
     setRefreshError("")
     try {
-      await postInvestmentRefresh(action, market)
+      const status = await postInvestmentRefresh(action, market)
+      client.setQueryData(["investment-refresh-status", action], status)
       await client.invalidateQueries({ queryKey: ["investment-refresh-status", action] })
     } catch (error) {
       setRefreshError(error instanceof Error ? error.message : "更新操作失敗，請稍後重試。")
+    } finally {
+      pendingRefresh.current.delete(action)
+      setStartingRefresh(current => { const next = new Set(current); next.delete(action); return next })
     }
   }
 
@@ -864,12 +918,11 @@ export function InvestmentPage() {
     <PageHeader page="investment" />
     {view === "today" ? <div className="flex min-w-0 flex-col gap-2" aria-label="Today 更新操作">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <Button disabled={marketRefresh.data?.state === "running"} onClick={() => void runRefresh("market")}>刷新盤面</Button>
-        <Button disabled={newsRefresh.data?.state === "running"} onClick={() => void runRefresh("news", "tw")}>台股消息快掃</Button>
-        <Button disabled={newsRefresh.data?.state === "running"} onClick={() => void runRefresh("news", "us")}>美股消息快掃</Button>
+        <Button disabled={startingRefresh.has("market") || marketRefresh.data?.state === "running"} onClick={() => void runRefresh("market")}>刷新盤面</Button>
+        <Button disabled={startingRefresh.has("news") || newsRefresh.data?.state === "running"} onClick={() => void runRefresh("news", "both")}>更新消息</Button>
         {marketRefresh.isError || newsRefresh.isError ? <Button disabled={marketRefresh.isFetching || newsRefresh.isFetching} title="只重新讀取狀態，不會啟動行情或新聞刷新" onClick={() => void rereadInvestmentRefreshStatuses(() => marketRefresh.refetch(), () => newsRefresh.refetch())}>重新讀取狀態</Button> : null}
       </div>
-      <p className="text-caption text-ink-3">消息快掃檢查所選市場的新事件與讀數；持倉深掃的來源判讀會列在下方盤中更新。</p>
+      <p className="text-caption text-ink-3">更新台股與美股消息，結果集中在盤中更新。</p>
     </div> : null}
     <InvestmentRefreshDetails marketStatus={marketRefresh.data} newsStatus={newsRefresh.data} marketError={marketRefresh.error} newsError={newsRefresh.error} operationError={refreshError} refresh={query.data?.today?.intraday_refresh} readFailed={query.isError} />
     <nav aria-label="投資內容" className="flex min-w-0 gap-4 overflow-x-auto border-b border-line-soft sm:gap-5" role="tablist">{VIEWS.map(([key, label], index) => <Button key={key} id={`investment-tab-${key}`} role="tab" aria-controls={`investment-panel-${key}`} aria-selected={view === key} tabIndex={view === key ? 0 : -1} variant="link" className={`shrink-0 rounded-none border-b-2 px-0 py-3 ${view === key ? "border-accent text-ink" : "border-transparent text-ink-3"}`} onClick={() => setView(key)} onKeyDown={event => {
