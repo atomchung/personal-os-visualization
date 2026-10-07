@@ -322,7 +322,7 @@ test("a confirmed judgment change reads before/after and why while the action re
   assert.match(html, /相較原先，多知道什麼/)
   assert.match(html, /這次提高了對當季收入的把握/)
   assert.match(html, /未來三年的維修成本/)
-  assert.ok(html.indexOf(brief.judgment!.judgment) < html.indexOf(today.current_judgment!.current_delta!.judgment))
+  assert.ok(html.indexOf(today.current_judgment!.current_delta!.judgment) < html.indexOf(brief.judgment!.judgment))
   assert.match(html, /synthetic-irrigation-renewals/)
 })
 
@@ -371,6 +371,73 @@ test("unrequested scans stay silent for structured and legacy formal briefs", as
   const html = await renderTodayBrief(undefined, false, next)
   assert.match(html, /合成新正式判斷：新增訂單支持本季收入。/)
   assert.doesNotMatch(html, /這次判斷更新|尚未取得新的重評結果/)
+})
+
+test("Today leads with the authored judgment and keeps scan receipts out of the collapsed main card", async () => {
+  for (const scenario of ["formal", "preserved", "partial", "failed", "reassessed"] as const) {
+    for (const sourceOnly of [false, true]) {
+      const { brief, today } = syntheticJudgmentUpdate(scenario === "reassessed" ? "reassessed" : "preserved")
+      const market = today.intraday_refresh!.markets.tw!
+      // This is deliberately execution prose, never an investment judgment.
+      today.current_judgment!.latest_assessment!.reason = "No material story change; preserve current Today judgment."
+      market.current_judgment!.latest_assessment!.reason = today.current_judgment!.latest_assessment!.reason
+      if (scenario === "formal") {
+        today.current_judgment!.state = "baseline_only"
+        today.current_judgment!.latest_assessment = null
+        market.state = "not_requested"
+        market.latest_receipt = null
+        market.current_judgment!.latest_assessment = null
+      } else if (scenario === "partial" || scenario === "failed") {
+        market.state = scenario
+        market.latest_receipt!.result = scenario
+        market.latest_receipt!.coverage_state = scenario
+      }
+      if (sourceOnly) {
+        brief.judgment = null
+        today.current_judgment!.formal_judgment = null
+        today.current_judgment!.effective_judgment = null
+        today.current_judgment!.current_delta = null
+        market.current_judgment!.current_delta = null
+      }
+      const html = await renderTodayBrief(today, false, brief)
+      const main = html.slice(0, html.indexOf("<details"))
+      const authored = scenario === "reassessed" && !sourceOnly
+        ? today.current_judgment!.current_delta!.judgment : sourceOnly ? brief.action_items![0].text : brief.judgment!.judgment
+      assert.ok(main.includes(authored), `${scenario}/${sourceOnly}: preserve the entire authored text`)
+      assert.ok(main.indexOf(authored) < main.indexOf('aria-label="正式判斷時間與後續快掃"'))
+      assert.equal((main.match(/aria-label="正式判斷時間與後續快掃"/g) ?? []).length, 1)
+      assert.doesNotMatch(main, /current Today judgment|material story change|資料截至|來源修訂|本次查核：|沿用既有判斷<\/p>/)
+      if (scenario === "formal") assert.doesNotMatch(main, / · \d{2}:\d{2} 快掃|本次無法確認/)
+      if (scenario === "preserved") assert.match(main, /08:01 台股晨報判斷 · 10:00 快掃無重要增量/)
+      if (scenario === "partial") assert.match(main, /快掃僅部分完成，沿用判斷/)
+      if (scenario === "failed") assert.match(main, /快掃失敗，沿用判斷/)
+      if (scenario === "reassessed" && !sourceOnly) assert.match(main, /10:00 重評判斷 · 10:00 快掃有新增事件/)
+      assert.match(html, /資料截至/)
+      if (scenario !== "formal") assert.match(html, /current Today judgment/)
+    }
+  }
+})
+
+test("a source-only formal action precedes a newer supplement without rewriting its words", async () => {
+  const brief = { ...syntheticPresentationBrief(), judgment: null }
+  const today = syntheticPresentationToday()
+  const html = await renderTodayBrief(today, false, brief)
+  assert.ok(html.indexOf(brief.action_items![0].text) < html.indexOf(today.updates[0].action))
+  assert.match(html, /aria-label="盤中補充觀察"/)
+})
+
+test("a cached complete quiet receipt cannot certify an unavailable, unknown, or failed reread", async () => {
+  for (const scenario of ["unavailable", "unknown", "failed-market", "failed-read"] as const) {
+    const { brief, today } = syntheticJudgmentUpdate("preserved")
+    if (scenario === "unavailable") today.state = "unavailable"
+    if (scenario === "unknown") today.intraday_refresh!.markets.tw!.state = "unknown"
+    if (scenario === "failed-market") today.intraday_refresh!.markets.tw!.state = "failed"
+    const html = await renderTodayBrief(today, scenario === "failed-read", brief)
+    const main = html.slice(0, html.indexOf("<details"))
+    assert.match(main, /合成灌溉設備：訂單能否變成持續收入，仍需確認。/)
+    assert.doesNotMatch(main, /快掃無重要增量/)
+    assert.match(main, scenario === "failed-market" ? /快掃結果未確認，沿用判斷/ : /上次快掃結果，本次未確認/)
+  }
 })
 
 test("one requested market does not advertise the other unrequested market", async () => {

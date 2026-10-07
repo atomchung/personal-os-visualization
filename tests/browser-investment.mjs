@@ -499,7 +499,7 @@ try {
         if (scenario === 'claim-ready') {
           assert.match(normalText, /來源標示目前有效/)
           assert.doesNotMatch(normalText, /來源目前不可用|尚未重新確認目前狀態/)
-        } else assert.match(normalText, /判斷已更新 · 行動仍是觀察/)
+        } else assert.match(normalText, /10:00 重評判斷 · 10:00 快掃有新增事件/)
         await page.screenshot({ path: `${output}/${scenario}-${width}-full.png`, fullPage: true })
       }
       await section.screenshot({ path: `${output}/${scenario}-${width}.png` })
@@ -552,6 +552,18 @@ try {
       await panel.locator(`section[aria-label="${actionSectionLabel}"]`).screenshot({ path: `${output}/${scenario}-action-card.png` })
     }
     if (scenario.startsWith('judgment-')) {
+      const steps = panel.getByRole('region', { name: /今天怎麼做|目前可用行動/ })
+      const collapsed = await steps.innerText()
+      assert.doesNotMatch(collapsed, /資料截至|本次查核：|這次提高了對當季收入的把握|本次查核範圍內沒有重要增量，沿用先前判斷/)
+      const metadata = steps.getByRole('note', { name: '正式判斷時間與後續快掃', exact: true })
+      assert.equal(await metadata.locator('p').count(), 0, 'time and scan status are one caption')
+      const primary = steps.getByLabel('主要下一步', { exact: true })
+      const primaryBox = await primary.boundingBox()
+      const metadataBox = await metadata.boundingBox()
+      assert.ok(primaryBox.y + primaryBox.height <= metadataBox.y, 'authored judgment precedes time and scan status')
+      if (scenario === 'judgment-quiet') assert.match(await metadata.innerText(), /08:01 台股晨報判斷 · 10:00 快掃無重要增量/)
+      if (scenario === 'judgment-quiet-partial') assert.match(await metadata.innerText(), /快掃僅部分完成，沿用判斷/)
+      if (scenario === 'judgment-failed') assert.match(await metadata.innerText(), /快掃失敗，沿用判斷/)
       await panel.getByRole('region', { name: /今天怎麼做|目前可用行動/ }).screenshot({ path: `${output}/${scenario}-320.png` })
     }
     await expand(panel)

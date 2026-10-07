@@ -442,13 +442,14 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
   // With a source judgment, its own row takes the primary slot. Only an
   // exact, unique producer-linked action ID is removed from `steps`; missing
   // or ambiguous relationships keep the source action visible below.
-  const primary = judgment ? undefined : steps[0]
-  const secondary = judgment ? steps.slice(0, 2) : steps.slice(1, 3)
-  const remaining = judgment ? steps.slice(2) : steps.slice(3)
+  const primary = judgment ? undefined : steps.find(item => item.origin === "brief") ?? steps[0]
+  const otherSteps = primary ? steps.filter(item => item !== primary) : steps
+  const secondary = otherSteps.slice(0, 2)
+  const remaining = otherSteps.slice(2)
   const decisionSummary = readFailed || b.state === "stale" ? "" : today?.decision_summary?.trim() || ""
   const globalDecisionSummary = todayGlobalDecisionSummary(decisionSummary, steps)
   const actionSection = todayActionSection(b)
-  const judgmentTime = todayJudgmentTimeMetadata(b, today)
+  const judgmentTime = todayJudgmentTimeMetadata(b, today, acceptedDelta, readFailed)
   const checkpoint = !readFailed && b.state === "current" ? todayCheckpoint(b, catalystQuery.data?.catalysts_30d) : null
   // Detail-only content: never rendered on the card's main level (see below).
   const checkpointNote = checkpoint
@@ -493,28 +494,9 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
     <SectionHeading>{actionSection.heading}</SectionHeading>
     <Card className="min-w-0 p-4 sm:p-5">
       <div className="flex min-w-0 flex-col gap-3">
-      {actionSection.context ? <p role="status" className="text-caption text-warn">{actionSection.context}</p> : b.state === "missing" ? <p role="status" className="text-caption text-warn">尚未取得正式簡報；不將舊快取或殘留欄位當作今天已確認的工作。</p> : b.state === "invalid" ? <p role="status" className="text-caption text-warn">正式簡報無法完整辨識；其中的行動不列為今天已確認的工作。</p> : null}
-      {b.state === "current" || b.state === "stale" ? <div role="note" aria-label="正式判斷時間與後續快掃" className="flex min-w-0 flex-col gap-1 text-caption text-ink-3">
-        <p>{judgmentTime.judgmentLine}</p>
-        {judgmentTime.sourceCutoffLine ? <p>{judgmentTime.sourceCutoffLine}</p> : null}
-        {judgmentTime.laterScanLine ? <p>{judgmentTime.laterScanLine}</p> : null}
-      </div> : null}
-      {today?.state === "partial" || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">{today.state === "partial" ? "今日資料只更新了一部分" : "今日更新資料目前無法取得"}；空白欄位不能確認沒有新行動。</p> : null}
-      {hasAssessment ? <div role="status" aria-label="這次判斷更新" className="flex min-w-0 flex-col gap-1 border-l-2 border-line pl-3">
-        <p className="text-body font-medium text-ink">{assessmentHeading}{assessmentConfirmed && acceptedDelta && actionUnchanged ? ` · 行動仍是${JUDGMENT_CLASS_LABEL[acceptedDelta.class]}` : ""}</p>
-        {assessmentReason ? <p className="text-body leading-relaxed text-ink-2">{!assessmentConfirmed ? "上次回報的原因（本次未確認）：" : ""}<InlineText text={assessmentReason} /></p>
-          : <p className="text-caption leading-relaxed text-ink-3">{assessmentConfirmed ? "來源未提供本次覆核原因；不能由行動不變推定沒有新資訊。" : "尚不能確認這次有沒有重要新資訊；以下保留可讀的既有判斷。"}</p>}
-        {assessmentConfirmed && latestAssessment?.assessed_at ? <p className="text-caption text-ink-3">本次查核：{sourceTimestamp(latestAssessment.assessed_at)}</p> : null}
-      </div> : null}
-      {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
-      {readFailed ? <p role="status" className="text-body text-warn">本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動，是否已有新版本尚未確認。</p> : null}
-      {priorJudgment ? <div role="group" aria-label="原先判斷" className="flex min-w-0 flex-col gap-1 border-l-2 border-line-soft pl-3">
-        <p className="text-caption font-medium text-ink-3">原先判斷 · 正式簡報</p>
-        <p className="text-body leading-relaxed text-ink-2"><InlineText text={priorJudgment.judgment} /></p>
-      </div> : null}
       {previousJudgment ? <p className="text-body leading-relaxed text-ink-2">上次讀取的判斷（目前未確認）：<InlineText text={previousJudgment} /></p> : null}
       {judgment ? <div role="group" aria-label="主要下一步" className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
-          <p className="text-caption font-medium text-ink-3">{acceptedDelta ? assessmentConfirmed ? "現在判斷" : "上次有效判斷（本次未確認）" : "正式簡報判斷"}</p>
+          <p className="sr-only">{acceptedDelta ? assessmentConfirmed ? "現在判斷" : "上次有效判斷（本次未確認）" : "正式簡報判斷"}</p>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Chip tone="info">{JUDGMENT_CLASS_LABEL[judgment.class]}</Chip>
             <p className="min-w-0 text-body font-medium leading-relaxed text-ink"><InlineText text={judgment.judgment} /></p>
@@ -529,6 +511,12 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
         : decisionSummary ? <p className="text-body leading-relaxed text-ink-2">{b.state === "stale" ? "今天的判斷尚未取得。" : checkpoint ? "來源未列出獨立行動；行動狀態未明示，下一個已知檢查點如下。" : "來源未列出獨立行動；行動狀態與下一檢查點未明示。"}</p>
         : b.state === "current" ? <p className="text-body text-ink-3">{checkpoint ? "沒有可確認的下一步；來源未明示「今天不用動」，已知檢查點保留在來源明細。" : "沒有可確認的下一步；來源沒有明示「今天不用動」或下一檢查點。"}</p>
         : <p role="status" className="text-body text-warn">目前沒有可確認的下一步；資料缺失不代表今天不用動。</p>}
+      {b.state === "current" || b.state === "stale" ? <p role="note" aria-label="正式判斷時間與後續快掃" className="text-caption text-ink-3">{judgmentTime.summaryLine}</p> : null}
+      {actionSection.context ? <p role="status" className="text-caption text-warn">{actionSection.context}</p> : b.state === "missing" ? <p role="status" className="text-caption text-warn">尚未取得正式簡報；不將舊快取或殘留欄位當作今天已確認的工作。</p> : b.state === "invalid" ? <p role="status" className="text-caption text-warn">正式簡報無法完整辨識；其中的行動不列為今天已確認的工作。</p> : null}
+      {today?.state === "partial" || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">{today.state === "partial" ? "今日資料只更新了一部分" : "今日更新資料目前無法取得"}；空白欄位不能確認沒有新行動。</p> : null}
+      {hasAssessment && !assessmentConfirmed ? <p role="status" className="text-caption text-warn">本次無法確認，保留既有判斷。</p> : null}
+      {readFailed ? <p role="status" className="text-caption text-warn">本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動，是否已有新版本尚未確認。</p> : null}
+      {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
       {secondary.length ? <div role="group" aria-label="其他行動" className="flex min-w-0 flex-col gap-3">
         {renderSecondaryGroup("update", "盤中補充觀察")}
         {renderSecondaryGroup("brief", "正式簡報其他行動")}
@@ -537,6 +525,21 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
       <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
         <summary className="cursor-pointer py-1">檢查點與來源</summary>
         <div className="mt-2 flex min-w-0 flex-col gap-3">
+          {b.state === "current" || b.state === "stale" ? <div className="flex min-w-0 flex-col gap-1">
+            <p>{judgmentTime.judgmentLine}</p>
+            {judgmentTime.sourceCutoffLine ? <p>{judgmentTime.sourceCutoffLine}</p> : null}
+            {judgmentTime.laterScanLine ? <p>{judgmentTime.laterScanLine}</p> : null}
+          </div> : null}
+          {hasAssessment ? <div aria-label="這次判斷更新" className="flex min-w-0 flex-col gap-1 border-l-2 border-line pl-3">
+            <p className="font-medium text-ink-2">{assessmentHeading}{assessmentConfirmed && acceptedDelta && actionUnchanged ? ` · 行動仍是${JUDGMENT_CLASS_LABEL[acceptedDelta.class]}` : ""}</p>
+            {assessmentReason ? <p>{!assessmentConfirmed ? "上次回報的原因（本次未確認）：" : ""}<InlineText text={assessmentReason} /></p>
+              : <p>{assessmentConfirmed ? "來源未提供本次覆核原因；不能由行動不變推定沒有新資訊。" : "尚不能確認這次有沒有重要新資訊；保留可讀的既有判斷。"}</p>}
+            {assessmentConfirmed && latestAssessment?.assessed_at ? <p>本次查核：{sourceTimestamp(latestAssessment.assessed_at)}</p> : null}
+          </div> : null}
+          {priorJudgment ? <div role="group" aria-label="原先判斷" className="flex min-w-0 flex-col gap-1 border-l-2 border-line-soft pl-3">
+            <p className="font-medium text-ink-3">原先判斷 · 正式簡報</p>
+            <p><InlineText text={priorJudgment.judgment} /></p>
+          </div> : null}
           <div>{checkpointNote}</div>
           {b.upcoming.length ? <div className="flex min-w-0 flex-col gap-2">
             <p className="font-medium text-ink-2">近期檢查 · {b.upcoming.length}</p>
