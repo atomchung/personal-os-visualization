@@ -62,6 +62,75 @@ function expiredNotDueItem() {
   }
 }
 
+function stoppedExample() {
+  const projection = example()
+  const row = projection.items.find(item => item.assessment_origin === "reader_gap")!
+  row.state = "stopped"
+  row.reason_code = "stopped"
+  row.stop = {
+    origin: structuredClone(row.origin), stopped_at: "2026-10-02T08:03:00+08:00",
+    reason: "合成問題的答案已不影響當前選項，停止追蹤；原結果仍未知。",
+    source: { path: "wiki/morning/briefs/2026-10-02.md", source_revision: `sha256:${"a".repeat(64)}`,
+      source_cutoff: "2026-10-02T08:04:00+08:00", generated_at: "2026-10-02T08:05:00+08:00" },
+  }
+  row.display.status_label = "停止關注"
+  row.display.result = "原問題尚未取得可確認的答案；停止關注不代表預期已驗證。"
+  projection.items = [row]
+  projection.stopped_count = 1
+  return projection
+}
+
+test("stopping attention preserves an unknown result and separate historical counts", () => {
+  const projection = stoppedExample()
+  const before = structuredClone(projection)
+  const view = checkpointReviewsView(projection)
+  assert.equal(view.invalidCount, 0)
+  assert.equal(view.items[0].state, "stopped")
+  assert.equal(view.items[0].assessment, "no_data")
+  assert.equal(view.items[0].review, null)
+  assert.deepEqual(view.items[0].judgment_effect, { state: "unknown" })
+  assert.equal(view.projection?.completed_count, 3)
+  assert.equal(view.projection?.stopped_count, 1)
+  const html = renderReviews(projection)
+  containsText(html, projection.items[0].stop!.reason)
+  containsText(html, projection.items[0].display.result)
+  containsText(html, "回查狀態")
+  containsText(html, "停止追蹤不代表已確認結果。")
+  assert.doesNotMatch(html, /今天的答案|支持原預期|無新變化，已完成回查/)
+  assert.deepEqual(projection, before, "renderer does not infer or mutate lifecycle")
+})
+
+test("a stopped row requires an exact source-authored stop and cannot become a completed answer", () => {
+  for (const mutate of [
+    (p: InvestmentCheckpointReviews) => { delete p.items[0].stop },
+    (p: InvestmentCheckpointReviews) => { p.items[0].stop!.origin.checkpoint_id = "synthetic-other" },
+    (p: InvestmentCheckpointReviews) => { p.items[0].stop!.origin.source_revision = "different" },
+    (p: InvestmentCheckpointReviews) => { p.items[0].stop!.reason = "" },
+    (p: InvestmentCheckpointReviews) => { p.items[0].state = "completed" },
+  ]) {
+    const projection = stoppedExample()
+    mutate(projection)
+    const view = checkpointReviewsView(projection)
+    assert.equal(view.items.length, 0)
+    assert.equal(view.invalidCount, 1)
+    assert.doesNotMatch(renderReviews(projection), /停止理由：/)
+  }
+})
+
+test("stopping keeps a previously authored no-data review and its effects", () => {
+  const projection = stoppedExample()
+  const answered = example().items.find(item => item.assessment === "no_data" && item.review)!
+  answered.state = "stopped"
+  answered.stop = { ...projection.items[0].stop!, origin: structuredClone(answered.origin) }
+  answered.display.status_label = "停止關注"
+  projection.items = [answered]
+  const view = checkpointReviewsView(projection)
+  assert.equal(view.invalidCount, 0)
+  assert.deepEqual(view.items[0].review, answered.review)
+  assert.deepEqual(view.items[0].judgment_effect, answered.judgment_effect)
+  containsText(renderReviews(projection), answered.review!.result)
+})
+
 test("checkpoint renderer examples retain the exact frozen source Git blob bytes", () => {
   const digest = createHash("sha1").update(`blob ${exampleBytes.byteLength}\0`).update(exampleBytes).digest("hex")
   assert.equal(digest, "e15ba6c7426b77fe54bcc2a91868f9cfd760467b", "source fixtures must be copied byte-for-byte, including the trailing newline")

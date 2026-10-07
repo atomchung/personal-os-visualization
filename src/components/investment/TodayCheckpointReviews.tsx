@@ -26,12 +26,13 @@ function CheckpointItem({ item }: { item: InvestmentCheckpointReviewItem }) {
         <p className="text-caption text-ink-3">原先的問題</p>
         <h3 className="mt-1 text-body font-semibold leading-relaxed text-ink">{item.question}</h3>
       </div>
-      <Chip tone={item.state === "invalid" || item.assessment === "no_data" ? "warn" : "mute"}>{item.display.status_label}</Chip>
+      <Chip tone={item.state !== "stopped" && (item.state === "invalid" || item.assessment === "no_data") ? "warn" : "mute"}>{item.display.status_label}</Chip>
     </div>
     <div className="flex min-w-0 flex-col gap-1">
-      <p className="text-caption text-ink-3">今天的答案</p>
+      <p className="text-caption text-ink-3">{item.state === "stopped" ? "回查狀態" : "今天的答案"}</p>
       <p className="text-body leading-relaxed text-ink">{item.display.result}</p>
     </div>
+    {item.stop ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">停止理由：</span>{item.stop.reason}</p> : null}
     <div role="group" aria-label="判斷與行動影響" className="flex min-w-0 flex-col gap-1 border-l-2 border-line-soft pl-3">
       <Effect label={item.display.judgment_label} effect={item.judgment_effect} />
       <Effect label={item.display.action_label} effect={item.action_effect} />
@@ -52,6 +53,7 @@ function CheckpointItem({ item }: { item: InvestmentCheckpointReviewItem }) {
         {item.provenance.review ? <><dt className="font-medium text-ink-2">回查來源</dt><dd className="flex min-w-0 flex-col gap-1"><p>{item.provenance.review.path}</p><p>版本：{item.provenance.review.source_revision}</p><p>產出：<Stamp value={item.provenance.review.generated_at} /></p><p>資料截止：<Stamp value={item.provenance.review.source_cutoff} /></p></dd></> : null}
         {review?.evidence.length ? <><dt className="font-medium text-ink-2">證據</dt><dd><ul className="flex min-w-0 flex-col gap-3">{review.evidence.map((evidence, index) => <li key={index} className="flex min-w-0 flex-col gap-1"><p>{evidence.summary}</p><EvidenceLink url={evidence.source_url} /><p>資料日期：<Stamp value={evidence.data_as_of} /></p><p>發布：<Stamp value={evidence.published_at} /> · 查核：<Stamp value={evidence.checked_at} /></p><p>來源類型：{evidence.kind}</p></li>)}</ul></dd></> : null}
         {item.last_review ? <><dt className="font-medium text-ink-2">較早回查</dt><dd><p>不是目前答案 · <Stamp value={item.last_review.checked_at} /></p><p>{item.last_review.result}</p></dd></> : null}
+        {item.stop ? <><dt className="font-medium text-ink-2">停止來源</dt><dd className="flex min-w-0 flex-col gap-1"><p>停止：<Stamp value={item.stop.stopped_at} /></p><p>{item.stop.source.path}</p><p>版本：{item.stop.source.source_revision}</p><p>產出：<Stamp value={item.stop.source.generated_at} /></p><p>資料截止：<Stamp value={item.stop.source.source_cutoff} /></p></dd></> : null}
         <dt className="font-medium text-ink-2">身分與讀取</dt><dd className="flex min-w-0 flex-col gap-1"><p>問題 ID：{item.checkpoint_id}</p><p>Story ID：{item.story_id}</p><p>讀取：<Stamp value={item.provenance.read_at} /></p><p>{item.assessment_origin === "source" ? "來源明示回查" : "來源讀取器標示缺口"} · {item.reason_code}</p></dd>
       </dl>
     </details>
@@ -83,6 +85,7 @@ export function TodayCheckpointReviews({ projection, readFailed = false, synthet
         <summary className="cursor-pointer py-2">回查涵蓋範圍與資料缺口</summary>
         <div className="flex min-w-0 flex-col gap-2 pt-2">
           <p>可讀歷史中已完成 {data?.completed_count} 題；這是歷史總數，不代表今天新增或所有觀察都已回查。</p>
+          {(data?.stopped_count ?? 0) > 0 ? <p>另有 {data?.stopped_count} 題停止關注；停止追蹤不代表已確認結果。</p> : null}
           <p>{data?.coverage.history_complete ? "本次可取得檔案的掃描未遇到缺口；不保證歷史從未缺檔。" : "本次可取得檔案的掃描有缺口，涵蓋範圍不完整。"}</p>
           {data?.coverage.untracked_recent_artifacts.length ? <div><p>今日／昨日尚未登記逐題觀察的來源：</p><ul>{data.coverage.untracked_recent_artifacts.map((path, index) => <li key={index}>{path}</li>)}</ul></div> : null}
           {[...(data?.problems ?? []), ...(data?.candidate_problems ?? [])].map((problem, index) => <p key={index} className="text-warn">{problem}</p>)}
