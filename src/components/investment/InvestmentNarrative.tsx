@@ -460,7 +460,7 @@ export function FutureContent({ projection, heading = "公司近期事件" }: { 
   return <section aria-label={heading} className="flex min-w-0 flex-col gap-2">
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2"><SubsectionHeading>{heading}</SubsectionHeading><Chip tone={projection.state === "ready" ? "mute" : "warn"}>{projection.state === "ready" ? "來源完整" : projection.state === "unknown" ? "狀態未知" : "來源部分可用"}</Chip></div>
     <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4">
-      <p className="text-caption text-ink-3">公司近期事件列表；其他市場提醒見「今天怎麼做」→「檢查點與來源」。</p>
+      <p className="text-caption text-ink-3">晨報與日常資料蒐集更新的近期事件；日期未確認的項目另列。</p>
       {exact.length ? <ul className="flex min-w-0 flex-col">{exact.slice(0, 3).map((item, index) => <FutureRow key={item.story_id ?? `legacy:${index}`} item={item} />)}</ul> : <p className="text-body text-ink-3">來源沒有列出日期明確的窗口內事件；不代表沒有未來事件。</p>}
       {exact.length > 3 ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">其他日期明確的事件 · {exact.length - 3}</summary><ul className="flex min-w-0 flex-col">{exact.slice(3).map((item, index) => <FutureRow key={item.story_id ?? `more:${index}`} item={item} />)}</ul></details> : null}
       {foldA.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">日期未定 · {foldA.length}</summary><ul className="flex min-w-0 flex-col">{foldA.map((item, index) => <FutureFoldARow key={item.story_id ?? `undated:${index}`} item={item} />)}</ul></details> : null}
@@ -502,7 +502,7 @@ export function TodayCatalysts({ enabled, heading = "公司近期事件" }: { en
   return <section aria-label={heading} className="flex min-w-0 flex-col gap-2">
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2"><SubsectionHeading>{heading}</SubsectionHeading>{projection ? <Chip tone={projection.state === "ready" ? "mute" : "warn"}>{projection.state === "ready" ? "來源完整" : projection.state === "partial" ? "來源部分可用" : "狀態未知"}</Chip> : null}</div>
     <Card className="min-w-0 p-3 sm:p-4">
-      <p className="mb-2 text-caption leading-relaxed text-ink-3">有限投影自 Investment Note 的 next_catalyst 登記；日期與來源限定照原樣保留，不依代號或文字合併。</p>
+      <p className="mb-2 text-caption leading-relaxed text-ink-3">晨報與日常資料蒐集更新的近期事件；日期未確認的項目另列。</p>
       {query.isPending && !query.data ? <p role="status" className="text-body text-ink-3">讀取未來事件中…</p> : null}
       {query.isError ? <p role="status" className="text-caption text-warn">事件投影讀取失敗；目前無法確認是否有下一個檢查點。</p> : null}
       {!query.isError && query.data && !projection ? <p role="status" className="text-body text-ink-3">此版來源沒有提供 30 天事件投影；下一檢查點未知。</p> : null}
