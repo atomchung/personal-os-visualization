@@ -426,6 +426,20 @@ test("a source-only formal action precedes a newer supplement without rewriting 
   assert.match(html, /aria-label="盤中補充觀察"/)
 })
 
+test("a cached complete quiet receipt cannot certify an unavailable, unknown, or failed reread", async () => {
+  for (const scenario of ["unavailable", "unknown", "failed-market", "failed-read"] as const) {
+    const { brief, today } = syntheticJudgmentUpdate("preserved")
+    if (scenario === "unavailable") today.state = "unavailable"
+    if (scenario === "unknown") today.intraday_refresh!.markets.tw!.state = "unknown"
+    if (scenario === "failed-market") today.intraday_refresh!.markets.tw!.state = "failed"
+    const html = await renderTodayBrief(today, scenario === "failed-read", brief)
+    const main = html.slice(0, html.indexOf("<details"))
+    assert.match(main, /合成灌溉設備：訂單能否變成持續收入，仍需確認。/)
+    assert.doesNotMatch(main, /快掃無重要增量/)
+    assert.match(main, scenario === "failed-market" ? /快掃結果未確認，沿用判斷/ : /上次快掃結果，本次未確認/)
+  }
+})
+
 test("one requested market does not advertise the other unrequested market", async () => {
   const { today } = syntheticJudgmentUpdate("preserved")
   today.intraday_refresh!.markets.us = { ...today.intraday_refresh!.markets.tw!,

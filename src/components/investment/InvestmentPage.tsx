@@ -449,7 +449,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
   const decisionSummary = readFailed || b.state === "stale" ? "" : today?.decision_summary?.trim() || ""
   const globalDecisionSummary = todayGlobalDecisionSummary(decisionSummary, steps)
   const actionSection = todayActionSection(b)
-  const judgmentTime = todayJudgmentTimeMetadata(b, today, acceptedDelta)
+  const judgmentTime = todayJudgmentTimeMetadata(b, today, acceptedDelta, readFailed)
   const checkpoint = !readFailed && b.state === "current" ? todayCheckpoint(b, catalystQuery.data?.catalysts_30d) : null
   // Detail-only content: never rendered on the card's main level (see below).
   const checkpointNote = checkpoint

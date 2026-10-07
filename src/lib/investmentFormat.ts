@@ -539,6 +539,7 @@ export function todayJudgmentTimeMetadata(
   brief: Pick<InvestmentBrief, "state" | "date" | "generated_at" | "source_cutoff" | "session">,
   today?: InvestmentTodayView,
   effectiveJudgment?: InvestmentBriefJudgment | null,
+  readFailed = false,
 ): TodayJudgmentTimeMetadata {
   const sessionLabels: Record<string, string> = {
     "tw-open-prep": "台股開盤前判斷",
@@ -580,11 +581,15 @@ export function todayJudgmentTimeMetadata(
       : partial ? `僅部分完成；保留 ${productionLabel} 最新成功判斷`
       : `${result}；正式判斷仍更新於 ${productionLabel}`
     laterScanLine = `後續${marketName}快掃 ${scanTime} ${outcome}`
-    const currentScan = ["fresh", "current"].includes(marketProjection?.freshness ?? "")
-    const compactOutcome = failed ? "快掃失敗，沿用判斷"
+    const scanAvailable = !readFailed && today?.state !== "unavailable"
+      && ["ready", "updated", "no_material_update", "partial", "failed", "needs_deeper_analysis"].includes(marketProjection?.state ?? "")
+    const currentScan = scanAvailable && ["fresh", "current"].includes(marketProjection?.freshness ?? "")
+      && ["ready", "updated", "no_material_update"].includes(marketProjection?.state ?? "")
+    const compactOutcome = !scanAvailable ? "上次快掃結果，本次未確認"
+      : failed ? "快掃失敗，沿用判斷"
       : partial ? "快掃僅部分完成，沿用判斷"
-      : resultCode === "no_material_update" ? receipt.coverage_state === "complete" && currentScan
-        ? "快掃無重要增量" : "快掃尚不能確認有無重要增量"
+      : resultCode === "no_material_update" ? !currentScan ? "快掃結果未確認，沿用判斷"
+        : receipt.coverage_state === "complete" ? "快掃無重要增量" : "快掃尚不能確認有無重要增量"
       : resultCode === "updated" ? currentScan ? "快掃有新增事件" : "快掃結果目前未確認"
       : resultCode === "needs_deeper_analysis" ? "快掃仍待深入分析"
       : resultCode === "unavailable" ? "快掃來源不可用，沿用判斷"
