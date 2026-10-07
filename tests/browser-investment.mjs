@@ -765,7 +765,7 @@ try {
         assert.equal(await panel.getByRole('region', { name: '盤中市場讀數', exact: true }).count(), 1)
         assert.match(text, /合成無時間的盤中市場觀察/)
         assert.doesNotMatch(text, /尚未取得可讀的今日變化/)
-        assert.equal(await panel.getByText('簡報版次與掃描時間軸', { exact: true }).count(), 0, 'sparse duplicate update is hidden by its exact sparse receipt')
+        assert.equal(await panel.getByText('簡報版次與掃描時間軸', { exact: true }).count(), 1, 'a sparse timeline wrapper stays in source history without a complete observation identity')
         break
       case 'actions-partial': assert.match(text, /沒有可確認的下一步/); assert.doesNotMatch(text, /今天不用動。/); break
       case 'research-only': assert.match(text, /補研究：核對合成公開資料/); break
