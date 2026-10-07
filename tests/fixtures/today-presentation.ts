@@ -154,3 +154,23 @@ export function syntheticJudgmentUpdate(state: "reassessed" | "unchanged" | "pre
   }
   return { brief, today }
 }
+
+/** Fictional source scans and price observations stay independent, even with a shared story ID. */
+export function syntheticIntradayReading() {
+  const { brief, today } = syntheticJudgmentUpdate("preserved")
+  const old = { ...syntheticIntradayUpdate(), id: "synthetic-deep-old", scan_mode: "deep" as const,
+    market_scope: "all" as const, summary: "合成較早深掃摘要。", action: "合成較早來源提醒。" }
+  const latest = { ...old, id: "synthetic-deep-latest", market_scope: "tw" as const,
+    observed_at: "2001-02-03T11:30:00+08:00", scan_completed_at: "2001-02-03T11:30:00+08:00",
+    source_cutoff: "2001-02-03T11:25:00+08:00", summary: "合成較新深掃：維護成本尚待確認。",
+    portfolio_impact: "合成持倉影響：續約資料仍不足以回答成本問題。", action: "合成來源提醒：下一次成本公告再核對。" }
+  const quick = { ...syntheticIntradayUpdate(), id: "synthetic-quick-latest", market_scope: "us" as const,
+    observed_at: latest.observed_at, scan_completed_at: latest.scan_completed_at,
+    summary: "合成美股消息快掃摘要。", action: "合成快掃來源提醒。" }
+  today.updates = [old, latest, quick]
+  today.timeline = []
+  today.intraday_refresh!.market_observations = [{ information_kind: "market_observation", market: "tw",
+    event: "合成盤中指數讀數", observation_value: "合成指數 +0.4%", observation_as_of: latest.observed_at,
+    interpretation: "合成來源解讀：價格變化不代表成本已確認。", source_path: "synthetic/market-reading.md" }]
+  return { brief, today }
+}

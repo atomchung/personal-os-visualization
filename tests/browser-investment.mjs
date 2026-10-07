@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { syntheticJudgmentUpdate } from './fixtures/today-presentation.ts'
+import { syntheticJudgmentUpdate, syntheticIntradayReading } from './fixtures/today-presentation.ts'
 import { syntheticClaimEvidence } from './fixtures/claim-evidence.ts'
 
 const { chromium } = await import(process.env.PLAYWRIGHT_RUNTIME || 'playwright')
@@ -31,8 +31,19 @@ async function fault(page, scenario) {
 const judgmentFixture = scenario.startsWith('operations-') ? syntheticJudgmentUpdate('preserved') : scenario.startsWith('judgment-')
   ? syntheticJudgmentUpdate(scenario === 'judgment-unchanged' ? 'unchanged' : scenario.startsWith('judgment-quiet') ? 'preserved' : 'reassessed') : null
 const claimFixture = scenario.startsWith('claim-') ? syntheticClaimEvidence() : null
-await page.addInitScript(({ scenario, judgmentFixture, claimFixture }) => {
+const intradayFixture = scenario.startsWith('intraday-') ? syntheticIntradayReading() : null
+await page.addInitScript(({ scenario, judgmentFixture, claimFixture, intradayFixture }) => {
   window.__investmentReadHook = async data => {
+    if (intradayFixture && data?.brief && data?.today) {
+      data.brief = structuredClone(intradayFixture.brief)
+      data.today = structuredClone(intradayFixture.today)
+      if (scenario === 'intraday-partial') { data.today.state = 'partial'; data.today.updates[1].coverage_state = 'partial' }
+      if (scenario === 'intraday-missing-formal') data.brief.state = 'missing'
+      if (scenario === 'intraday-unknown') Object.assign(data.today.updates[0], {
+        scan_mode: null, market_scope: null, observed_at: '2001-02-03', scan_completed_at: '2001-02-03',
+        summary: '合成時間與模式未知的來源內容。',
+      })
+    }
     if (scenario.startsWith('operations-') && ['market', 'news'].includes(data?.action)) {
       const outcome = scenario.slice('operations-'.length)
       if (outcome === 'pending') await new Promise(() => {})
@@ -394,7 +405,7 @@ await page.addInitScript(({ scenario, judgmentFixture, claimFixture }) => {
     }
     return data
   }
-}, { scenario, judgmentFixture, claimFixture })
+}, { scenario, judgmentFixture, claimFixture, intradayFixture })
 }
 async function openPage(width, scenario = 'baseline') {
   const page = await browser.newPage({ viewport: { width, height: 1000 } })
@@ -407,6 +418,55 @@ async function openPage(width, scenario = 'baseline') {
   return { page, errors, externalRequests }
 }
 try {
+  for (const width of [1440, 390]) {
+    for (const outcome of ['mixed', 'unknown', 'partial', 'read-failed', 'missing-formal']) {
+      const scenario = `intraday-${outcome}`
+      const { page, errors, externalRequests } = await openPage(width, scenario)
+      const panel = page.locator('#investment-panel-today')
+      const reading = panel.getByRole('region', { name: '盤中更新', exact: true })
+      await reading.waitFor()
+      if (outcome === 'read-failed') {
+        await page.evaluate(() => { window.__failBrief = true })
+        await page.getByRole('button', { name: '台股消息快掃', exact: true }).click()
+        await reading.getByRole('status').filter({ hasText: /本次盤中資料未確認/ }).waitFor()
+      }
+      const main = await reading.innerText()
+      assert.match(main, /合成較新深掃：維護成本尚待確認/)
+      assert.match(main, /合成持倉影響：續約資料仍不足以回答成本問題/)
+      assert.match(main, /合成來源提醒：下一次成本公告再核對/)
+      assert.match(main, /台股 · 來源標示持倉深掃/)
+      assert.match(main, /美股 · 消息快掃/)
+      assert.match(main, /合成盤中指數讀數/)
+      assert.doesNotMatch(main, /狀態未提供|與正式判斷的關係未說明|synthetic-deep-latest|story_id/)
+      assert.equal(await panel.getByRole('region', { name: '盤中市場讀數', exact: true }).count(), 1)
+      assert.equal(await panel.getByRole('group', { name: '盤中補充觀察', exact: true }).count(), 0)
+      assert.ok((await panel.getByRole('region', { name: '今天怎麼做', exact: true }).boundingBox()).y < (await reading.boundingBox()).y)
+      if (outcome === 'unknown') {
+        assert.match(main, /合成時間與模式未知的來源內容/)
+        assert.match(main, /盤中來源更新（模式未提供）/)
+        assert.doesNotMatch(main, /較早盤中紀錄/)
+      } else {
+        assert.doesNotMatch(main, /合成較早深掃摘要|合成較早來源提醒/)
+        const older = reading.getByText('較早盤中紀錄 · 1', { exact: true }).locator('..')
+        assert.equal(await older.getAttribute('open'), null)
+        await older.evaluate(element => { element.open = true })
+        assert.match(await reading.innerText(), /合成較早深掃摘要|合成較早來源提醒/)
+        await older.evaluate(element => { element.open = false })
+      }
+      if (outcome === 'partial') assert.match(main, /盤中資料部分可用|部分來源完成/)
+      if (outcome === 'missing-formal') assert.match(await panel.innerText(), /尚未取得正式簡報/)
+      if (outcome === 'mixed') assert.doesNotMatch(await panel.getByRole('region', { name: '今天怎麼做', exact: true }).innerText(), /判斷已更新|合成較新深掃/)
+      await reading.screenshot({ path: `${output}/${scenario}-${width}.png` })
+      await expand(reading)
+      assert.match(await reading.innerText(), /synthetic-deep-latest|市場日期：待核對/)
+      if (outcome === 'unknown') assert.match(await reading.innerText(), /來源未標明快掃或深掃，不推定掃描範圍/)
+      const measured = await layout(page, `${scenario}-${width}`)
+      assert.deepEqual(errors, [])
+      assert.deepEqual(externalRequests, [])
+      report.scenarios.push({ name: `${scenario}-${width}`, ...measured, errors, externalRequests })
+      await page.close()
+    }
+  }
   for (const width of [1440, 390]) {
     for (const outcome of ['pending', 'no-request', 'running', 'failed', 'partial', 'quiet']) {
       const scenario = `operations-${outcome}`
@@ -422,7 +482,7 @@ try {
       if (outcome === 'partial') assert.match(collapsed, /盤面更新部分完成|台股快掃部分完成/)
       const main = await page.locator('main').innerText()
       if (outcome === 'quiet') {
-        assert.equal((main.match(/快掃無重要增量/g) || []).length, 1)
+        assert.equal((main.match(/快掃未發現重要新事件/g) || []).length, 1)
         assert.doesNotMatch(main, /無影響當前判斷的新消息|沒有影響判斷的新消息/)
       }
       const judgment = page.getByRole('region', { name: '今天怎麼做', exact: true })
@@ -618,7 +678,7 @@ try {
       const primaryBox = await primary.boundingBox()
       const metadataBox = await metadata.boundingBox()
       assert.ok(primaryBox.y + primaryBox.height <= metadataBox.y, 'authored judgment precedes time and scan status')
-      if (scenario === 'judgment-quiet') assert.match(await metadata.innerText(), /08:01 台股晨報判斷 · 10:00 快掃無重要增量/)
+      if (scenario === 'judgment-quiet') assert.match(await metadata.innerText(), /08:01 台股晨報判斷 · 10:00 快掃未發現重要新事件/)
       if (scenario === 'judgment-quiet-partial') assert.match(await metadata.innerText(), /快掃僅部分完成，沿用判斷/)
       if (scenario === 'judgment-failed') assert.match(await metadata.innerText(), /快掃失敗，沿用判斷/)
       await panel.getByRole('region', { name: /今天怎麼做|目前可用行動/ }).screenshot({ path: `${output}/${scenario}-320.png` })
@@ -685,7 +745,7 @@ try {
         assert.match(text, /合成缺少關聯的風險/)
         assert.match(text, /較早的簡報|不把舊判斷/)
         break
-      case 'blank-summary': assert.match(text, /最新摘要未提供[\s\S]*更正為 2%/); break
+      case 'blank-summary': assert.match(text, /這筆更新未提供摘要[\s\S]*更正為 2%/); break
       case 'missing': assert.match(text, /本次來源沒有可讀的事件；不代表沒有新聞/); assert.match(text, /資料缺失不代表今天不用動/); break
       case 'news-without-timeline':
         assert.equal(await panel.locator('div.flex.flex-col.gap-3.p-4').filter({ hasText: '合成無時間軸事件' }).count(), 1, 'the available event projection renders once without a timeline')
@@ -698,14 +758,14 @@ try {
         break
       }
       case 'market-observation-only-duplicate-timeline':
-        assert.equal(await panel.getByRole('region', { name: '盤中增量市場讀數', exact: true }).count(), 1)
+        assert.equal(await panel.getByRole('region', { name: '盤中市場讀數', exact: true }).count(), 1)
         assert.equal(await panel.getByText('簡報版次與掃描時間軸', { exact: true }).count(), 0, 'a filtered duplicate cannot leave an empty expandable timeline')
         break
       case 'market-observation-only-projection-error':
-        assert.equal(await panel.getByRole('region', { name: '盤中增量市場讀數', exact: true }).count(), 1)
+        assert.equal(await panel.getByRole('region', { name: '盤中市場讀數', exact: true }).count(), 1)
         assert.match(text, /合成無時間的盤中市場觀察/)
         assert.doesNotMatch(text, /尚未取得可讀的今日變化/)
-        assert.equal(await panel.getByText('簡報版次與掃描時間軸', { exact: true }).count(), 0, 'sparse duplicate update is hidden by its exact sparse receipt')
+        assert.equal(await panel.getByText('簡報版次與掃描時間軸', { exact: true }).count(), 1, 'a sparse timeline wrapper stays in source history without a complete observation identity')
         break
       case 'actions-partial': assert.match(text, /沒有可確認的下一步/); assert.doesNotMatch(text, /今天不用動。/); break
       case 'research-only': assert.match(text, /補研究：核對合成公開資料/); break
@@ -757,7 +817,7 @@ try {
         assert.match(text, /合成未識別市場讀數[\s\S]*市場 unknown/)
         assert.match(text, /合成盤中回執與時間軸同一讀數/)
         assert.equal(await panel.getByRole('region', { name: '正式簡報與事件讀回的市場讀數', exact: true }).count(), 1)
-        assert.equal(await panel.getByRole('region', { name: '盤中增量市場讀數', exact: true }).count(), 1)
+        assert.equal(await panel.getByRole('region', { name: '盤中市場讀數', exact: true }).count(), 1)
         assert.equal(text.split('合成盤中回執與時間軸同一讀數').length - 1, 1, 'the exact same observation is rendered once across receipt and timeline projections')
         assert.doesNotMatch(text, /合成摘要也隨精確同一觀察重複/)
         break

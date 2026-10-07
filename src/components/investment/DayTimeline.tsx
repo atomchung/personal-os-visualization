@@ -121,7 +121,7 @@ function NodeBody({ node, linkedRows, showBriefMarketObservations, showUpdateMar
     <p className="text-body leading-relaxed text-ink-2"><InlineText text={node.summary} /></p>
     {node.portfolio_impact && node.portfolio_impact.trim() !== node.summary.trim()
       ? node.id && hiddenUpdateReasons.get(node.id) === node.portfolio_impact.trim()
-        ? <p className="text-caption text-ink-3">同一筆更新的原因已在上方行動列出。</p>
+        ? <p className="text-caption text-ink-3">同一筆更新的影響已在上方盤中更新列出。</p>
         : <div className="text-body leading-relaxed text-ink-2"><span className="text-ink-3">對持倉 · </span><TargetText text={node.portfolio_impact} /></div>
       : null}
     {node.action ? <details className="text-body leading-relaxed text-ink-2"><summary className="cursor-pointer text-caption text-ink-3">這筆更新的原始提醒</summary>
