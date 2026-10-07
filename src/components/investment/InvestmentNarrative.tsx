@@ -392,9 +392,17 @@ export function CatalystFoldBRow({ item }: { item: InvestmentCatalystItem }) {
   </li>
 }
 
-function FutureProvenanceDetails({ item }: { item: FutureCheckpoint }) {
-  return <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">原始事件標題與來源 · {item.sources.length}</summary>
+function FutureProvenanceDetails({ item, showIdentity = false }: { item: FutureCheckpoint; showIdentity?: boolean }) {
+  return <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">事件詳細資料</summary>
     <div className="flex min-w-0 flex-col gap-2 pt-1">
+      {item.source_qualifiers?.length ? <p>來源註記：{item.source_qualifiers.join("、")}</p> : null}
+      {item.affected_tickers.length ? <p>影響標的：{item.affected_tickers.join("、")}</p> : null}
+      {item.affected_scopes.length ? <p>影響範圍：{item.affected_scopes.join("、")}</p> : null}
+      {!item.affected_tickers.length && !item.affected_scopes.length ? <p>影響標的與範圍：來源未提供</p> : null}
+      {showIdentity ? <p className="break-all">來源事件 story_id：{item.story_id ?? "未提供"}</p> : null}
+      {item.state === "unlinked" ? <p>來源尚未登記事件關聯，保留為獨立項目。</p> : null}
+      {item.checks.length ? <ul className="flex min-w-0 flex-col gap-2">{item.checks.map((check, index) => <li key={index} className="leading-relaxed"><span className="font-medium">{check.scope}：</span><InlineText text={check.check ?? "檢查條件未提供"} /></li>)}</ul> : null}
+      {item.limitations.filter(limitation => !(item.state === "unlinked" && isEventIdentityLimitation(limitation))).map((limitation, index) => <p key={index}>{limitation}</p>)}
       <p>來源事件標題：<InlineText text={item.title} /></p>
       <EventSources sources={item.sources} />
     </div>
@@ -415,17 +423,10 @@ function FutureEventHeading({ heading }: { heading: ReturnType<typeof futureChec
 
 function FutureRow({ item, showIdentity = false }: { item: FutureCheckpoint; showIdentity?: boolean }) {
   const heading = futureCheckpointHeading(item)
-  const impacts = item.affected_scopes.length ? `影響範圍：${item.affected_scopes.join("、")}` : null
   return <li className="flex min-w-0 flex-col gap-2 border-t border-line-soft py-3 first:border-0 first:pt-0">
     <FutureEventHeading heading={heading} />
-    {item.source_qualifiers?.length ? <p className="text-caption text-ink-3">來源註記：{item.source_qualifiers.join("、")}</p> : null}
-    {impacts ? <p className="text-caption text-ink-3">{impacts}</p> : null}
-    {!item.affected_tickers.length && !item.affected_scopes.length ? <p className="text-caption text-ink-3">影響標的與範圍：來源未提供</p> : null}
-    {showIdentity ? <p className="break-all text-caption text-ink-3">來源事件 story_id：{item.story_id ?? "未提供"}</p> : null}
-    {item.state === "conflict" ? <p className="text-caption text-warn">同一事件有不同日期來源；尚未選定日期。</p> : item.state === "unlinked" ? <p className="text-caption text-ink-3">來源尚未登記事件關聯，保留為獨立項目。</p> : item.state !== "ready" ? <p className="text-caption text-warn">事件資料尚未確認。</p> : null}
-    {item.checks.length ? <ul className="flex min-w-0 flex-col gap-2">{item.checks.map((check, index) => <li key={index} className="text-body leading-relaxed text-ink-2"><span className="font-medium">{check.scope}：</span><InlineText text={check.check ?? "檢查條件未提供"} /></li>)}</ul> : null}
-    <FutureProvenanceDetails item={item} />
-    {item.limitations.filter(limitation => !(item.state === "unlinked" && isEventIdentityLimitation(limitation))).map((limitation, index) => <p key={index} className="text-caption text-warn">{limitation}</p>)}
+    {item.state === "conflict" ? <p className="text-caption text-warn">同一事件有不同日期來源；尚未選定日期。</p> : item.state !== "ready" && item.state !== "unlinked" ? <p className="text-caption text-warn">事件資料尚未確認。</p> : null}
+    <FutureProvenanceDetails item={item} showIdentity={showIdentity} />
   </li>
 }
 
@@ -436,7 +437,6 @@ function FutureFoldARow({ item }: { item: FutureCheckpoint }) {
   const heading = futureCheckpointHeading(item)
   return <li className="flex min-w-0 flex-col gap-1 border-t border-line-soft py-2 first:border-0 first:pt-0">
     <FutureEventHeading heading={heading} />
-    {item.source_qualifiers?.length ? <p className="text-caption text-ink-3">來源註記：{item.source_qualifiers.join("、")}</p> : null}
     <p className="text-caption text-ink-3">{nonExactDateReason(item)}</p>
     <FutureProvenanceDetails item={item} />
   </li>
@@ -458,13 +458,18 @@ export function FutureContent({ projection, heading = "公司近期事件" }: { 
   const { dated: foldA, undated: foldBEvents } = splitNonExactByDateInfo(nonExact)
   const foldBGaps = withoutExpiredCatalystGaps(projection.coverage_gaps)
   return <section aria-label={heading} className="flex min-w-0 flex-col gap-2">
-    <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2"><SubsectionHeading>{heading}</SubsectionHeading><Chip tone={projection.state === "ready" ? "mute" : "warn"}>{projection.state === "ready" ? "來源完整" : projection.state === "unknown" ? "狀態未知" : "來源部分可用"}</Chip></div>
+    <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2"><SubsectionHeading>{heading}</SubsectionHeading><Chip tone={projection.state === "ready" ? "mute" : "warn"}>{projection.state === "ready" ? "登記正常" : projection.state === "unknown" ? "狀態未知" : "來源部分可用"}</Chip></div>
     <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4">
-      <p className="text-caption text-ink-3">晨報與日常資料蒐集更新的近期事件；日期未確認的項目另列。</p>
       {exact.length ? <ul className="flex min-w-0 flex-col">{exact.slice(0, 3).map((item, index) => <FutureRow key={item.story_id ?? `legacy:${index}`} item={item} />)}</ul> : <p className="text-body text-ink-3">來源沒有列出日期明確的窗口內事件；不代表沒有未來事件。</p>}
       {exact.length > 3 ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">其他日期明確的事件 · {exact.length - 3}</summary><ul className="flex min-w-0 flex-col">{exact.slice(3).map((item, index) => <FutureRow key={item.story_id ?? `more:${index}`} item={item} />)}</ul></details> : null}
       {foldA.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">日期未定 · {foldA.length}</summary><ul className="flex min-w-0 flex-col">{foldA.map((item, index) => <FutureFoldARow key={item.story_id ?? `undated:${index}`} item={item} />)}</ul></details> : null}
-      {projection.limitations.map((limitation, index) => <p key={index} className="text-caption text-ink-3">{limitation}</p>)}
+      <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">涵蓋範圍與來源</summary>
+        <div className="flex min-w-0 flex-col gap-2 pt-1">
+          <p>晨報與日常資料蒐集更新的近期事件；日期未確認的項目另列。</p>
+          <p>登記正常表示目前資料可讀，不代表重要財務事件已全部收錄。</p>
+          {projection.limitations.map((limitation, index) => <p key={index}>{limitation}</p>)}
+        </div>
+      </details>
       {foldBEvents.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">事件資料待確認 · {foldBEvents.length} 筆</summary>
         <p className="py-2">以下是來源已登記、但尚無可用日期的事件紀錄。</p>
         <ul className="flex min-w-0 flex-col">{foldBEvents.map((item, index) => <FutureRow key={`undated-event:${index}`} item={item} showIdentity />)}</ul>
@@ -500,7 +505,7 @@ export function TodayCatalysts({ enabled, heading = "公司近期事件" }: { en
   ] : []
   if (query.data?.future_checkpoints && !query.isError) return <FutureContent projection={query.data.future_checkpoints} heading={heading} />
   return <section aria-label={heading} className="flex min-w-0 flex-col gap-2">
-    <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2"><SubsectionHeading>{heading}</SubsectionHeading>{projection ? <Chip tone={projection.state === "ready" ? "mute" : "warn"}>{projection.state === "ready" ? "來源完整" : projection.state === "partial" ? "來源部分可用" : "狀態未知"}</Chip> : null}</div>
+    <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2"><SubsectionHeading>{heading}</SubsectionHeading>{projection ? <Chip tone={projection.state === "ready" ? "mute" : "warn"}>{projection.state === "ready" ? "登記正常" : projection.state === "partial" ? "來源部分可用" : "狀態未知"}</Chip> : null}</div>
     <Card className="min-w-0 p-3 sm:p-4">
       <p className="mb-2 text-caption leading-relaxed text-ink-3">晨報與日常資料蒐集更新的近期事件；日期未確認的項目另列。</p>
       {query.isPending && !query.data ? <p role="status" className="text-body text-ink-3">讀取未來事件中…</p> : null}
