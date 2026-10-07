@@ -94,6 +94,55 @@ test("refresh status reads show request failures instead of presenting them as i
     fallback_depth: null, provider_errors: {} }), /尚未更新/)
 })
 
+test("operational refresh details stay folded while running and degraded outcomes use one short indicator", async () => {
+  const { InvestmentRefreshDetails } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  const rawMessage = "Synthetic internal partial/null reconciliation and source adapter explanation."
+  const status: InvestmentRefreshStatus = {
+    action: "news", state: "no-change", started_at: "2001-02-03T09:30:12+08:00", last_updated: "2001-02-03T10:00:34+08:00",
+    message: rawMessage, error: null, discovery_state: "idle", discovery_updated_at: null, trigger: null,
+    new_update_count: 0, sync_note: "Synthetic sync receipt", reconciled_at: null, provider: "agy", model: "synthetic-model",
+    fallback_depth: 0, provider_errors: { agy: "synthetic-provider-error" }, market_scope: "tw", scan_mode: "quick", duration_seconds: 90,
+  }
+  const { today } = syntheticJudgmentUpdate("preserved")
+  for (const state of [undefined, "idle", "running", "failed", "partial", "no-change"] as const) {
+    const newsStatus = state ? { ...status, state, error: state === "failed" ? "synthetic-failure-code" : null } : undefined
+    const html = renderToStaticMarkup(createElement(InvestmentRefreshDetails, { newsStatus, refresh: today.intraday_refresh, readFailed: false }))
+    const collapsed = html.slice(0, html.indexOf("<details"))
+    assert.match(html, /<summary[^>]*>更新紀錄與來源回執<\/summary>/)
+    assert.doesNotMatch(collapsed, /partial\/null|synthetic-model|synthetic-provider-error|合成.*增量|總耗時|Antigravity|2001-/)
+    assert.equal((collapsed.match(/role="status"/g) ?? []).length, state === "running" || state === "failed" || state === "partial" ? 1 : 0)
+    if (state === "running") assert.match(collapsed, /進行中/)
+    if (state === "failed") assert.match(collapsed, /台股快掃失敗/)
+    if (state === "partial") assert.match(collapsed, /台股快掃部分完成/)
+    if (newsStatus) {
+      assert.ok(html.includes(rawMessage))
+      assert.ok(html.includes(status.started_at!))
+      assert.ok(html.includes(status.last_updated!))
+      assert.match(html, /synthetic-model|synthetic-provider-error/)
+    }
+  }
+  const failureHtml = renderToStaticMarkup(createElement(InvestmentRefreshDetails, { newsStatus: status,
+    newsError: new Error("Synthetic raw status-read diagnostic"), operationError: "Synthetic raw start diagnostic", readFailed: false }))
+  const failureMain = failureHtml.slice(0, failureHtml.indexOf("<details"))
+  assert.match(failureMain, /更新操作失敗 · 台股快掃狀態讀取失敗/)
+  assert.doesNotMatch(failureMain, /Synthetic raw/)
+  assert.match(failureHtml, /Synthetic raw status-read diagnostic|Synthetic raw start diagnostic/)
+  for (const result of ["failed", "partial"] as const) {
+    const refresh = structuredClone(today.intraday_refresh!)
+    refresh.markets.tw!.latest_receipt!.coverage_state = result
+    const html = renderToStaticMarkup(createElement(InvestmentRefreshDetails, { newsStatus: status, refresh, readFailed: false }))
+    assert.match(html.slice(0, html.indexOf("<details")), result === "failed" ? /台股快掃失敗/ : /台股快掃部分完成/)
+  }
+  for (const state of ["not_requested", "failed", "partial"] as const) {
+    const refresh = structuredClone(today.intraday_refresh!)
+    refresh.markets.us = { ...structuredClone(refresh.markets.tw!), state, freshness: "stale" }
+    if (state === "not_requested") refresh.markets.us.latest_receipt!.coverage_state = "failed"
+    else refresh.markets.us.latest_receipt = null
+    const html = renderToStaticMarkup(createElement(InvestmentRefreshDetails, { newsStatus: status, refresh, readFailed: false }))
+    assert.doesNotMatch(html.slice(0, html.indexOf("<details")), /role="status"|美股快掃/)
+  }
+})
+
 test("manual refresh-status reread invokes both read getters and never starts a refresh", async () => {
   const originalProvider = getSelectedInvestmentProvider()
   const reads: string[] = []
