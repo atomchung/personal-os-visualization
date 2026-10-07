@@ -217,6 +217,47 @@ test("one-job details preserve mixed outcomes, market clocks and cached-read war
   }
 })
 
+test("saved candidate results remain pending in completed and mixed progress without overriding unknown or cached states", async () => {
+  const { InvestmentRefreshDetails } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  for (const scenario of ["completed", "running", "unknown", "unsaved", "read-failed", "verified"] as const) {
+    const status = syntheticBothRefresh()
+    status.state = "success"
+    status.new_update_count = 1
+    Object.assign(status.markets!.tw!, { state: "success", intraday_result: "needs_deeper_analysis", news_write_state: "written",
+      current_judgment_readback: { state: "pending" } })
+    if (scenario === "running") { status.state = "running"; status.markets!.us!.state = "running" }
+    if (scenario === "unknown") status.markets!.us!.state = "unknown"
+    if (scenario === "unsaved") status.markets!.tw!.receipt_write_state = "unchanged"
+    if (scenario === "verified") Object.assign(status.markets!.tw!, {
+      intraday_result: "updated", message: "Synthetic prose mentions needs_deeper_analysis; it is not a result field.",
+    })
+    const source = structuredClone(status)
+    const html = renderToStaticMarkup(createElement(InvestmentRefreshDetails, { newsStatus: status,
+      newsError: scenario === "read-failed" ? new Error("Synthetic cached read failure") : null, readFailed: false }))
+    const main = html.slice(0, html.indexOf("<details"))
+    if (scenario === "completed") assert.match(main, /消息已保存，仍有候選待確認/)
+    if (scenario === "running") assert.match(main, /消息更新進行中.*台股已保存，仍有候選待確認.*美股更新中/)
+    if (scenario === "unknown" || scenario === "unsaved") {
+      assert.match(main, /消息更新結果未完整確認/)
+      assert.doesNotMatch(main, /消息已保存/)
+    }
+    if (scenario === "read-failed") {
+      assert.match(main, /消息更新狀態讀取失敗/)
+      assert.match(html, /上次回報的分市場結果，目前尚未確認/)
+    }
+    if (scenario === "verified") {
+      assert.doesNotMatch(html, /仍有候選待確認/)
+      assert.match(html, /台股 · 更新完成/)
+    } else if (scenario === "unsaved") assert.match(html, /台股 · 結果未確認/)
+    else assert.match(html, /台股 · 已保存，仍有候選待確認/)
+    const note = newsScanNote(status, "2001-02-03T08:00:00+08:00")
+    if (scenario === "completed") assert.match(note!, /已保存，仍有候選待確認/)
+    if (scenario === "unknown" || scenario === "unsaved") assert.match(note!, /結果未完整確認/)
+    if (scenario === "verified") assert.match(note!, /有 1 則新消息/)
+    assert.deepEqual(status, source, "presentation must not amend raw source state or readback")
+  }
+})
+
 test("the selected reference provider receives one both-market operation with two explicit synthetic results", async () => {
   const original = getSelectedInvestmentProvider()
   const calls: unknown[] = []

@@ -10,7 +10,7 @@ import { MarketPulse } from "./MarketPulse"
 import { StockMomentum } from "./StockMomentum"
 import {
   actionStatusLabel, actionStatusNote, currentOpenActionItems, groupBriefRows,
-  JUDGMENT_CLASS_LABEL, newsRefreshResultsConfirmed, newsScanNote, pendingActionsCountLine, providerCompletionNote, providerDetailTitle, taipeiClock,
+  JUDGMENT_CLASS_LABEL, newsRefreshHasPendingCandidates, newsRefreshResultsConfirmed, newsScanNote, pendingActionsCountLine, providerCompletionNote, providerDetailTitle, taipeiClock,
   sourceTimestamp, structuredBriefJudgmentReplacement, validatedBriefJudgment, todayActionKindLabel, currentTodayActionPlan, todayActionSection, todayGlobalDecisionSummary, todayJudgmentTimeMetadata,
 } from "@/lib/investmentFormat"
 import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
@@ -29,7 +29,7 @@ import {
   BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentResearch,
   getInvestmentHistory, getInvestmentContext, getInvestmentSource,
   getInvestmentActions, getInvestmentNarrative, getInvestmentRefreshStatus, postInvestmentRefresh, rereadInvestmentRefreshStatuses,
-  type InvestmentIntradayMarketProjection, type InvestmentIntradayRefresh, type InvestmentNewsScope, type InvestmentRefreshAction, type InvestmentRefreshStatus,
+  type InvestmentIntradayMarketProjection, type InvestmentIntradayRefresh, type InvestmentNewsMarketResult, type InvestmentNewsScope, type InvestmentRefreshAction, type InvestmentRefreshStatus,
   type InvestmentActionItem, type InvestmentActions, type InvestmentBrief, type InvestmentMarketObservation, type InvestmentSource, type InvestmentTodayUpdate, type InvestmentTodayView,
 } from "@/lib/investment"
 
@@ -188,6 +188,7 @@ export function refreshStateLabel(action: InvestmentRefreshAction, status: Inves
     : ""
   if (status.state === "failed") return `${name}更新失敗：${status.message}${duration}${route}`
   if (status.state === "partial") return `${name}部分完成：${status.message}${duration}${route}`
+  if (action === "news" && ["success", "no-change"].includes(status.state) && newsRefreshHasPendingCandidates(status)) return `${name}已保存，仍有候選待確認 · ${sourceTimestamp(status.last_updated)}${duration}${route}`
   if (action === "news" && status.state === "no-change") return `${name}於 ${sourceTimestamp(status.last_updated)} 完成，${status.market_scope === "both" ? "本次未發現重要新事件" : "無影響當前判斷的新消息"}${duration}${route}`
   return `${name}完成於 ${sourceTimestamp(status.last_updated)}${status.message ? ` · ${status.message}` : ""}${duration}${route}`
 }
@@ -199,8 +200,9 @@ function refreshAttentionLabel(action: InvestmentRefreshAction, status: Investme
   if (error) return `${name}狀態讀取失敗`
   if (!status) return null
   if (action === "news" && status.market_scope === "both") {
-    if (status.state === "running") return `消息更新進行中 · ${(["tw", "us"] as const).map(key => `${INTRADAY_MARKET_LABEL[key]}${newsChildStateLabel(status.markets?.[key]?.state)}`).join(" · ")}`
+    if (status.state === "running") return `消息更新進行中 · ${(["tw", "us"] as const).map(key => `${INTRADAY_MARKET_LABEL[key]}${newsChildStateLabel(status.markets?.[key])}`).join(" · ")}`
     if (["success", "no-change"].includes(status.state) && !newsRefreshResultsConfirmed(status)) return "消息更新結果未完整確認"
+    if (["success", "no-change"].includes(status.state) && newsRefreshHasPendingCandidates(status)) return "消息已保存，仍有候選待確認"
   }
   if (status.state === "running") return refreshStateLabel(action, status)
   if (status.state === "failed") return `${name}失敗`
@@ -211,8 +213,13 @@ function refreshAttentionLabel(action: InvestmentRefreshAction, status: Investme
   return null
 }
 
-function newsChildStateLabel(state: string | undefined): string {
-  switch (state) {
+function newsChildStateLabel(child: InvestmentNewsMarketResult | undefined): string {
+  if (child?.state === "success" && child.intraday_result === "needs_deeper_analysis") {
+    const saved = ["written", "already_present"]
+    return saved.includes(child.receipt_write_state ?? "") && saved.includes(child.news_write_state ?? "")
+      ? "已保存，仍有候選待確認" : "結果未確認"
+  }
+  switch (child?.state) {
     case "running": return "更新中"
     case "success": return "更新完成"
     case "no-change": return "未發現重要新事件"
@@ -230,7 +237,7 @@ function NewsMarketResults({ status, readFailed }: { status: InvestmentRefreshSt
     {(["tw", "us"] as const).map(key => {
       const child = status.markets?.[key]
       return <div key={key} className="flex min-w-0 flex-col gap-1 border-l-2 border-line-soft pl-3">
-        <p className="font-medium text-ink-2">{INTRADAY_MARKET_LABEL[key]} · {newsChildStateLabel(child?.state)}</p>
+        <p className="font-medium text-ink-2">{INTRADAY_MARKET_LABEL[key]} · {newsChildStateLabel(child)}</p>
         {child ? <>
           {child.message ? <p>來源回報：{child.message}</p> : null}
           {child.error ? <p className="text-warn">來源錯誤：{child.error}</p> : null}
