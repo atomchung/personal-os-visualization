@@ -204,10 +204,26 @@ test("long source titles remain intact and the rendered heading can wrap", () =>
 
 test("source title and source references remain available in the collapsed disclosure", () => {
   const html = render([checkpoint()])
-  assert.match(html, /<details class="text-caption text-ink-3"><summary class="cursor-pointer py-1">原始事件標題與來源 · 1<\/summary>/)
+  assert.match(html, /<details class="text-caption text-ink-3"><summary class="cursor-pointer py-1">事件詳細資料<\/summary>/)
   assert.match(html, /來源事件標題：2026-10-12 15:00 SYNTH｜Q3 線上法說（公司 2026-09-18 公告）/)
   const detailsIndex = html.indexOf("<details")
   assert.ok(detailsIndex > -1)
-  assert.ok(html.indexOf("來源註記：合成公司公告") < detailsIndex)
+  assert.ok(html.indexOf("來源註記：合成公司公告") > detailsIndex)
   assert.match(html, /synthetic\/future-checkpoints\.md:2/)
+})
+
+
+test("secondary metadata is collapsed while time and conflicting-date status stay visible", () => {
+  const html = render([checkpoint({ state: "ready", affected_scopes: ["SYNTH"] })])
+  const row = html.match(/<li class="flex min-w-0 flex-col gap-2 border-t border-line-soft py-3 first:border-0 first:pt-0">([\s\S]*?)<details/)
+  assert.ok(row)
+  assert.match(row[1], /時間 15:00/)
+  const conflict = render([checkpoint({ state: "conflict" })])
+  assert.ok(conflict.indexOf("同一事件有不同日期來源") < conflict.indexOf("<details"))
+  assert.doesNotMatch(row[1], /來源註記|影響範圍|檢查合成/)
+  assert.match(html, /影響範圍：SYNTH/)
+  assert.match(html, /檢查合成下一季需求說明/)
+  assert.match(html, /登記正常/)
+  assert.doesNotMatch(html, /來源完整/)
+  assert.match(html, /不代表重要財務事件已全部收錄/)
 })
