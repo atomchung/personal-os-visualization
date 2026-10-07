@@ -754,6 +754,12 @@ export function newsRefreshResultsConfirmed(status: Pick<InvestmentRefreshStatus
   })
 }
 
+/** Reflect only the source's explicit candidate result, never its message or judgment prose. */
+export function newsRefreshHasPendingCandidates(status: Pick<InvestmentRefreshStatus, "market_scope" | "markets">): boolean {
+  return status.market_scope === "both"
+    && (["tw", "us"] as const).some(market => status.markets?.[market]?.intraday_result === "needs_deeper_analysis")
+}
+
 /** Plain-language wording for a completed/partial/failed/no-change news scan, from
  * the real producer's own state machine (core/investment_refresh.py):
  * "no-change" is always zero new updates; "success" carries a positive
@@ -791,7 +797,9 @@ export function newsScanNote(
   const clock = TIME_FORMAT.format(new Date(eventAt))
   const market = status.market_scope === "both" ? "台美消息" : status.market_scope ? MARKET_SCAN_LABEL[status.market_scope] : ""
   const outcome = ["success", "no-change"].includes(status.state) && !newsRefreshResultsConfirmed(status)
-    ? "結果未完整確認" : scanResultWording(status.state, status.new_update_count)
+    ? "結果未完整確認"
+    : ["success", "no-change"].includes(status.state) && newsRefreshHasPendingCandidates(status)
+      ? "已保存，仍有候選待確認" : scanResultWording(status.state, status.new_update_count)
   return `${market}快掃 ${clock}：${outcome}`
 }
 
