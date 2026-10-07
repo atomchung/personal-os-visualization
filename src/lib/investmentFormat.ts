@@ -589,7 +589,7 @@ export function todayJudgmentTimeMetadata(
       : failed ? "快掃失敗，沿用判斷"
       : partial ? "快掃僅部分完成，沿用判斷"
       : resultCode === "no_material_update" ? !currentScan ? "快掃結果未確認，沿用判斷"
-        : receipt.coverage_state === "complete" ? "快掃無重要增量" : "快掃尚不能確認有無重要增量"
+        : receipt.coverage_state === "complete" ? "快掃未發現重要新事件" : "快掃尚不能確認有無重要增量"
       : resultCode === "updated" ? currentScan ? "快掃有新增事件" : "快掃結果目前未確認"
       : resultCode === "needs_deeper_analysis" ? "快掃仍待深入分析"
       : resultCode === "unavailable" ? "快掃來源不可用，沿用判斷"

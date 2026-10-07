@@ -7,7 +7,7 @@ import { createServer, type ViteDevServer } from "vite"
 import { currentTodayActionPlan } from "../src/lib/investmentFormat.ts"
 import { getInvestmentRefreshStatus, getSelectedInvestmentProvider, rereadInvestmentRefreshStatuses, setInvestmentProvider, type InvestmentTodayView, type InvestmentRefreshStatus } from "../src/lib/investment.ts"
 import { demoInvestmentProvider } from "../src/demo/investmentProvider.ts"
-import { syntheticBriefWithSameWording, syntheticJudgmentUpdate, syntheticIntradayUpdate, syntheticPresentationBrief, syntheticPresentationToday } from "./fixtures/today-presentation.ts"
+import { syntheticBriefWithSameWording, syntheticJudgmentUpdate, syntheticIntradayUpdate, syntheticPresentationBrief, syntheticPresentationToday, syntheticIntradayReading } from "./fixtures/today-presentation.ts"
 import type { InvestmentTimelineNode } from "../src/lib/investment.ts"
 
 let server: ViteDevServer
@@ -51,13 +51,13 @@ test("a valid projection keeps the formal judgment primary and labels the update
   assert.match(html, /aria-label="主要下一步"/)
   assert.match(html, /合成正式判斷原文：目前維持觀察。/)
   assert.match(html, /盤中補充觀察/)
-  assert.match(html, /更新時間 2001\/02\/03 09:15 台北/)
-  assert.match(html, /來源表示正式判斷不變/)
+  assert.match(html, /跨市場 · 消息快掃 · 完成 2001\/02\/03 09:15 台北/)
+  assert.match(html, /來源標記：正式判斷不變/)
   assert.match(html, /版本與來源時間/)
   assert.match(html, /更新 ID synthetic-update-1/)
   assert.match(html, /story_id synthetic-story-1/)
   assert.match(html, /來源標記：正式判斷不變/)
-  assert.match(html, /<p class="text-caption font-medium text-ink-2">盤中補充觀察<\/p>/)
+  assert.match(html, /aria-label="盤中更新"/)
   assert.doesNotMatch(html, /更新 ID：synthetic-update-1/)
   assert.match(html, /正式簡報 · 版次未標示/)
   assert.doesNotMatch(html, /盤中補充觀察取代正式判斷/)
@@ -315,11 +315,11 @@ test("missing receipt or delta identity fails closed without claiming reassessme
   assert.match(missingHtml, /本次無法確認，保留既有判斷/)
 })
 
-test("the same update reason appears once on the action card and as a reference in its timeline point", async () => {
+test("the same update impact appears once in the intraday reading area and as a reference in its timeline point", async () => {
   const html = await renderTodayBrief(syntheticPresentationToday())
   const reasonOccurrences = html.match(/合成盤中更新原因原文。/g) ?? []
   assert.equal(reasonOccurrences.length, 1)
-  assert.match(html, /同一筆更新的原因已在上方行動列出。/)
+  assert.match(html, /同一筆更新的影響已在上方盤中更新列出。/)
   assert.match(html, /合成盤中補充觀察摘要。/)
 })
 
@@ -334,7 +334,7 @@ test("the reason handoff requires an exact update ID and exact reason value", as
       nodes: [node], hiddenUpdateReasons: new Map([[update.id, update.portfolio_impact]]),
     })))
     assert.match(html, /合成盤中更新原因原文。|合成另一個原因。/)
-    assert.doesNotMatch(html, /同一筆更新的原因已在上方行動列出。/)
+    assert.doesNotMatch(html, /同一筆更新的影響已在上方盤中更新列出。/)
     client.clear()
   }
 })
@@ -354,7 +354,7 @@ test("a failed read labels and preserves the last-good formal and intraday rows"
   const brief = syntheticPresentationBrief()
   const html = await renderTodayBrief(syntheticPresentationToday(), true, brief)
   assert.match(html, /本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動/)
-  assert.match(html, /上次成功讀取的盤中補充觀察 · 更新時間 2001\/02\/03 09:15 台北/)
+  assert.match(html, /本次盤中資料未確認；保留上次可讀內容。/)
   assert.match(html, /上次成功讀取的正式簡報行動/)
   assert.match(html, /合成正式簡報行動：保留觀察，待來源條件確認後再評估。/)
   assert.match(html, /合成盤中提醒原文。/)
@@ -457,7 +457,7 @@ test("Today leads with the authored judgment and keeps scan receipts out of the 
       assert.equal((main.match(/aria-label="正式判斷時間與後續快掃"/g) ?? []).length, 1)
       assert.doesNotMatch(main, /current Today judgment|material story change|資料截至|來源修訂|本次查核：|沿用既有判斷<\/p>/)
       if (scenario === "formal") assert.doesNotMatch(main, / · \d{2}:\d{2} 快掃|本次無法確認/)
-      if (scenario === "preserved") assert.match(main, /08:01 台股晨報判斷 · 10:00 快掃無重要增量/)
+      if (scenario === "preserved") assert.match(main, /08:01 台股晨報判斷 · 10:00 快掃未發現重要新事件/)
       if (scenario === "partial") assert.match(main, /快掃僅部分完成，沿用判斷/)
       if (scenario === "failed") assert.match(main, /快掃失敗，沿用判斷/)
       if (scenario === "reassessed" && !sourceOnly) assert.match(main, /10:00 重評判斷 · 10:00 快掃有新增事件/)
@@ -472,7 +472,63 @@ test("a source-only formal action precedes a newer supplement without rewriting 
   const today = syntheticPresentationToday()
   const html = await renderTodayBrief(today, false, brief)
   assert.ok(html.indexOf(brief.action_items![0].text) < html.indexOf(today.updates[0].action))
-  assert.match(html, /aria-label="盤中補充觀察"/)
+  assert.match(html, /aria-label="盤中更新"/)
+})
+
+test("one intraday reading area preserves independent scan modes and source reminders without replacing the formal judgment", async () => {
+  const { brief, today } = syntheticIntradayReading()
+  const html = await renderTodayBrief(today, false, brief)
+  assert.equal((html.match(/aria-label="盤中更新"/g) ?? []).length, 1)
+  assert.equal((html.match(/aria-label="盤中市場讀數"/g) ?? []).length, 1)
+  assert.doesNotMatch(html, /aria-label="盤中補充觀察"|盤中增量市場讀數|判斷已更新|狀態未提供/)
+  assert.ok(html.indexOf(brief.judgment!.judgment) < html.indexOf(today.updates[1].summary))
+  assert.ok(html.indexOf(today.updates[1].summary) < html.indexOf("較早盤中紀錄"))
+  assert.ok(html.indexOf("較早盤中紀錄") < html.indexOf(today.updates[0].summary))
+  assert.match(html, /台股 · 來源標示持倉深掃 · 完成 2001\/02\/03 11:30 台北/)
+  assert.match(html, /美股 · 消息快掃 · 完成 2001\/02\/03 11:30 台北/)
+  for (const update of today.updates) for (const field of [update.summary, update.portfolio_impact, update.action]) assert.ok(html.includes(field))
+  assert.match(html, /來源將這筆更新標為持倉深掃/)
+  assert.match(html, /未發現重要新事件不代表每個持倉均已重新分析/)
+  assert.match(html, /合成來源解讀：價格變化不代表成本已確認/)
+})
+
+test("unknown mode or unqualified time stays visible without a scan or age claim", async () => {
+  const { brief, today } = syntheticIntradayReading()
+  today.updates[0] = { ...today.updates[0], scan_mode: null, market_scope: null,
+    observed_at: "2001-02-03", scan_completed_at: "2001-02-03", summary: "合成時間與模式未知的來源內容。" }
+  const html = await renderTodayBrief(today, false, brief)
+  assert.ok(html.indexOf(today.updates[0].summary) < html.indexOf("盤中市場讀數"))
+  assert.doesNotMatch(html, /較早盤中紀錄/)
+  assert.match(html, /盤中來源更新（模式未提供）/)
+  assert.match(html, /來源未標明快掃或深掃，不推定掃描範圍/)
+})
+
+test("partial and failed reads retain intraday source content beside an explicit limitation", async () => {
+  for (const state of ["partial", "unavailable", "read-failed"] as const) {
+    const { brief, today } = syntheticIntradayReading()
+    today.state = state === "read-failed" ? "ready" : state
+    today.updates[1].coverage_state = "partial"
+    today.limitations = ["Synthetic missing cost source"]
+    const html = await renderTodayBrief(today, state === "read-failed", brief)
+    assert.ok(html.includes(today.updates[1].action))
+    assert.ok(html.includes(today.updates[1].portfolio_impact))
+    assert.match(html, /部分來源完成/)
+    assert.match(html, state === "partial" ? /盤中資料部分可用/ : /本次盤中資料未確認/)
+    assert.match(html, /Synthetic missing cost source/)
+  }
+})
+
+test("usable intraday reminders survive a missing or invalid formal brief without becoming its primary action", async () => {
+  for (const state of ["missing", "invalid"] as const) {
+    const { brief, today } = syntheticIntradayReading()
+    brief.state = state
+    const html = await renderTodayBrief(today, false, brief)
+    assert.match(html, /盤中更新/)
+    assert.ok(html.includes(today.updates[1].action))
+    assert.match(html, state === "missing" ? /尚未取得正式簡報/ : /正式簡報無法完整辨識/)
+    const formal = html.slice(0, html.indexOf('aria-label="盤中更新"'))
+    assert.ok(!formal.includes(today.updates[1].action))
+  }
 })
 
 test("a cached complete quiet receipt cannot certify an unavailable, unknown, or failed reread", async () => {
@@ -484,7 +540,7 @@ test("a cached complete quiet receipt cannot certify an unavailable, unknown, or
     const html = await renderTodayBrief(today, scenario === "failed-read", brief)
     const main = html.slice(0, html.indexOf("<details"))
     assert.match(main, /合成灌溉設備：訂單能否變成持續收入，仍需確認。/)
-    assert.doesNotMatch(main, /快掃無重要增量/)
+    assert.doesNotMatch(main, /快掃未發現重要新事件/)
     assert.match(main, scenario === "failed-market" ? /快掃結果未確認，沿用判斷/ : /上次快掃結果，本次未確認/)
   }
 })

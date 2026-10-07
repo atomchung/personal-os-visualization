@@ -37,10 +37,10 @@ test("optional legacy evidence arrays and explicit challenging/unknown branches 
 
 })
 test("a failed reread keeps the last successful action visible and warns that it may be old", async () => {
-  const { TodayNextSteps } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  const { TodayBrief } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
   const client = new QueryClient()
   const b = { ...investment.brief, state: "current", judgment: { class: "watch", judgment: "合成上次判斷", why_now: "合成原因", revisit: null, decision_effect: "合成影響", provenance: { validated_story_ids: [], source_cutoff: null } } }
-  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(TodayNextSteps, { b, today: investment.today, readFailed: true })))
+  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(TodayBrief, { b, today: investment.today, readFailed: true, onOpenThesis: () => undefined })))
   assert.match(html, /本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動/)
   assert.match(html, /aria-label="主要下一步"/)
   assert.match(html, /收盤前再看一次量能是否延續/)

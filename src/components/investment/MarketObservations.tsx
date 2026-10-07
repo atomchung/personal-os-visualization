@@ -72,12 +72,12 @@ function observationMarketLabel(market: string | null | undefined): string | nul
   return market ? `市場 ${market}` : null
 }
 
-export function MarketObservations({ observations, title = "市場讀數" }: { observations: InvestmentMarketObservation[]; title?: string }) {
+export function MarketObservations({ observations, title = "市場讀數", embedded = false }: { observations: InvestmentMarketObservation[]; title?: string; embedded?: boolean }) {
   if (!observations.length) return null
   return <section aria-label={title} className="flex min-w-0 flex-col gap-3">
     <div className="flex min-w-0 flex-col gap-1">
-      <SectionHeading>{title} · {observations.length}</SectionHeading>
-      <p className="text-caption text-ink-3">來源分類為市場觀察；與事件及其 story ID 分開呈現。</p>
+      {embedded ? <p className="text-label font-medium text-ink-2">{title} · {observations.length}</p> : <SectionHeading>{title} · {observations.length}</SectionHeading>}
+      {!embedded ? <p className="text-caption text-ink-3">來源分類為市場觀察；與事件及其 story ID 分開呈現。</p> : null}
     </div>
     <ul className="flex min-w-0 flex-col gap-3">
       {observations.map((row, index) => {

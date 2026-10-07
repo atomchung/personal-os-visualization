@@ -30,7 +30,7 @@ import {
   getInvestmentHistory, getInvestmentContext, getInvestmentSource,
   getInvestmentActions, getInvestmentNarrative, getInvestmentRefreshStatus, postInvestmentRefresh, rereadInvestmentRefreshStatuses,
   type InvestmentIntradayMarketProjection, type InvestmentIntradayRefresh, type InvestmentRefreshAction, type InvestmentRefreshStatus,
-  type InvestmentActionItem, type InvestmentActions, type InvestmentBrief, type InvestmentMarketObservation, type InvestmentSource, type InvestmentTodayView,
+  type InvestmentActionItem, type InvestmentActions, type InvestmentBrief, type InvestmentMarketObservation, type InvestmentSource, type InvestmentTodayUpdate, type InvestmentTodayView,
 } from "@/lib/investment"
 
 function SourceText({ source }: { source: InvestmentSource }) {
@@ -491,10 +491,9 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
   const cachedSteps = readFailed
     ? currentTodayActionPlan(b, today, false)
     : currentTodayActionPlan(b, today)
-  // A failed refresh does not replace the last successful snapshot. Keep its
-  // rows visible with the warning below so a transport error cannot look like
-  // an empty action list.
-  const steps = cachedSteps
+  // Formal actions stay with the judgment. Intraday source reminders remain
+  // readable in TodayIntradayReading, including after a failed reread.
+  const steps = cachedSteps.filter(item => item.origin === "brief")
   const catalystQuery = useQuery({
     queryKey: ["investment-narrative"],
     queryFn: ({ signal }) => getInvestmentNarrative(signal),
@@ -511,7 +510,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
   const secondary = otherSteps.slice(0, 2)
   const remaining = otherSteps.slice(2)
   const decisionSummary = readFailed || b.state === "stale" ? "" : today?.decision_summary?.trim() || ""
-  const globalDecisionSummary = todayGlobalDecisionSummary(decisionSummary, steps)
+  const globalDecisionSummary = todayGlobalDecisionSummary(decisionSummary, cachedSteps)
   const actionSection = todayActionSection(b)
   const judgmentTime = todayJudgmentTimeMetadata(b, today, acceptedDelta, readFailed)
   const checkpoint = !readFailed && b.state === "current" ? todayCheckpoint(b, catalystQuery.data?.catalysts_30d) : null
@@ -546,7 +545,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
     {item.reason?.trim() ? <FieldList><Field label="行動原因"><InlineText text={item.reason.trim()} /></Field></FieldList> : null}
     {actionSourceLine(item) ? <p className="text-caption text-ink-3">{actionSourceLine(item)}</p> : null}
   </li>
-  const sourceNotes = (readFailed ? cachedSteps : steps).filter(item => item.date || item.source || item.id || item.artifactId || item.storyId)
+  const sourceNotes = steps.filter(item => item.date || item.source || item.id || item.artifactId || item.storyId)
   const renderSecondaryGroup = (origin: (typeof steps)[number]["origin"], label: string) => {
     const items = secondary.filter(item => item.origin === origin)
     return items.length ? <div role="group" aria-label={label} className="flex min-w-0 flex-col gap-2">
@@ -582,7 +581,6 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
       {readFailed ? <p role="status" className="text-caption text-warn">本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動，是否已有新版本尚未確認。</p> : null}
       {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
       {secondary.length ? <div role="group" aria-label="其他行動" className="flex min-w-0 flex-col gap-3">
-        {renderSecondaryGroup("update", "盤中補充觀察")}
         {renderSecondaryGroup("brief", "正式簡報其他行動")}
       </div> : null}
       {remaining.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">來源另列 {remaining.length} 項</summary><ol className="mt-3 flex min-w-0 flex-col gap-3">{remaining.map(item => row(item))}</ol></details> : null}
@@ -639,6 +637,99 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
   </section>
 }
 
+// Only qualified source instants establish order. Records with unknown times
+// stay visible rather than being described as older than a dated record.
+function intradayReadingGroups<T>(rows: readonly T[], timestamp: (row: T) => string | null | undefined) {
+  const dated = rows.map((row, index) => {
+    const raw = timestamp(row)
+    return { row, index, at: raw && taipeiClock(raw) ? Date.parse(raw) : null }
+  })
+  const known = dated.filter(item => item.at !== null).sort((left, right) => right.at! - left.at! || left.index - right.index)
+  const latest = known[0]?.at
+  return {
+    visible: [...known.filter(item => item.at === latest), ...dated.filter(item => item.at === null)].map(item => item.row),
+    older: known.filter(item => item.at !== latest).map(item => item.row),
+  }
+}
+
+function intradayUpdateTime(update: InvestmentTodayUpdate) {
+  return update.scan_completed_at || update.observed_at
+}
+
+export function TodayIntradayReading({ today, readFailed = false }: { today?: InvestmentTodayView; readFailed?: boolean }) {
+  const updates = today?.updates ?? []
+  const observations = uniqueMarketObservations(today?.intraday_refresh?.market_observations ?? [])
+  if (!updates.length && !observations.length) return null
+  const updateGroups = intradayReadingGroups(updates, intradayUpdateTime)
+  const observationGroups = intradayReadingGroups(observations, row => row.observation_as_of || row.source?.at || row.observed_at || row.source_published_at)
+  const renderUpdate = (update: InvestmentTodayUpdate, index: number) => {
+    const mode = update.scan_mode === "quick" ? "消息快掃" : update.scan_mode === "deep" ? "來源標示持倉深掃" : "盤中來源更新（模式未提供）"
+    const market = update.market_scope === "tw" ? "台股" : update.market_scope === "us" ? "美股" : update.market_scope === "all" ? "跨市場" : "市場範圍未提供"
+    const time = intradayUpdateTime(update)
+    return <article key={`${update.id}:${index}`} aria-label="盤中來源判讀" className="flex min-w-0 flex-col gap-3 border-l-2 border-line-soft pl-3">
+      <p className="text-caption text-ink-3">{market} · {mode} · {update.scan_completed_at ? "完成" : "記錄"} {time ? sourceTimestamp(time) : "時間未提供"}{update.coverage_state === "partial" ? " · 部分來源完成" : ""}</p>
+      {update.summary?.trim() ? <p className="text-body font-medium leading-relaxed text-ink"><InlineText text={update.summary} /></p>
+        : <p className="text-caption text-warn">這筆更新未提供摘要；來源影響與提醒如下。</p>}
+      <FieldList>
+        {update.information_kind === "market_observation" && update.observation_value ? <Field label="市場讀數"><InlineText text={update.observation_value} /></Field> : null}
+        {update.portfolio_impact ? <Field label="對持倉與判斷的影響"><TargetText text={update.portfolio_impact} /></Field> : null}
+        {update.action ? <Field label="來源提醒" tone="strong"><TargetText text={update.action} /></Field> : null}
+      </FieldList>
+      <details className="text-caption text-ink-3">
+        <summary className="cursor-pointer py-1">這筆更新的範圍與來源</summary>
+        <div className="flex min-w-0 flex-col gap-1 pt-2">
+          {update.scan_mode === "quick" ? <p>消息快掃檢查市場新聞增量；未發現重要新事件不代表每個持倉均已重新分析。</p>
+            : update.scan_mode === "deep" ? <p>來源將這筆更新標為持倉深掃；完成程度仍以來源覆蓋標記與限制為準。</p>
+              : <p>來源未標明快掃或深掃，不推定掃描範圍。</p>}
+          <p>{update.coverage_state === "partial" ? "來源覆蓋：部分完成" : update.coverage_state === "complete" ? "來源覆蓋：來源回報完整" : "來源覆蓋：未提供"}</p>
+          <p>{update.declared_decision_transition === true ? "來源標記：正式判斷有變；是否採用仍以主卡已核對的判斷為準。" : update.declared_decision_transition === false ? "來源標記：正式判斷不變。" : "來源未明示是否改變正式判斷；這筆更新本身不取代主卡判斷。"}</p>
+          {update.transition_reason ? <p><InlineText text={update.transition_reason} /></p> : null}
+          {update.market_date ? <p>市場日期：{update.market_date === "unknown" ? "待核對" : update.market_date}</p> : null}
+          {update.scan_started_at ? <p>掃描開始：{sourceTimestamp(update.scan_started_at)}</p> : null}
+          {update.scan_completed_at ? <p>掃描完成：{sourceTimestamp(update.scan_completed_at)}</p> : null}
+          {update.observed_at ? <p>記錄時間：{sourceTimestamp(update.observed_at)}</p> : null}
+          {update.source_cutoff ? <p>資訊截至：{sourceTimestamp(update.source_cutoff)}</p> : null}
+          {update.information_kind ? <p>來源分類：{update.information_kind}</p> : null}
+          {update.event ? <p>來源事件：<InlineText text={update.event} /></p> : null}
+          {update.event_title ? <p>來源事件名稱：<InlineText text={update.event_title} /></p> : null}
+          {update.market ? <p>來源市場：{update.market}</p> : null}
+          {update.source_url ? <p className="break-all">來源網址：{update.source_url}</p> : null}
+          {update.source_published_at ? <p>來源發布：{sourceTimestamp(update.source_published_at)}</p> : null}
+          {update.source_category ? <p>來源類別：{update.source_category}</p> : null}
+          {update.observation_value ? <p>觀察值：<InlineText text={update.observation_value} /></p> : null}
+          {update.observation_as_of ? <p>觀察時間：{sourceTimestamp(update.observation_as_of)}</p> : null}
+          {update.observation_relation ? <p>觀察對象：{update.observation_relation}</p> : null}
+          {update.is_price_or_proxy_observation !== undefined ? <p>來源價格／代理指標標記：{String(update.is_price_or_proxy_observation)}</p> : null}
+          {update.source_path ? <p className="break-all">來源：{update.source_path}</p> : null}
+          {update.id ? <p className="break-all">更新 ID {update.id}</p> : null}
+          {update.story_id ? <p className="break-all">story_id {update.story_id}</p> : null}
+          {update.relevance.length ? <p className="break-all">來源標示相關性：{JSON.stringify(update.relevance)}</p> : null}
+        </div>
+      </details>
+    </article>
+  }
+  return <section aria-label="盤中更新" className="flex min-w-0 flex-col gap-3">
+    <SectionHeading>盤中更新</SectionHeading>
+    <Card className="flex min-w-0 flex-col gap-4 p-4 sm:p-5">
+      <p className="text-caption text-ink-3">盤中內容是來源補充；是否更新正式判斷，以主卡已核對的結果為準。</p>
+      {readFailed || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">本次盤中資料未確認；保留上次可讀內容。</p>
+        : today?.state === "partial" ? <p role="status" className="text-caption text-warn">盤中資料部分可用；以下保留來源更新，未涵蓋的部分仍未知。</p> : null}
+      {updateGroups.visible.map(renderUpdate)}
+      {observationGroups.visible.length ? <MarketObservations title="盤中市場讀數" observations={observationGroups.visible} embedded /> : null}
+      {updateGroups.older.length || observationGroups.older.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
+        <summary className="cursor-pointer py-1">較早盤中紀錄 · {updateGroups.older.length + observationGroups.older.length}</summary>
+        <div className="flex min-w-0 flex-col gap-4 pt-3">{updateGroups.older.map(renderUpdate)}
+          <MarketObservations title="較早市場讀數" observations={observationGroups.older} embedded />
+        </div>
+      </details> : null}
+      {today?.limitations.length || today?.intraday_refresh?.limitations.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3">
+        <summary className="cursor-pointer py-1">盤中來源限制</summary>
+        <ul className="list-disc pl-4 pt-2">{[...(today.limitations ?? []), ...(today.intraday_refresh?.limitations ?? [])].map((item, index) => <li key={index}>{item}</li>)}</ul>
+      </details> : null}
+    </Card>
+  </section>
+}
+
 export function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: { b: InvestmentBrief; today?: InvestmentTodayView; newsStatus?: InvestmentRefreshStatus; onOpenThesis: () => void; readFailed: boolean }) {
   const eventQuery = useQuery({ queryKey: ["investment-narrative"], queryFn: ({ signal }) => getInvestmentNarrative(signal), retry: false, refetchOnWindowFocus: false, staleTime: 60_000 })
   const news = eventQuery.isError ? null : eventQuery.data?.news_events
@@ -647,12 +738,8 @@ export function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: {
   // The producer's own cycle line. Empty from a producer too old to send it, in
   // which case the day still renders through the per-story cards below.
   const timeline = today?.timeline ?? []
-  const actionPlan = currentTodayActionPlan(b, today, !readFailed)
-  const hasVisibleJudgment = !readFailed && b.state === "current"
-    && Boolean(structuredBriefJudgmentReplacement(b)?.judgment ?? validatedBriefJudgment(b))
-  const visibleActionRows = hasVisibleJudgment ? actionPlan.slice(0, 2) : actionPlan.slice(0, 3)
-  const hiddenUpdateReasons = new Map(visibleActionRows.flatMap(item =>
-    item.origin === "update" && item.id && item.reason ? [[item.id, item.reason.trim()] as const] : []))
+  const hiddenUpdateReasons = new Map(updates.flatMap(item =>
+    item.id && item.portfolio_impact ? [[item.id, item.portfolio_impact.trim()] as const] : []))
   const intradayMarketObservations = today?.intraday_refresh?.market_observations ?? []
   const intradayMarketObservationKeys = new Set(intradayMarketObservations.map(marketObservationKey))
   const timelineMarketObservationKeys = new Set(timeline.flatMap(node => node.kind === "brief"
@@ -675,7 +762,7 @@ export function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: {
   ])
   const visibleTimeline = timeline.filter(node => !(node.kind === "update" && node.information_kind === "market_observation"
     && hiddenMarketObservationKeys.has(marketObservationKey(node as InvestmentMarketObservation))))
-  const stories = buildTodayStories(b.date, b.events, updates)
+  const stories = buildTodayStories(b.date, b.events, [])
   const envelopeIncomplete = b.envelope && b.envelope.completeness !== "ready"
   const headline = b.headline.trim()
   const decisionSummary = b.state === "stale" ? "" : today?.decision_summary?.trim() || ""
@@ -683,6 +770,7 @@ export function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: {
   const scanNote = newsStatus?.state === "no-change" ? null : newsScanNote(newsStatus, b.source_cutoff)
   return <section aria-label="今日簡報" className="flex min-w-0 flex-col gap-6 break-words">
     <TodayNextSteps b={b} today={today} readFailed={readFailed} />
+    <TodayIntradayReading today={today} readFailed={readFailed} />
     <TodayCheckpointReviews projection={today?.checkpoint_reviews} readFailed={readFailed} synthetic={DEMO_MODE} />
     <section aria-label="今天發生了什麼" className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -698,14 +786,8 @@ export function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: {
       {envelopeIncomplete ? <p role="status" className="text-caption text-warn">{b.envelope?.completeness === "partial" ? "這份簡報資料不完整；細節可在下方來源展開查看。" : "這份簡報的資料包目前無法確認是否完整。"}</p> : null}
       {news ? <EventNews projection={news} /> : null}
       {formalMarketObservations.length ? <MarketObservations title="正式簡報與事件讀回的市場讀數" observations={formalMarketObservations} /> : null}
-      {intradayMarketObservations.length ? <MarketObservations title="盤中增量市場讀數" observations={intradayMarketObservations} /> : null}
-      {visibleTimeline.length ? news
+      {visibleTimeline.length
         ? <details className="text-caption text-ink-3"><summary className="cursor-pointer py-1">簡報版次與掃描時間軸</summary><DayTimeline nodes={visibleTimeline} brief={b} showBriefMarketObservations hiddenMarketObservationKeys={hiddenMarketObservationKeys} hiddenUpdateReasons={hiddenUpdateReasons} /></details>
-        // One line for the whole cycle. The headline is not repeated above it:
-        // it is the newest brief's own first line and already sits on that node,
-        // and printing it separately is what made 今日基線 read as contradicting
-        // the card underneath whenever an intraday update had moved on.
-        : <DayTimeline nodes={timeline} brief={b} hiddenMarketObservationKeys={hiddenMarketObservationKeys} hiddenUpdateReasons={hiddenUpdateReasons} />
         : !news && stories.length ? <Card className="min-w-0 divide-y divide-line-soft overflow-hidden">
         {headline && headline !== decisionSummary ? <p className="p-4 text-body leading-relaxed text-ink-2 sm:p-5"><span className="font-medium text-ink">今日基線：</span><ReadingText text={headline} /></p> : null}
         {stories.map(story => <StoryCard key={story.key} story={story} b={b} />)}
@@ -787,6 +869,7 @@ export function InvestmentPage() {
         <Button disabled={newsRefresh.data?.state === "running"} onClick={() => void runRefresh("news", "us")}>美股消息快掃</Button>
         {marketRefresh.isError || newsRefresh.isError ? <Button disabled={marketRefresh.isFetching || newsRefresh.isFetching} title="只重新讀取狀態，不會啟動行情或新聞刷新" onClick={() => void rereadInvestmentRefreshStatuses(() => marketRefresh.refetch(), () => newsRefresh.refetch())}>重新讀取狀態</Button> : null}
       </div>
+      <p className="text-caption text-ink-3">消息快掃檢查所選市場的新事件與讀數；持倉深掃的來源判讀會列在下方盤中更新。</p>
     </div> : null}
     <InvestmentRefreshDetails marketStatus={marketRefresh.data} newsStatus={newsRefresh.data} marketError={marketRefresh.error} newsError={newsRefresh.error} operationError={refreshError} refresh={query.data?.today?.intraday_refresh} readFailed={query.isError} />
     <nav aria-label="投資內容" className="flex min-w-0 gap-4 overflow-x-auto border-b border-line-soft sm:gap-5" role="tablist">{VIEWS.map(([key, label], index) => <Button key={key} id={`investment-tab-${key}`} role="tab" aria-controls={`investment-panel-${key}`} aria-selected={view === key} tabIndex={view === key ? 0 : -1} variant="link" className={`shrink-0 rounded-none border-b-2 px-0 py-3 ${view === key ? "border-accent text-ink" : "border-transparent text-ink-3"}`} onClick={() => setView(key)} onKeyDown={event => {
@@ -797,6 +880,7 @@ export function InvestmentPage() {
       {query.isError ? <p role="alert" className="text-body text-warn">簡報讀取失敗。{b ? "目前保留上次內容。" : ""}請按更新資料重試。</p> : null}
       {query.isPending ? <p className="text-body text-ink-3">讀取簡報中…</p> : null}
       {b ? <TodayBrief b={b} today={query.data?.today} readFailed={query.isError} newsStatus={newsRefresh.data} onOpenThesis={() => openView("thesis")} /> : null}
+      {!b && !query.isPending ? <TodayIntradayReading today={query.data?.today} readFailed={query.isError} /> : null}
       {!b && !query.isPending ? <TodayCheckpointReviews projection={query.data?.today?.checkpoint_reviews} readFailed={query.isError} synthetic={DEMO_MODE} /> : null}
       <TodayCatalysts enabled={view === "today"} />
       <section className="flex min-w-0 flex-col gap-3" aria-label="現在盤面">
