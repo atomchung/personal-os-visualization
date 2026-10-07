@@ -79,7 +79,7 @@ test("a missing admissible receipt never claims no scan ran and keeps a failed s
     state: "failed", market_scope: "tw", scan_mode: "quick", message: "合成來源覆蓋未完成，已保留上一版。",
   })
   const html = renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(InvestmentPage)))
-  assert.match(html, /台股：尚無可採用的盤中更新；沿用正式簡報/)
+  assert.doesNotMatch(html, /台股：尚無可採用的盤中更新；沿用正式簡報/)
   assert.match(html, /台股消息快掃更新失敗/)
   assert.match(html, /美股：部分來源完成 · 本次未能更新資料截止時間/)
   assert.match(html, /Synthetic receipt does not bind to its formal baseline/)

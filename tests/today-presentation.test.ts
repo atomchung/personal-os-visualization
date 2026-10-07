@@ -326,7 +326,7 @@ test("a confirmed judgment change reads before/after and why while the action re
   assert.match(html, /synthetic-irrigation-renewals/)
 })
 
-test("new evidence with unchanged judgment and a complete no-material scan are different from unchecked", async () => {
+test("actual scan outcomes remain explicit while a formal-only brief needs no reassessment status", async () => {
   const unchanged = syntheticJudgmentUpdate("unchanged")
   const unchangedHtml = await renderTodayBrief(unchanged.today, false, unchanged.brief)
   assert.match(unchangedHtml, /已重評，判斷維持不變/)
@@ -340,8 +340,49 @@ test("new evidence with unchanged judgment and a complete no-material scan are d
   assert.match(quietHtml, /本次查核範圍內沒有重要增量，沿用先前判斷/)
   assert.doesNotMatch(quietHtml, /判斷已更新|本次無法確認/)
   const uncheckedHtml = await renderTodayBrief(undefined, false, quiet.brief)
-  assert.match(uncheckedHtml, /尚未取得新的重評結果/)
-  assert.doesNotMatch(uncheckedHtml, /沒有重要增量|已重評/)
+  assert.match(uncheckedHtml, /合成灌溉設備：訂單能否變成持續收入，仍需確認。/)
+  assert.doesNotMatch(uncheckedHtml, /這次判斷更新|尚未取得新的重評結果|尚不能確認這次有沒有重要新資訊|沒有重要增量|已重評/)
+})
+
+test("unrequested scans stay silent for structured and legacy formal briefs", async () => {
+  const { brief, today } = syntheticJudgmentUpdate("preserved")
+  const market = today.intraday_refresh!.markets.tw!
+  market.state = "not_requested"
+  market.freshness = "baseline"
+  market.latest_receipt = null
+  market.last_successful_refresh = null
+  market.current_judgment = { state: "baseline_only", current_delta: null, latest_assessment: null }
+  today.current_judgment = { ...today.current_judgment!, state: "baseline_only", latest_assessment: null }
+  const { TodayIntradayReceipts } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  for (const refresh of [undefined, today.intraday_refresh]) {
+    for (const readFailed of [false, true]) {
+      assert.equal(renderToStaticMarkup(createElement(TodayIntradayReceipts, { refresh, readFailed })), "")
+    }
+  }
+  for (const source of [brief, { ...brief, judgment: null }]) {
+    const html = await renderTodayBrief(today, false, source)
+    assert.match(html, /合成灌溉設備|合成.*觀察/)
+    assert.doesNotMatch(html, /這次判斷更新|尚未取得新的重評結果|尚不能確認這次有沒有重要新資訊/)
+  }
+  // A new formal publication is sufficient to update the reading without a scan.
+  const next = { ...brief, generated_at: "2001-02-03T10:00:00+08:00", judgment: {
+    ...brief.judgment!, judgment: "合成新正式判斷：新增訂單支持本季收入。",
+  } }
+  const html = await renderTodayBrief(undefined, false, next)
+  assert.match(html, /合成新正式判斷：新增訂單支持本季收入。/)
+  assert.doesNotMatch(html, /這次判斷更新|尚未取得新的重評結果/)
+})
+
+test("one requested market does not advertise the other unrequested market", async () => {
+  const { today } = syntheticJudgmentUpdate("preserved")
+  today.intraday_refresh!.markets.us = { ...today.intraday_refresh!.markets.tw!,
+    state: "not_requested", freshness: "baseline", latest_receipt: null, last_successful_refresh: null,
+    current_judgment: { state: "baseline_only", current_delta: null, latest_assessment: null },
+  }
+  const { TodayIntradayReceipts } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  const html = renderToStaticMarkup(createElement(TodayIntradayReceipts, { refresh: today.intraday_refresh, readFailed: false }))
+  assert.match(html, /台股：此次掃描範圍內沒有重要增量/)
+  assert.doesNotMatch(html, /美股|尚無可採用的盤中更新/)
 })
 
 test("failed, stale, baseline-mismatched and contradictory receipts never claim a fresh assessment", async () => {

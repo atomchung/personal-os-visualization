@@ -109,12 +109,13 @@ function intradayMarketDegraded(market: InvestmentIntradayMarketProjection | und
 }
 
 export function TodayIntradayReceipts({ refresh, readFailed }: { refresh?: InvestmentIntradayRefresh; readFailed: boolean }) {
-  if (!refresh) return <section aria-label="台美盤中刷新回執" className="flex min-w-0 flex-col gap-2 border-y border-line-soft py-2">
-    <p role="status" className="text-caption text-warn">{readFailed
-      ? "本次簡報讀取失敗；上次內容沒有盤中更新回報，目前狀態與資料截止時間尚未確認。"
-      : "盤中更新回報目前無法取得；各市場的資料截止時間與執行狀態尚未確認。"}</p>
-  </section>
+  // A formal brief is complete without an optional intraday scan. Only actual
+  // scan receipts or explicit outcomes belong in this execution-status surface.
+  if (!refresh) return null
   const markets = (["tw", "us"] as const).map(key => [key, refresh.markets[key]] as const)
+    .filter(([, market]) => Boolean(market?.latest_receipt || market?.last_successful_refresh
+      || ["updated", "no_material_update", "needs_deeper_analysis", "partial", "failed"].includes(market?.state ?? "")))
+  if (!markets.length) return null
   const degraded = markets.some(([, value]) => intradayMarketDegraded(value))
   return <section aria-label="台美盤中刷新回執" className="flex min-w-0 flex-col gap-2 border-y border-line-soft py-2">
     <p role="status" className={`text-caption ${degraded || readFailed ? "text-warn" : "text-ink-3"}`}>
@@ -417,11 +418,11 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
   const priorJudgment = acceptedDelta && formalJudgment?.judgment !== judgment?.judgment
     ? formalJudgment : null
   const actionUnchanged = acceptedDelta && formalJudgment?.class === acceptedDelta.class
+  const hasAssessment = Boolean(latestAssessment || marketLatestAssessment || marketProjection?.latest_receipt)
   const assessmentHeading = assessmentConfirmed
     ? currentJudgment?.state === "reassessed" ? "判斷已更新"
       : currentJudgment?.state === "unchanged" ? "已重評，判斷維持不變" : "沿用既有判斷"
-    : readFailed || b.state === "stale" || currentJudgment && currentJudgment.state !== "baseline_only"
-      ? "本次無法確認，保留既有判斷" : "尚未取得新的重評結果"
+    : "本次無法確認，保留既有判斷"
   const assessmentReason = assessmentMatches ? latestAssessment?.reason?.trim() : null
   const cachedSteps = readFailed
     ? currentTodayActionPlan(b, today, false)
@@ -499,12 +500,12 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
         {judgmentTime.laterScanLine ? <p>{judgmentTime.laterScanLine}</p> : null}
       </div> : null}
       {today?.state === "partial" || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">{today.state === "partial" ? "今日資料只更新了一部分" : "今日更新資料目前無法取得"}；空白欄位不能確認沒有新行動。</p> : null}
-      <div role="status" aria-label="這次判斷更新" className="flex min-w-0 flex-col gap-1 border-l-2 border-line pl-3">
+      {hasAssessment ? <div role="status" aria-label="這次判斷更新" className="flex min-w-0 flex-col gap-1 border-l-2 border-line pl-3">
         <p className="text-body font-medium text-ink">{assessmentHeading}{assessmentConfirmed && acceptedDelta && actionUnchanged ? ` · 行動仍是${JUDGMENT_CLASS_LABEL[acceptedDelta.class]}` : ""}</p>
         {assessmentReason ? <p className="text-body leading-relaxed text-ink-2">{!assessmentConfirmed ? "上次回報的原因（本次未確認）：" : ""}<InlineText text={assessmentReason} /></p>
           : <p className="text-caption leading-relaxed text-ink-3">{assessmentConfirmed ? "來源未提供本次覆核原因；不能由行動不變推定沒有新資訊。" : "尚不能確認這次有沒有重要新資訊；以下保留可讀的既有判斷。"}</p>}
         {assessmentConfirmed && latestAssessment?.assessed_at ? <p className="text-caption text-ink-3">本次查核：{sourceTimestamp(latestAssessment.assessed_at)}</p> : null}
-      </div>
+      </div> : null}
       {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
       {readFailed ? <p role="status" className="text-body text-warn">本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動，是否已有新版本尚未確認。</p> : null}
       {priorJudgment ? <div role="group" aria-label="原先判斷" className="flex min-w-0 flex-col gap-1 border-l-2 border-line-soft pl-3">
@@ -797,4 +798,3 @@ export function InvestmentPage() {
     </div></details>
   </div>
 }
-
