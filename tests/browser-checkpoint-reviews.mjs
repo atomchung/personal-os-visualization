@@ -8,6 +8,20 @@ const fixture = JSON.parse(await readFile(new URL('../src/demo/checkpoint-review
 assert.equal(fixture.contract, 'today.checkpoint_reviews/v1')
 assert.equal(fixture.evidence_class, 'synthetic_only')
 const { examples } = fixture
+const stopped = structuredClone(examples.day2)
+const stoppedRow = stopped.items.find(item => item.assessment_origin === 'reader_gap')
+stoppedRow.state = 'stopped'
+stoppedRow.reason_code = 'stopped'
+stoppedRow.stop = {
+  origin: structuredClone(stoppedRow.origin), stopped_at: '2026-10-02T08:03:00+08:00',
+  reason: '合成問題的答案已不影響當前選項，停止追蹤；原結果仍未知。',
+  source: { path: 'wiki/morning/briefs/2026-10-02.md', source_revision: `sha256:${'a'.repeat(64)}`,
+    source_cutoff: '2026-10-02T08:04:00+08:00', generated_at: '2026-10-02T08:05:00+08:00' },
+}
+stoppedRow.display.status_label = '停止關注'
+stoppedRow.display.result = '原問題尚未取得可確認的答案；停止關注不代表預期已驗證。'
+stopped.items = [stoppedRow]
+stopped.stopped_count = 1
 const { chromium } = await import(process.env.PLAYWRIGHT_RUNTIME || 'playwright')
 const origin = new URL(process.env.UI_URL || 'http://127.0.0.1:4173').origin
 const output = process.env.BROWSER_OUTPUT || '.artifacts/checkpoint-reviews'
@@ -103,7 +117,8 @@ async function mainRow(row, item) {
     if (effect.summary) includesText(text, effect.summary, item.checkpoint_id)
   }
   includesText(text, '原先的問題', item.checkpoint_id)
-  includesText(text, '今天的答案', item.checkpoint_id)
+  includesText(text, item.state === 'stopped' ? '回查狀態' : '今天的答案', item.checkpoint_id)
+  if (item.stop) includesText(text, item.stop.reason, item.checkpoint_id)
   assert.equal(await row.getByRole('group', { name: '判斷與行動影響', exact: true }).count(), 1)
   assert.ok(text.indexOf(item.question) < text.indexOf(item.display.result), 'question precedes source answer')
   assert.ok(text.indexOf(item.display.result) < text.indexOf(item.display.judgment_label), 'source answer precedes judgment impact')
@@ -140,6 +155,13 @@ async function sourceDetails(row, item) {
     includesText(text, item.provenance.review.path, 'review path')
     includesText(text, item.provenance.review.source_revision, 'review revision')
   }
+  if (item.stop) {
+    includesTimestamp(text, item.stop.stopped_at, 'stop time')
+    includesTimestamp(text, item.stop.source.generated_at, 'stop source generated time')
+    includesTimestamp(text, item.stop.source.source_cutoff, 'stop source cutoff')
+    includesText(text, item.stop.source.path, 'stop source path')
+    includesText(text, item.stop.source.source_revision, 'stop source revision')
+  }
 }
 
 const cases = [
@@ -149,6 +171,7 @@ const cases = [
   { width: 320, name: 'source-partial-preserved', projection: examples.revision_mismatch },
   { width: 320, name: 'without-judgment', projection: examples.day2 },
   { width: 320, name: 'untracked', projection: examples.untracked },
+  ...[1080, 320].map(width => ({ width, name: 'stopped', projection: stopped })),
 ]
 
 let executionError
@@ -198,6 +221,7 @@ try {
       await coverage.click()
       const coverageText = await coverage.locator('..').innerText()
       includesText(coverageText, `可讀歷史中已完成 ${projection.completed_count} 題`, 'completed count is historical coverage')
+      if (projection.stopped_count) includesText(coverageText, '停止追蹤不代表已確認結果。', 'stop count is distinct from completed')
       for (const problem of projection.problems) includesText(coverageText, problem, 'source validation problem')
 
       if (name === 'day3') {
