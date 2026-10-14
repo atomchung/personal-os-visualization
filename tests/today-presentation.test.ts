@@ -746,7 +746,9 @@ test("publication selection and section gaps display source-owned content withou
   assert.match(gap, /合成利率|原文判斷不變|原文未確認/)
   assert.doesNotMatch(gap, /story_id|&lt;!--/)
   assert.deepEqual(brief, before, "rendering does not fill missing structured rows or infer their meaning")
-  assert.equal(renderToStaticMarkup(createElement(BriefSectionCoverage, { b: syntheticPresentationBrief() })), "")
+  const noCoverage = renderToStaticMarkup(createElement(BriefSectionCoverage, { b: syntheticPresentationBrief() }))
+  assert.match(noCoverage, /段落接入尚未驗證/)
+  assert.doesNotMatch(noCoverage, /來源資料 0 行|已完整接入/)
 
   const source = "## 來源正文\n仍可讀的中文。<!-- hidden-one --><!-- multiline\nmetadata -->\n## Source receipt (repo-only)\n- synthetic-machine-input\n<!-- attention_projection: {} -->\n## Sources\n[來源](https://example.com/synthetic-source)"
   const reading = renderToStaticMarkup(createElement(ReadingText, { text: source }))
@@ -776,4 +778,23 @@ test("refresh failures use only observed error codes for the primary Chinese exp
   for (const code of ["authentication_required", "permission_denied", "provider_timeout", "provider_runtime", "provider_unavailable", "capability_unconfirmed"]) assert.ok(refreshFailureReason(code))
   assert.equal(refreshFailureReason("unknown-native-error"), null)
   assert.equal(refreshFailureReason(undefined), null)
+})
+
+
+test("missing section coverage remains unverified while explicit complete empty sections remain complete", async () => {
+  const { BriefSectionCoverage } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  const brief = syntheticPresentationBrief()
+  const keys = ["events", "theses", "upcoming", "market_pulse", "risks"] as const
+  const complete = { mode: "absent" as const, required: false, source_rows: 0, projected_rows: 0, state: "complete" as const, reason: null, raw_text: "" }
+  brief.section_coverage = Object.fromEntries(keys.map(key => [key, { ...complete }]))
+  const before = structuredClone(brief)
+  assert.equal(renderToStaticMarkup(createElement(BriefSectionCoverage, { b: brief })), "")
+  assert.deepEqual(brief, before)
+
+  delete brief.section_coverage.market_pulse
+  const partial = renderToStaticMarkup(createElement(BriefSectionCoverage, { b: brief }))
+  assert.match(partial, /段落接入尚未驗證/)
+  assert.match(partial, /來源尚未提供這些段落的接入驗證：市場脈搏/)
+  assert.doesNotMatch(partial, /來源尚未提供這些段落的接入驗證：今天的事件|來源資料 0 行|沒有市場資料/)
+  assert.equal(brief.section_coverage.market_pulse, undefined, "the renderer cannot fabricate a missing receipt")
 })

@@ -65,9 +65,9 @@ function CheckpointItem({ item }: { item: InvestmentCheckpointReviewItem }) {
 export function TodayCheckpointReviews({ projection, readFailed = false, synthetic = false }: { projection?: unknown; readFailed?: boolean; synthetic?: boolean }) {
   const view = checkpointReviewsView(projection)
   const data = view.projection
-  const title = data?.display?.title ?? "昨天觀察的事"
+  const title = withoutMachineComments(data?.display?.title ?? "").trim() || "昨天觀察的事"
   return <section aria-label={title} className="flex min-w-0 flex-col gap-3 break-words [overflow-wrap:anywhere]">
-    <SectionHeading>{title}</SectionHeading>
+    <SectionHeading><InlineText text={title} /></SectionHeading>
     {synthetic && data ? <p className="text-caption text-ink-3">合成回查範例，非真實觀察或正式回查紀錄。</p> : null}
     {readFailed ? <p role="status" className="text-caption text-warn">本次讀取失敗；以下保留上次讀到的回查，尚未確認是否有新版本。</p> : null}
     {view.unavailable ? <p role="status" className="text-body text-warn">尚未取得可辨識的逐題回查資料，不能確認昨天的觀察結果。</p> : <>

@@ -500,14 +500,20 @@ export function TodayPublicationStatus({ today, readFailed }: { today?: Investme
 
 export function BriefSectionCoverage({ b }: { b: InvestmentBrief }) {
   const labels = { events: "今天的事件", theses: "判斷變化", upcoming: "未來事件", market_pulse: "市場脈搏", risks: "風險" }
-  const gaps = (Object.keys(labels) as (keyof typeof labels)[]).flatMap(key => {
+  const keys = Object.keys(labels) as (keyof typeof labels)[]
+  const gaps = keys.flatMap(key => {
     const section = b.section_coverage?.[key]
     return section?.state === "gap" ? [{ key, section }] : []
   })
-  if (!gaps.length) return null
+  const unverified = keys.filter(key => {
+    const state = b.section_coverage?.[key]?.state
+    return state !== "complete" && state !== "gap"
+  })
+  if (!gaps.length && !unverified.length) return null
   return <details className="min-w-0 text-caption text-ink-3" aria-label="簡報接入完整度">
-    <summary className="cursor-pointer py-2 text-warn">有 {gaps.length} 段來源未完整接入；展開查看原文</summary>
+    <summary className="cursor-pointer py-2 text-warn">{gaps.length ? `有 ${gaps.length} 段來源未完整接入；展開查看原文` : "段落接入尚未驗證"}</summary>
     <div className="flex min-w-0 flex-col gap-3 pt-2">
+      {unverified.length ? <p>來源尚未提供這些段落的接入驗證：{unverified.map(key => labels[key]).join("、")}。可讀段落維持顯示。</p> : null}
       {gaps.map(({ key, section }) => <div key={key} className="flex min-w-0 flex-col gap-2 border-l-2 border-line-soft pl-3">
         <p className="font-medium text-ink-2">{labels[key]}</p>
         {section.reason ? <p className="text-warn"><InlineText text={section.reason} /></p> : null}

@@ -553,3 +553,20 @@ test("pending checks use a status caption while completed answers and stopped un
   containsText(stopped, "回查狀態")
   assert.doesNotMatch(stopped, /今天的答案/)
 })
+
+
+test("checkpoint section titles hide source comments in both the heading and accessible name", () => {
+  for (const [sourceTitle, visibleTitle] of [
+    ["<!-- source_metadata: synthetic -->之前關注的問題", "之前關注的問題"],
+    ["<!-- source_metadata: synthetic-only -->", "昨天觀察的事"],
+  ]) {
+    const projection = example()
+    projection.display!.title = sourceTitle
+    const before = structuredClone(projection)
+    const html = renderReviews(projection)
+    assert.ok(html.includes(`aria-label="${visibleTitle}"`))
+    assert.match(html, new RegExp(`<h[1-6][^>]*>${visibleTitle}</h[1-6]>`))
+    assert.doesNotMatch(html, /source_metadata|synthetic-only|&lt;!--/)
+    assert.deepEqual(projection, before, "title cleanup must not rewrite producer metadata or lifecycle")
+  }
+})
