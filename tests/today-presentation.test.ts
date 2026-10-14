@@ -798,3 +798,87 @@ test("missing section coverage remains unverified while explicit complete empty 
   assert.doesNotMatch(partial, /來源尚未提供這些段落的接入驗證：今天的事件|來源資料 0 行|沒有市場資料/)
   assert.equal(brief.section_coverage.market_pulse, undefined, "the renderer cannot fabricate a missing receipt")
 })
+
+
+function staleUnchangedSnapshot() {
+  const { brief, today } = syntheticJudgmentUpdate("unchanged")
+  brief.state = "stale"
+  const assessedAt = "2001-02-04T00:51:00+08:00"
+  today.current_judgment!.latest_assessment!.assessed_at = assessedAt
+  today.intraday_refresh!.markets.tw!.current_judgment!.latest_assessment!.assessed_at = assessedAt
+  today.intraday_refresh!.markets.tw!.latest_receipt!.finished_at = assessedAt
+  today.publication = { state: "stale", effective_artifact: brief.judgment!.provenance!.artifact!,
+    effective_revision: brief.judgment!.provenance!.source_revision!, accepted_at: "2001-02-03T08:09:00+08:00",
+    attempts: [], display: { summary: "尚無今天已接受的正式簡報，沿用前次版本。" } }
+  return { brief, today }
+}
+
+test("a fresh unchanged assessment of the exact stale formal source is disclosed without renewing its judgment or actions", async () => {
+  for (const withPublication of [true, false]) {
+    const { brief, today } = staleUnchangedSnapshot()
+    if (!withPublication) delete today.publication
+    const before = structuredClone({ brief, today })
+    const html = await renderTodayBrief(today, false, brief)
+    const main = html.slice(0, html.indexOf("<details"))
+    assert.match(main, /沿用的正式判斷（本次重評維持不變）/)
+    assert.match(main, /本次查核 2001\/02\/04 00:51 台北：已重評，判斷維持不變/)
+    assert.match(main, /正式簡報仍是前次版本/)
+    assert.match(main, /沿用 2\/3 08:01 台股晨報判斷/)
+    assert.match(main, /不代表今天新產生的決定/)
+    assert.match(html, /資料截至 2001\/02\/03 08:00 台北/)
+    assert.ok(main.includes(brief.judgment!.judgment))
+    assert.doesNotMatch(html, /本次無法確認，保留既有判斷|上次讀取的判斷（目前未確認）|判斷已更新|現在判斷|00:51 重評判斷/)
+    assert.deepEqual({ brief, today }, before, "displaying the receipt cannot mutate the stale formal source")
+  }
+})
+
+test("stale confirmation requires the displayed source identity even when both assessment readbacks agree", async () => {
+  for (const fault of ["artifact", "revision", "cutoff", "brief-cutoff", "missing-artifact", "missing-revision", "missing-cutoff",
+    "publication-artifact", "publication-revision", "publication-unverified"] as const) {
+    const { brief, today } = staleUnchangedSnapshot()
+    const provenance = brief.judgment!.provenance!
+    if (fault === "artifact") provenance.artifact = "synthetic/another-brief.md"
+    if (fault === "revision") provenance.source_revision = "sha256:another-brief"
+    if (fault === "cutoff") provenance.source_cutoff = "2001-02-03T07:00:00+08:00"
+    if (fault === "brief-cutoff") brief.source_cutoff = "2001-02-03T07:00:00+08:00"
+    if (fault === "missing-artifact") delete provenance.artifact
+    if (fault === "missing-revision") delete provenance.source_revision
+    if (fault === "missing-cutoff") delete provenance.source_cutoff
+    if (fault === "publication-artifact") today.publication!.effective_artifact = "synthetic/another-brief.md"
+    if (fault === "publication-revision") today.publication!.effective_revision = "sha256:another-brief"
+    if (fault === "publication-unverified") today.publication!.state = "legacy_unverified"
+    const html = await renderTodayBrief(today, false, brief)
+    assert.match(html, /上次讀取的判斷（目前未確認）/, fault)
+    assert.match(html, /本次無法確認，保留既有判斷/, fault)
+    assert.doesNotMatch(html, /已重評，判斷維持不變|本次查核：/, fault)
+  }
+})
+
+test("stale confirmation never adopts a delta or treats a quiet, failed, partial, or mismatched scan as unchanged", async () => {
+  for (const fault of ["delta", "inner-delta", "preserved", "reassessed", "effective-source", "failed-read", "failed", "partial",
+    "stale-scan", "receipt-mismatch", "assessment-mismatch", "unavailable"] as const) {
+    const { brief, today } = staleUnchangedSnapshot()
+    const current = today.current_judgment!
+    const market = today.intraday_refresh!.markets.tw!
+    const forbiddenDelta = { ...brief.judgment!, judgment: "不得將舊正式版升格為這次新判斷" }
+    if (fault === "delta") current.current_delta = forbiddenDelta
+    if (fault === "inner-delta") market.current_judgment!.current_delta = forbiddenDelta
+    if (fault === "preserved" || fault === "reassessed") {
+      current.state = fault
+      current.latest_assessment!.state = fault
+      market.current_judgment!.state = fault
+      market.current_judgment!.latest_assessment!.state = fault
+    }
+    if (fault === "effective-source") current.effective_source = "last_successful_reassessment"
+    if (fault === "failed") { market.state = "failed"; market.latest_receipt!.result = "failed" }
+    if (fault === "partial") market.latest_receipt!.coverage_state = "partial"
+    if (fault === "stale-scan") market.freshness = "stale"
+    if (fault === "receipt-mismatch") market.latest_receipt!.baseline_artifact_sha256 = "another-baseline"
+    if (fault === "assessment-mismatch") market.current_judgment!.latest_assessment!.source_revision = "sha256:another-scan"
+    if (fault === "unavailable") today.state = "unavailable"
+    const html = await renderTodayBrief(today, fault === "failed-read", brief)
+    assert.match(html, /上次讀取的判斷（目前未確認）/, fault)
+    assert.match(html, /本次無法確認，保留既有判斷/, fault)
+    assert.doesNotMatch(html, /已重評，判斷維持不變|判斷已更新|本次查核：|不得將舊正式版升格/, fault)
+  }
+})
