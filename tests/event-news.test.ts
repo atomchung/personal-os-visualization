@@ -16,6 +16,11 @@ test("event cards preserve ticker effects, candidate status, checks and degraded
     const checks = [{ scope: "SYNTH", check: "公司執行檢查", state: "registered", result_state: "unknown", source }, { scope: "POOL", check: "共享供需檢查", state: "registered", result_state: "unknown", source }]
     const event = { key: "earnings", story_id: "earnings", title: "合成財報結果", state: "conflict", ticker_link_state: "linked", thesis_link_state: "candidate", affected_tickers: ["SYNTH", "ETF"], ticker_effects: [{ ticker: "SYNTH", effect: "公司影響", state: "candidate", sources: [source] }], thesis_effects: [{ narrative_id: "synthetic-demand", thesis_ref: null, direction: "supports", reason: "新增需求證據", state: "candidate", sources: [source] }], canonical_claim_effects: [], occurrences: [{ kind: "brief", title: "合成財報結果", market_reaction: null, interpretation: null, impact: "原文影響", source }], checkpoint: { state: "linked", story_id: "earnings", checks }, limitations: [] }
     const html = renderToStaticMarkup(createElement(EventNews, { projection: { state: "partial", items: [event], limitations: [] } }))
+    const markedEvent = { ...event, title: "<!-- thesis_ref: wiki/SYNTH/index.md -->合成財報結果" }
+    const markedHtml = renderToStaticMarkup(createElement(EventNews, { projection: { state: "partial", items: [markedEvent], limitations: [] } }))
+    assert.match(markedHtml, /合成財報結果/)
+    assert.doesNotMatch(markedHtml, /thesis_ref|&lt;!--/)
+    assert.equal(markedEvent.title, "<!-- thesis_ref: wiki/SYNTH/index.md -->合成財報結果", "the renderer leaves the exact source untouched")
     assert.match(html, /影響標的：SYNTH、ETF/)
     assert.match(html, /候選判讀/)
     assert.match(html, /來源影響有分歧/)

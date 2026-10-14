@@ -10,7 +10,7 @@ import { MarketPulse } from "./MarketPulse"
 import { StockMomentum } from "./StockMomentum"
 import {
   actionStatusLabel, actionStatusNote, currentOpenActionItems, groupBriefRows,
-  JUDGMENT_CLASS_LABEL, newsRefreshHasPendingCandidates, newsRefreshResultsConfirmed, newsScanNote, pendingActionsCountLine, providerCompletionNote, providerDetailTitle, taipeiClock,
+  JUDGMENT_CLASS_LABEL, refreshFailureReason, newsRefreshHasPendingCandidates, newsRefreshResultsConfirmed, newsScanNote, pendingActionsCountLine, providerCompletionNote, providerDetailTitle, taipeiClock,
   sourceTimestamp, structuredBriefJudgmentReplacement, validatedBriefJudgment, todayActionKindLabel, currentTodayActionPlan, todayActionSection, todayGlobalDecisionSummary, todayJudgmentTimeMetadata,
 } from "@/lib/investmentFormat"
 import { ResearchWatch, ResearchLibrary } from "./ResearchWatch"
@@ -205,7 +205,17 @@ function refreshAttentionLabel(action: InvestmentRefreshAction, status: Investme
     if (["success", "no-change"].includes(status.state) && newsRefreshHasPendingCandidates(status)) return "消息已保存，仍有候選待確認"
   }
   if (status.state === "running") return refreshStateLabel(action, status)
-  if (status.state === "failed") return `${name}失敗`
+  if (status.state === "failed") {
+    const ownReason = refreshFailureReason(status.failure_reason_code)
+    const childReasons = action === "news" && status.market_scope === "both"
+      ? (["tw", "us"] as const).flatMap(key => {
+        const child = status.markets?.[key]
+        const reason = child?.state === "failed" ? refreshFailureReason(child.failure_reason_code) : null
+        return reason ? [`${INTRADAY_MARKET_LABEL[key]}：${reason}`] : []
+      }) : []
+    const reason = childReasons.join(" · ") || ownReason
+    return `${name}失敗${reason ? `：${reason}` : ""}`
+  }
   if (status.state === "partial") return `${name}部分完成`
   if (action === "market" && status.discovery_state === "running") return "市場資金掃描進行中"
   if (action === "market" && status.discovery_state === "failed") return "市場資金掃描失敗"
@@ -224,7 +234,10 @@ function newsChildStateLabel(child: InvestmentNewsMarketResult | undefined): str
     case "success": return "更新完成"
     case "no-change": return "未發現重要新事件"
     case "partial": return "部分完成"
-    case "failed": return "更新失敗"
+    case "failed": {
+      const reason = refreshFailureReason(child.failure_reason_code)
+      return `更新失敗${reason ? `（${reason}）` : ""}`
+    }
     case "unavailable": return "來源無法取得"
     default: return "結果未確認"
   }
@@ -460,6 +473,51 @@ function ThesisAttention({ b, onOpenThesis, presentation, timelineStoryIds }: {
   </details>
 }
 
+export function TodayPublicationStatus({ today, readFailed }: { today?: InvestmentTodayView; readFailed: boolean }) {
+  const publication = today?.publication
+  const summary = publication?.display?.summary
+  if (!publication || typeof summary !== "string" || !summary.trim()) return null
+  const attempts = publication.attempts ?? []
+  const attemptLabels = { unaccepted: "尚未驗證", rejected: "未通過發布檢查", invalid: "內容無法辨識" }
+  return <div className="flex min-w-0 flex-col gap-1 text-caption text-ink-3" aria-label="正式簡報採用狀態">
+    <p role="status" className={readFailed || publication.state !== "accepted" ? "text-warn" : "text-ink-3"}>
+      {readFailed ? "上次讀取的發布狀態：" : ""}<InlineText text={summary} />
+    </p>
+    {attempts.length ? <details>
+      <summary className="cursor-pointer py-1">未採用的新版本與來源</summary>
+      <div className="flex min-w-0 flex-col gap-2 pt-2">
+        {attempts.map((attempt, index) => <div key={`${attempt.artifact}:${index}`} className="border-l-2 border-line-soft pl-3">
+          <p>{attemptLabels[attempt.status] ?? "狀態未確認"}：<InlineText text={attempt.reason} /></p>
+          <p className="break-all">來源：{attempt.artifact}</p>
+        </div>)}
+        {publication.effective_artifact ? <p className="break-all">目前採用：{publication.effective_artifact}</p> : null}
+        {publication.effective_revision ? <p className="break-all">內容版本：{publication.effective_revision}</p> : null}
+        {publication.accepted_at ? <p>發布接受時間：{sourceTimestamp(publication.accepted_at)}</p> : null}
+      </div>
+    </details> : null}
+  </div>
+}
+
+export function BriefSectionCoverage({ b }: { b: InvestmentBrief }) {
+  const labels = { events: "今天的事件", theses: "判斷變化", upcoming: "未來事件", market_pulse: "市場脈搏", risks: "風險" }
+  const gaps = (Object.keys(labels) as (keyof typeof labels)[]).flatMap(key => {
+    const section = b.section_coverage?.[key]
+    return section?.state === "gap" ? [{ key, section }] : []
+  })
+  if (!gaps.length) return null
+  return <details className="min-w-0 text-caption text-ink-3" aria-label="簡報接入完整度">
+    <summary className="cursor-pointer py-2 text-warn">有 {gaps.length} 段來源未完整接入；展開查看原文</summary>
+    <div className="flex min-w-0 flex-col gap-3 pt-2">
+      {gaps.map(({ key, section }) => <div key={key} className="flex min-w-0 flex-col gap-2 border-l-2 border-line-soft pl-3">
+        <p className="font-medium text-ink-2">{labels[key]}</p>
+        {section.reason ? <p className="text-warn"><InlineText text={section.reason} /></p> : null}
+        <p>來源資料 {section.source_rows} 行；已接入 {section.projected_rows} 行。</p>
+        {section.raw_text ? <ReadingText text={section.raw_text} /> : <p>來源未提供這段原文。</p>}
+      </div>)}
+    </div>
+  </details>
+}
+
 export function TodayNextSteps({ b, today, readFailed = false }: { b: InvestmentBrief; today?: InvestmentTodayView; readFailed?: boolean }) {
   // Only a current, contract-consistent judgment may replace the source row.
   // On read failure, keep the cached source snapshot visible without deriving
@@ -609,6 +667,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
     <SectionHeading>{actionSection.heading}</SectionHeading>
     <Card className="min-w-0 p-4 sm:p-5">
       <div className="flex min-w-0 flex-col gap-3">
+      <TodayPublicationStatus today={today} readFailed={readFailed} />
       {previousJudgment ? <p className="text-body leading-relaxed text-ink-2">上次讀取的判斷（目前未確認）：<InlineText text={previousJudgment} /></p> : null}
       {judgment ? <div role="group" aria-label="主要下一步" className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
           <p className="sr-only">{acceptedDelta ? assessmentConfirmed ? "現在判斷" : "上次有效判斷（本次未確認）" : "正式簡報判斷"}</p>
@@ -853,6 +912,7 @@ export function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: {
       />
     </section>
 
+    <BriefSectionCoverage b={b} />
     {b.source ? <div className="border-t border-line-soft"><SourceText key={b.source.id} source={b.source} /></div> : null}
   </section>
 }

@@ -2,13 +2,14 @@ import { Card, SectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { checkpointReviewsView, type InvestmentCheckpointReviewItem, type CheckpointEffect } from "@/lib/investmentCheckpointReviews"
 import { sourceTimestamp } from "@/lib/investmentFormat"
+import { InlineText, withoutMachineComments } from "./ReadingText"
 
 function Stamp({ value }: { value: string }) {
   return <time dateTime={value} title={value}>{sourceTimestamp(value)}</time>
 }
 
 function Effect({ label, effect }: { label: string; effect: CheckpointEffect }) {
-  return <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">{label}</span>{effect.state !== "unknown" ? <>：{effect.summary}</> : null}</p>
+  return <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">{label}</span>{effect.state !== "unknown" ? <>：<InlineText text={effect.summary} /></> : null}</p>
 }
 
 function EvidenceLink({ url }: { url: string }) {
@@ -20,19 +21,19 @@ function EvidenceLink({ url }: { url: string }) {
 
 function CheckpointItem({ item }: { item: InvestmentCheckpointReviewItem }) {
   const review = item.review
-  return <article aria-label={item.question} data-checkpoint-id={item.checkpoint_id} className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
+  return <article aria-label={withoutMachineComments(item.question)} data-checkpoint-id={item.checkpoint_id} className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
         <p className="text-caption text-ink-3">原先的問題</p>
-        <h3 className="mt-1 text-body font-semibold leading-relaxed text-ink">{item.question}</h3>
+        <h3 className="mt-1 text-body font-semibold leading-relaxed text-ink"><InlineText text={item.question} /></h3>
       </div>
-      <Chip tone={item.state !== "stopped" && (item.state === "invalid" || item.assessment === "no_data") ? "warn" : "mute"}>{item.display.status_label}</Chip>
+      <Chip tone={item.state !== "stopped" && (item.state === "invalid" || item.assessment === "no_data") ? "warn" : "mute"}><InlineText text={item.display.status_label} /></Chip>
     </div>
     <div className="flex min-w-0 flex-col gap-1">
-      <p className="text-caption text-ink-3">{item.state === "stopped" ? "回查狀態" : "今天的答案"}</p>
-      <p className="text-body leading-relaxed text-ink">{item.display.result}</p>
+      <p className="text-caption text-ink-3">{item.state === "completed" ? "今天的答案" : "回查狀態"}</p>
+      <p className="text-body leading-relaxed text-ink"><InlineText text={item.display.result} /></p>
     </div>
-    {item.stop ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">停止理由：</span>{item.stop.reason}</p> : null}
+    {item.stop ? <p className="text-body leading-relaxed text-ink-2"><span className="font-medium text-ink">停止理由：</span><InlineText text={item.stop.reason} /></p> : null}
     <div role="group" aria-label="判斷與行動影響" className="flex min-w-0 flex-col gap-1 border-l-2 border-line-soft pl-3">
       <Effect label={item.display.judgment_label} effect={item.judgment_effect} />
       <Effect label={item.display.action_label} effect={item.action_effect} />
@@ -40,19 +41,19 @@ function CheckpointItem({ item }: { item: InvestmentCheckpointReviewItem }) {
     <details className="min-w-0 text-caption leading-relaxed text-ink-3">
       <summary className="cursor-pointer py-2">原預期、期限與來源</summary>
       <dl className="mt-2 grid min-w-0 gap-3 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-x-4 sm:gap-y-2">
-        <dt className="font-medium text-ink-2">原預期</dt><dd>{item.expectation}</dd>
+        <dt className="font-medium text-ink-2">原預期</dt><dd><InlineText text={item.expectation} /></dd>
         <dt className="font-medium text-ink-2">檢查期限</dt><dd><Stamp value={item.due_at} /></dd>
-        <dt className="font-medium text-ink-2">原判斷／行動</dt><dd className="flex min-w-0 flex-col gap-1"><p>{item.baseline.judgment}</p><p>{item.baseline.action}</p><p>{item.baseline.reason}</p></dd>
+        <dt className="font-medium text-ink-2">原判斷／行動</dt><dd className="flex min-w-0 flex-col gap-1"><p><InlineText text={item.baseline.judgment} /></p><p><InlineText text={item.baseline.action} /></p><p><InlineText text={item.baseline.reason} /></p></dd>
         <dt className="font-medium text-ink-2">影響的理由</dt><dd className="flex min-w-0 flex-col gap-1">
-          {item.judgment_effect.state !== "unknown" ? <p>{item.display.judgment_label}：{item.judgment_effect.reason}</p> : <p>{item.display.judgment_label}</p>}
-          {item.action_effect.state !== "unknown" ? <p>{item.display.action_label}：{item.action_effect.reason}</p> : <p>{item.display.action_label}</p>}
+          {item.judgment_effect.state !== "unknown" ? <p>{item.display.judgment_label}：<InlineText text={item.judgment_effect.reason} /></p> : <p>{item.display.judgment_label}</p>}
+          {item.action_effect.state !== "unknown" ? <p>{item.display.action_label}：<InlineText text={item.action_effect.reason} /></p> : <p>{item.display.action_label}</p>}
         </dd>
-        <dt className="font-medium text-ink-2">原始依據</dt><dd>{item.baseline.source_refs}</dd>
+        <dt className="font-medium text-ink-2">原始依據</dt><dd><InlineText text={item.baseline.source_refs} /></dd>
         <dt className="font-medium text-ink-2">問題來源</dt><dd className="flex min-w-0 flex-col gap-1"><p>{item.origin.path}</p><p>版本：{item.origin.source_revision}</p><p>產出：<Stamp value={item.provenance.origin_generated_at} /></p><p>資料截止：<Stamp value={item.provenance.origin_cutoff} /></p></dd>
         {review ? <><dt className="font-medium text-ink-2">本次回查</dt><dd className="flex min-w-0 flex-col gap-1"><p>查核：<Stamp value={review.checked_at} /></p><p>證據截止：<Stamp value={review.evidence_cutoff} /></p></dd></> : null}
         {item.provenance.review ? <><dt className="font-medium text-ink-2">回查來源</dt><dd className="flex min-w-0 flex-col gap-1"><p>{item.provenance.review.path}</p><p>版本：{item.provenance.review.source_revision}</p><p>產出：<Stamp value={item.provenance.review.generated_at} /></p><p>資料截止：<Stamp value={item.provenance.review.source_cutoff} /></p></dd></> : null}
-        {review?.evidence.length ? <><dt className="font-medium text-ink-2">證據</dt><dd><ul className="flex min-w-0 flex-col gap-3">{review.evidence.map((evidence, index) => <li key={index} className="flex min-w-0 flex-col gap-1"><p>{evidence.summary}</p><EvidenceLink url={evidence.source_url} /><p>資料日期：<Stamp value={evidence.data_as_of} /></p><p>發布：<Stamp value={evidence.published_at} /> · 查核：<Stamp value={evidence.checked_at} /></p><p>來源類型：{evidence.kind}</p></li>)}</ul></dd></> : null}
-        {item.last_review ? <><dt className="font-medium text-ink-2">較早回查</dt><dd><p>不是目前答案 · <Stamp value={item.last_review.checked_at} /></p><p>{item.last_review.result}</p></dd></> : null}
+        {review?.evidence.length ? <><dt className="font-medium text-ink-2">證據</dt><dd><ul className="flex min-w-0 flex-col gap-3">{review.evidence.map((evidence, index) => <li key={index} className="flex min-w-0 flex-col gap-1"><p><InlineText text={evidence.summary} /></p><EvidenceLink url={evidence.source_url} /><p>資料日期：<Stamp value={evidence.data_as_of} /></p><p>發布：<Stamp value={evidence.published_at} /> · 查核：<Stamp value={evidence.checked_at} /></p><p>來源類型：{evidence.kind}</p></li>)}</ul></dd></> : null}
+        {item.last_review ? <><dt className="font-medium text-ink-2">較早回查</dt><dd><p>不是目前答案 · <Stamp value={item.last_review.checked_at} /></p><p><InlineText text={item.last_review.result} /></p></dd></> : null}
         {item.stop ? <><dt className="font-medium text-ink-2">停止來源</dt><dd className="flex min-w-0 flex-col gap-1"><p>停止：<Stamp value={item.stop.stopped_at} /></p><p>{item.stop.source.path}</p><p>版本：{item.stop.source.source_revision}</p><p>產出：<Stamp value={item.stop.source.generated_at} /></p><p>資料截止：<Stamp value={item.stop.source.source_cutoff} /></p></dd></> : null}
         <dt className="font-medium text-ink-2">身分與讀取</dt><dd className="flex min-w-0 flex-col gap-1"><p>問題 ID：{item.checkpoint_id}</p><p>Story ID：{item.story_id}</p><p>讀取：<Stamp value={item.provenance.read_at} /></p><p>{item.assessment_origin === "source" ? "來源明示回查" : "來源讀取器標示缺口"} · {item.reason_code}</p></dd>
       </dl>
@@ -70,7 +71,7 @@ export function TodayCheckpointReviews({ projection, readFailed = false, synthet
     {synthetic && data ? <p className="text-caption text-ink-3">合成回查範例，非真實觀察或正式回查紀錄。</p> : null}
     {readFailed ? <p role="status" className="text-caption text-warn">本次讀取失敗；以下保留上次讀到的回查，尚未確認是否有新版本。</p> : null}
     {view.unavailable ? <p role="status" className="text-body text-warn">尚未取得可辨識的逐題回查資料，不能確認昨天的觀察結果。</p> : <>
-      {data?.display?.coverage_label ? <p role="status" className="text-caption text-warn">{data.display.coverage_label}</p> : null}
+      {data?.display?.coverage_label ? <p role="status" className="text-caption text-warn"><InlineText text={data.display.coverage_label} /></p> : null}
       {data?.state === "invalid" ? <p role="status" className="text-body text-warn">回查資料無法驗證，不能確認結果。</p> : null}
       {view.invalidCount ? <p role="status" className="text-caption text-warn">{view.invalidCount} 筆回查欄位或身分不一致，未呈現為有效答案；其餘可讀項目保留。</p> : null}
       {view.items.length ? <Card className="min-w-0 divide-y divide-line-soft">
@@ -79,7 +80,7 @@ export function TodayCheckpointReviews({ projection, readFailed = false, synthet
           <summary className="cursor-pointer px-4 py-3 text-body font-medium text-ink-2 sm:px-5">其他觀察 · {view.items.length - 2}</summary>
           <div className="min-w-0 divide-y divide-line-soft">{view.items.slice(2).map(item => <CheckpointItem key={item.checkpoint_id} item={item} />)}</div>
         </details> : null}
-      </Card> : !view.invalidCount && data?.display?.empty_message ? <p role="status" className="text-body text-ink-2">{data.display.empty_message}</p> : null}
+      </Card> : !view.invalidCount && data?.display?.empty_message ? <p role="status" className="text-body text-ink-2"><InlineText text={data.display.empty_message} /></p> : null}
       <p className="text-caption text-ink-3">僅涵蓋來源明示登記的問題；未登記的觀察不在此列。</p>
       <details className="min-w-0 text-caption leading-relaxed text-ink-3">
         <summary className="cursor-pointer py-2">回查涵蓋範圍與資料缺口</summary>

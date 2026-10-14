@@ -534,3 +534,22 @@ test("checkpoint review rendering needs no provider reads, refreshes, writes or 
     runtime.setInvestmentProvider(previous)
   }
 })
+
+
+test("pending checks use a status caption while completed answers and stopped unknowns remain distinct", () => {
+  const projection = example()
+  const pending = projection.items.find(item => item.state === "pending")!
+  projection.items = [pending]
+  const before = structuredClone(projection)
+  const html = renderReviews(projection)
+  containsText(html, "回查狀態")
+  assert.doesNotMatch(html, /今天的答案/)
+  assert.deepEqual(projection, before)
+  const completed = example().items.find(item => item.state === "completed")!
+  projection.items = [completed]
+  containsText(renderReviews(projection), "今天的答案")
+  projection.items = [stoppedExample().items[0]]
+  const stopped = renderReviews(projection)
+  containsText(stopped, "回查狀態")
+  assert.doesNotMatch(stopped, /今天的答案/)
+})
