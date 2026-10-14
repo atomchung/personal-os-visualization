@@ -708,3 +708,93 @@ test("no-material result needs complete same-assessment receipt before claiming 
     assert.doesNotMatch(html, /本次查核：|已重評，判斷維持不變/)
   }
 })
+
+
+test("publication selection and section gaps display source-owned content without changing judgment", async () => {
+  const { TodayPublicationStatus, BriefSectionCoverage } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  const { ReadingText, InlineText } = await server.ssrLoadModule("/src/components/investment/ReadingText.tsx")
+  const today = syntheticPresentationToday()
+  const brief = syntheticPresentationBrief()
+  const originalJudgment = structuredClone(brief.judgment)
+  today.publication = {
+    state: "preserved", effective_artifact: "synthetic/accepted-morning.md", effective_revision: "sha256:synthetic-accepted",
+    accepted_at: "2001-02-03T08:09:00+08:00",
+    attempts: [{ artifact: "synthetic/unaccepted-evening.md", status: "unaccepted", reason: "新版未取得發布接受收據。" }],
+    display: { summary: "晚報尚未驗證，沿用 08:03 的判斷。" },
+  }
+  const html = await renderTodayBrief(today, false, brief)
+  assert.match(html, /晚報尚未驗證，沿用 08:03 的判斷/)
+  assert.match(html, /合成正式判斷原文：目前維持觀察/)
+  assert.match(html, /未採用的新版本與來源/)
+  assert.deepEqual(brief.judgment, originalJudgment)
+  for (const state of ["accepted", "stale", "unavailable", "legacy_unverified"] as const) {
+    const projection = { ...today, publication: { ...today.publication, state, display: { summary: `合成來源明示發布狀態 ${state}` } } }
+    const rendered = renderToStaticMarkup(createElement(TodayPublicationStatus, { today: projection, readFailed: false }))
+    assert.ok(rendered.includes(projection.publication.display.summary))
+  }
+  const cached = renderToStaticMarkup(createElement(TodayPublicationStatus, { today, readFailed: true }))
+  assert.match(cached, /上次讀取的發布狀態/)
+  assert.equal(renderToStaticMarkup(createElement(TodayPublicationStatus, { today: undefined, readFailed: false })), "")
+
+  brief.section_coverage = {
+    market_pulse: { mode: "table", required: false, source_rows: 2, projected_rows: 0, state: "gap", reason: "這段來源欄位未完整接入。",
+      raw_text: "| 市場變數 | 最新正式讀數 | 對今天判斷的意義 |\n| --- | --- | --- |\n| 合成利率 | 4% | <!-- story_id: synthetic-rate -->原文判斷不變 |\n| 合成市場 | 尚未開盤 | 原文未確認 |" },
+  }
+  const before = structuredClone(brief)
+  const gap = renderToStaticMarkup(createElement(BriefSectionCoverage, { b: brief }))
+  assert.match(gap, /來源資料 2 行；已接入 0 行/)
+  assert.match(gap, /合成利率|原文判斷不變|原文未確認/)
+  assert.doesNotMatch(gap, /story_id|&lt;!--/)
+  assert.deepEqual(brief, before, "rendering does not fill missing structured rows or infer their meaning")
+  const noCoverage = renderToStaticMarkup(createElement(BriefSectionCoverage, { b: syntheticPresentationBrief() }))
+  assert.match(noCoverage, /段落接入尚未驗證/)
+  assert.doesNotMatch(noCoverage, /來源資料 0 行|已完整接入/)
+
+  const source = "## 來源正文\n仍可讀的中文。<!-- hidden-one --><!-- multiline\nmetadata -->\n## Source receipt (repo-only)\n- synthetic-machine-input\n<!-- attention_projection: {} -->\n## Sources\n[來源](https://example.com/synthetic-source)"
+  const reading = renderToStaticMarkup(createElement(ReadingText, { text: source }))
+  assert.match(reading, /仍可讀的中文|https:\/\/example.com\/synthetic-source/)
+  assert.doesNotMatch(reading, /hidden-one|metadata|synthetic-machine-input|Source receipt|attention_projection|&lt;!--/)
+  const inline = renderToStaticMarkup(createElement(InlineText, { text: "事件<!-- thesis_ref: wiki/SYNTH/index.md -->：**仍然可讀**。<!-- unfinished metadata" }))
+  assert.match(inline, /事件：<strong>仍然可讀<\/strong>。/)
+  assert.doesNotMatch(inline, /thesis_ref|unfinished|metadata/)
+})
+
+test("refresh failures use only observed error codes for the primary Chinese explanation", async () => {
+  const { InvestmentRefreshDetails } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  const { refreshFailureReason } = await server.ssrLoadModule("/src/lib/investmentFormat.ts")
+  const status = syntheticBothRefresh()
+  status.state = "failed"
+  status.failure_reason_code = "model_configuration"
+  status.error = "Synthetic native model/effort diagnostic"
+  status.message = "Synthetic raw provider prose"
+  for (const key of ["tw", "us"] as const) {
+    status.markets![key] = { ...status.markets![key]!, state: "failed", failure_reason_code: "model_configuration" }
+  }
+  const html = renderToStaticMarkup(createElement(InvestmentRefreshDetails, { newsStatus: status, readFailed: false }))
+  const main = html.slice(0, html.indexOf("<details"))
+  assert.match(main, /台股：模型設定不相容|美股：模型設定不相容/)
+  assert.doesNotMatch(main, /Synthetic|model\/effort|gemini/)
+  assert.match(html, /Synthetic native model\/effort diagnostic/)
+  for (const code of ["authentication_required", "permission_denied", "provider_timeout", "provider_runtime", "provider_unavailable", "capability_unconfirmed"]) assert.ok(refreshFailureReason(code))
+  assert.equal(refreshFailureReason("unknown-native-error"), null)
+  assert.equal(refreshFailureReason(undefined), null)
+})
+
+
+test("missing section coverage remains unverified while explicit complete empty sections remain complete", async () => {
+  const { BriefSectionCoverage } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  const brief = syntheticPresentationBrief()
+  const keys = ["events", "theses", "upcoming", "market_pulse", "risks"] as const
+  const complete = { mode: "absent" as const, required: false, source_rows: 0, projected_rows: 0, state: "complete" as const, reason: null, raw_text: "" }
+  brief.section_coverage = Object.fromEntries(keys.map(key => [key, { ...complete }]))
+  const before = structuredClone(brief)
+  assert.equal(renderToStaticMarkup(createElement(BriefSectionCoverage, { b: brief })), "")
+  assert.deepEqual(brief, before)
+
+  delete brief.section_coverage.market_pulse
+  const partial = renderToStaticMarkup(createElement(BriefSectionCoverage, { b: brief }))
+  assert.match(partial, /段落接入尚未驗證/)
+  assert.match(partial, /來源尚未提供這些段落的接入驗證：市場脈搏/)
+  assert.doesNotMatch(partial, /來源尚未提供這些段落的接入驗證：今天的事件|來源資料 0 行|沒有市場資料/)
+  assert.equal(brief.section_coverage.market_pulse, undefined, "the renderer cannot fabricate a missing receipt")
+})

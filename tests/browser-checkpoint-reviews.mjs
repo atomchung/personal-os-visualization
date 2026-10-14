@@ -117,7 +117,12 @@ async function mainRow(row, item) {
     if (effect.summary) includesText(text, effect.summary, item.checkpoint_id)
   }
   includesText(text, '原先的問題', item.checkpoint_id)
-  includesText(text, item.state === 'stopped' ? '回查狀態' : '今天的答案', item.checkpoint_id)
+  const caption = item.state === 'completed' ? '今天的答案' : '回查狀態'
+  const otherCaption = item.state === 'completed' ? '回查狀態' : '今天的答案'
+  assert.equal(await row.locator('p').filter({ hasText: new RegExp(`^${caption}$`) }).count(), 1,
+    `${item.checkpoint_id}: ${item.state} has exactly one appropriate result caption`)
+  assert.equal(await row.locator('p').filter({ hasText: new RegExp(`^${otherCaption}$`) }).count(), 0,
+    `${item.checkpoint_id}: ${item.state} cannot use the other result caption`)
   if (item.stop) includesText(text, item.stop.reason, item.checkpoint_id)
   assert.equal(await row.getByRole('group', { name: '判斷與行動影響', exact: true }).count(), 1)
   assert.ok(text.indexOf(item.question) < text.indexOf(item.display.result), 'question precedes source answer')

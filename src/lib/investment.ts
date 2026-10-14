@@ -140,6 +140,26 @@ export type InvestmentOverdueCheckpoint = {
   limitations: string[]
 }
 
+/** Producer-owned publication selection; the consumer does not select a fallback. */
+export type InvestmentBriefPublication = {
+  state: "accepted" | "preserved" | "stale" | "unavailable" | "legacy_unverified"
+  effective_artifact: string | null
+  effective_revision: string | null
+  accepted_at: string | null
+  attempts: { artifact: string; status: "unaccepted" | "rejected" | "invalid"; reason: string }[]
+  display: { summary: string }
+}
+
+export type InvestmentBriefSectionCoverage = Partial<Record<"events" | "theses" | "upcoming" | "market_pulse" | "risks", {
+  mode: "table" | "prose" | "absent"
+  required: boolean
+  source_rows: number
+  projected_rows: number
+  state: "complete" | "gap"
+  reason: string | null
+  raw_text: string
+}>>
+
 export type InvestmentBrief = {
   state: InvestmentSourceState
   date: string | null
@@ -149,6 +169,8 @@ export type InvestmentBrief = {
   headline: string
   market_pulse: { variable: string; latest: string; meaning: string }[]
   market_pulse_notes: string[]
+  /** Exact-source compile coverage; a gap keeps its original readable text. */
+  section_coverage?: InvestmentBriefSectionCoverage
   events: {
     /** Explicit identity from the Investment Note producer; absent means do not merge. */
     story_id?: string | null
@@ -283,6 +305,7 @@ export type InvestmentIntradayRefresh = {
 }
 
 export type InvestmentTodayView = {
+  publication?: InvestmentBriefPublication
   state: "ready" | "partial" | "unavailable"
   /** Source-owned question reviews; independent of Today/judgment freshness. */
   checkpoint_reviews?: import("./investmentCheckpointReviews").InvestmentCheckpointReviews | null
@@ -724,6 +747,7 @@ export type InvestmentNewsMarketResult = {
   finished_at?: string | null
   message?: string | null
   error?: string | null
+  failure_reason_code?: string | null
   baseline_path?: string | null
   baseline_revision?: string | null
   baseline_cutoff_at?: string | null
@@ -754,6 +778,7 @@ export type InvestmentRefreshStatus = {
   last_updated: string | null
   message: string
   error: string | null
+  failure_reason_code?: string | null
   discovery_state: "idle" | "running" | "ready" | "partial" | "failed"
   discovery_updated_at: string | null
   trigger: string | null

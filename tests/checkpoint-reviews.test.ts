@@ -534,3 +534,39 @@ test("checkpoint review rendering needs no provider reads, refreshes, writes or 
     runtime.setInvestmentProvider(previous)
   }
 })
+
+
+test("pending checks use a status caption while completed answers and stopped unknowns remain distinct", () => {
+  const projection = example()
+  const pending = projection.items.find(item => item.state === "pending")!
+  projection.items = [pending]
+  const before = structuredClone(projection)
+  const html = renderReviews(projection)
+  containsText(html, "回查狀態")
+  assert.doesNotMatch(html, /今天的答案/)
+  assert.deepEqual(projection, before)
+  const completed = example().items.find(item => item.state === "completed")!
+  projection.items = [completed]
+  containsText(renderReviews(projection), "今天的答案")
+  projection.items = [stoppedExample().items[0]]
+  const stopped = renderReviews(projection)
+  containsText(stopped, "回查狀態")
+  assert.doesNotMatch(stopped, /今天的答案/)
+})
+
+
+test("checkpoint section titles hide source comments in both the heading and accessible name", () => {
+  for (const [sourceTitle, visibleTitle] of [
+    ["<!-- source_metadata: synthetic -->之前關注的問題", "之前關注的問題"],
+    ["<!-- source_metadata: synthetic-only -->", "昨天觀察的事"],
+  ]) {
+    const projection = example()
+    projection.display!.title = sourceTitle
+    const before = structuredClone(projection)
+    const html = renderReviews(projection)
+    assert.ok(html.includes(`aria-label="${visibleTitle}"`))
+    assert.match(html, new RegExp(`<h[1-6][^>]*>${visibleTitle}</h[1-6]>`))
+    assert.doesNotMatch(html, /source_metadata|synthetic-only|&lt;!--/)
+    assert.deepEqual(projection, before, "title cleanup must not rewrite producer metadata or lifecycle")
+  }
+})

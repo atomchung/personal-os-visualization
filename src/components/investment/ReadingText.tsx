@@ -1,8 +1,18 @@
 import type { ReactNode } from "react"
 
+/** HTML comments are source metadata, not visible prose; leave source bytes untouched. */
+export function withoutMachineComments(text: string): string {
+  return text.replace(/<!--[\s\S]*?(?:-->|$)/g, "")
+}
+
+function readableSourceText(text: string): string {
+  return withoutMachineComments(text)
+    .replace(/^##[ \t]+Source receipt[ \t]*\(repo-only\)[ \t]*\r?$(?:\r?\n(?!##[ \t])[^\r\n]*)*/gmi, "")
+}
+
 /** A bounded Markdown subset; no source HTML or active content is interpreted. */
 export function InlineText({text}: {text: string}): ReactNode {
-  return text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^\s)]+\)|`[^`]+`|<br\s*\/?\s*>)/gi).map((part, i) => {
+  return withoutMachineComments(text).split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^\s)]+\)|`[^`]+`|<br\s*\/?\s*>)/gi).map((part, i) => {
     if (/^<br/i.test(part)) return <br key={i} />
     if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{part.slice(2,-2)}</strong>
     if (part.startsWith("`") && part.endsWith("`")) return <code key={i} className="break-all text-label">{part.slice(1,-1)}</code>
@@ -75,7 +85,7 @@ function isBlockStart(line: string) {
 }
 
 export function ReadingText({text}: {text: string}) {
-  const lines = text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "").split(/\r?\n/)
+  const lines = readableSourceText(text).replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "").split(/\r?\n/)
   const blocks: ReactNode[] = []
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()

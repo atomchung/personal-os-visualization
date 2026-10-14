@@ -8,6 +8,20 @@ const DATE_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", 
 const SOURCE_TIME_FORMAT = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
 const TAIPEI_DATE_PARTS = new Intl.DateTimeFormat("en", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" })
 
+/** Translate only the observed error class; never infer it from raw provider prose. */
+export function refreshFailureReason(code: string | null | undefined): string | null {
+  const labels: Record<string, string> = {
+    model_configuration: "模型設定不相容",
+    capability_unconfirmed: "執行能力尚未確認",
+    authentication_required: "尚未完成登入",
+    permission_denied: "執行權限不足",
+    provider_unavailable: "服務目前無法使用",
+    provider_timeout: "執行超時",
+    provider_runtime: "執行服務發生錯誤",
+  }
+  return code ? labels[code] ?? null : null
+}
+
 export function taipeiCalendarToday(now = new Date()): string {
   const parts = TAIPEI_DATE_PARTS.formatToParts(now)
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find(item => item.type === type)?.value ?? ""
