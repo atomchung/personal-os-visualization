@@ -529,11 +529,26 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
   // On read failure, keep the cached source snapshot visible without deriving
   // a new judgment from it.
   const replacement = !readFailed && b.state === "current" ? structuredBriefJudgmentReplacement(b) : null
-  const currentJudgment = !readFailed && b.state === "current" ? today?.current_judgment ?? null : null
   const briefMarket = b.session === "tw-open-prep" ? "tw" : b.session === "us-open-prep" ? "us" : null
   const marketProjection = briefMarket ? today?.intraday_refresh?.markets[briefMarket] : null
   const marketJudgment = marketProjection?.current_judgment ?? null
   const hasIdentity = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0
+  const sourceCurrentJudgment = !readFailed ? today?.current_judgment ?? null : null
+  const displayedProvenance = b.judgment?.provenance
+  // A fresh assessment can refer to an older formal brief. Bind it to the
+  // displayed source, while keeping stale actions and delta replacement gated.
+  const staleBaselineMatches = b.state === "stale"
+    && hasIdentity(displayedProvenance?.artifact)
+    && hasIdentity(displayedProvenance?.source_revision)
+    && hasIdentity(displayedProvenance?.source_cutoff)
+    && sourceCurrentJudgment?.baseline?.artifact === displayedProvenance.artifact
+    && sourceCurrentJudgment.baseline.revision === displayedProvenance.source_revision
+    && sourceCurrentJudgment.baseline.source_cutoff === displayedProvenance.source_cutoff
+    && b.source_cutoff === displayedProvenance.source_cutoff
+    && (!today?.publication || (["accepted", "preserved", "stale"].includes(today.publication.state)
+      && today.publication.effective_artifact === displayedProvenance.artifact
+      && today.publication.effective_revision === displayedProvenance.source_revision))
+  const currentJudgment = !readFailed && (b.state === "current" || staleBaselineMatches) ? sourceCurrentJudgment : null
   const latestAssessment = currentJudgment?.latest_assessment
   const marketLatestAssessment = marketJudgment?.latest_assessment
   const receiptReadbackMatches = Boolean(currentJudgment && briefMarket
@@ -548,7 +563,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
     && marketLatestAssessment?.assessed_at === latestAssessment?.assessed_at
     && marketLatestAssessment?.source_revision === latestAssessment?.source_revision)
   const marketDelta = marketJudgment?.current_delta ?? null
-  const acceptedDelta = receiptReadbackMatches && Boolean(currentJudgment?.current_delta && marketDelta)
+  const acceptedDelta = b.state === "current" && receiptReadbackMatches && Boolean(currentJudgment?.current_delta && marketDelta)
     && currentJudgment?.effective_source === "last_successful_reassessment"
     && hasIdentity(currentJudgment.current_delta?.provenance?.assessed_at)
     && hasIdentity(currentJudgment.current_delta?.provenance?.source_revision)
@@ -591,9 +606,13 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
     && hasIdentity(assessmentReceipt?.baseline_artifact_sha256)
     && `sha256:${assessmentReceipt.baseline_artifact_sha256}` === currentJudgment?.baseline?.revision
   const assessmentConfirmed = assessmentCurrent && latestAssessment?.state === currentJudgment?.state
-    && (currentJudgment?.state === "reassessed" ? Boolean(acceptedDelta)
-      : currentJudgment?.state === "unchanged" || currentJudgment?.state === "preserved"
-        ? !currentJudgment.current_delta || Boolean(acceptedDelta) : false)
+    && (b.state === "stale" ? currentJudgment?.state === "unchanged"
+      && currentJudgment.effective_source === "formal_baseline"
+      && !currentJudgment.current_delta && !marketDelta
+      : currentJudgment?.state === "reassessed" ? Boolean(acceptedDelta)
+        : currentJudgment?.state === "unchanged" || currentJudgment?.state === "preserved"
+          ? !currentJudgment.current_delta || Boolean(acceptedDelta) : false)
+  const staleUnchangedConfirmed = b.state === "stale" && assessmentConfirmed
   const formalJudgment = currentJudgment?.formal_judgment
   const priorJudgment = acceptedDelta && formalJudgment?.judgment !== judgment?.judgment
     ? formalJudgment : null
@@ -674,7 +693,7 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
     <Card className="min-w-0 p-4 sm:p-5">
       <div className="flex min-w-0 flex-col gap-3">
       <TodayPublicationStatus today={today} readFailed={readFailed} />
-      {previousJudgment ? <p className="text-body leading-relaxed text-ink-2">上次讀取的判斷（目前未確認）：<InlineText text={previousJudgment} /></p> : null}
+      {previousJudgment ? <p className="text-body leading-relaxed text-ink-2">{staleUnchangedConfirmed ? "沿用的正式判斷（本次重評維持不變）：" : "上次讀取的判斷（目前未確認）："}<InlineText text={previousJudgment} /></p> : null}
       {judgment ? <div role="group" aria-label="主要下一步" className="flex min-w-0 flex-col gap-3 border-l-2 border-accent pl-3">
           <p className="sr-only">{acceptedDelta ? assessmentConfirmed ? "現在判斷" : "上次有效判斷（本次未確認）" : "正式簡報判斷"}</p>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -694,7 +713,8 @@ export function TodayNextSteps({ b, today, readFailed = false }: { b: Investment
       {b.state === "current" || b.state === "stale" ? <p role="note" aria-label="正式判斷時間與後續快掃" className="text-caption text-ink-3">{judgmentTime.summaryLine}</p> : null}
       {actionSection.context ? <p role="status" className="text-caption text-warn">{actionSection.context}</p> : b.state === "missing" ? <p role="status" className="text-caption text-warn">尚未取得正式簡報；不將舊快取或殘留欄位當作今天已確認的工作。</p> : b.state === "invalid" ? <p role="status" className="text-caption text-warn">正式簡報無法完整辨識；其中的行動不列為今天已確認的工作。</p> : null}
       {today?.state === "partial" || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">{today.state === "partial" ? "今日資料只更新了一部分" : "今日更新資料目前無法取得"}；空白欄位不能確認沒有新行動。</p> : null}
-      {hasAssessment && !assessmentConfirmed ? <p role="status" className="text-caption text-warn">本次無法確認，保留既有判斷。</p> : null}
+      {staleUnchangedConfirmed ? <p role="status" className="text-caption text-ink-2">本次查核 {sourceTimestamp(latestAssessment?.assessed_at)}：已重評，判斷維持不變；正式簡報仍是前次版本。</p>
+        : hasAssessment && !assessmentConfirmed ? <p role="status" className="text-caption text-warn">本次無法確認，保留既有判斷。</p> : null}
       {readFailed ? <p role="status" className="text-caption text-warn">本次簡報讀取失敗；以下保留上次成功讀到的簡報與行動，是否已有新版本尚未確認。</p> : null}
       {globalDecisionSummary ? <FieldList><Field label="整體判斷" tone="strong"><TargetText text={globalDecisionSummary} /></Field></FieldList> : null}
       {secondary.length ? <div role="group" aria-label="其他行動" className="flex min-w-0 flex-col gap-3">
