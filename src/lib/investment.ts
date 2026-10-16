@@ -205,6 +205,14 @@ export type InvestmentTodayUpdate = {
   /** Explicit identity from the Investment Note producer; absent means do not merge. */
   story_id: string | null
   observed_at: string
+  /** Source-only publication recovery never advances the formal judgment. */
+  update_kind?: "source_supplement" | null
+  recovery_state?: "source_supplement" | null
+  receipt_state?: "provenance_only" | null
+  recovery_id?: string | null
+  source_revision?: string | null
+  incremental_source_url?: string | null
+  brief_session?: string | null
   scan_mode?: "quick" | "deep" | null
   market_scope?: "tw" | "us" | "all" | null
   market_date?: string | "unknown" | null
@@ -304,8 +312,26 @@ export type InvestmentIntradayRefresh = {
   limitations: string[]
 }
 
+export type InvestmentPublicationRecoveryReason = "checkpoint_pending" | "time_inconsistent" | "source_incomplete" | "structure_incomplete" | "acceptance_incomplete" | "expired"
+
+/** Producer-owned recovery state. Paths and diagnostics are not reader-facing text. */
+export type InvestmentPublicationRecovery = {
+  pending: {
+    recovery_id: string
+    candidate_path: string
+    input_sha256: string
+    status: "recovery_pending" | "expired_needs_review"
+    first_failed_at: string
+    published_item_count: number
+    pending_item_count: number
+    reason_codes: InvestmentPublicationRecoveryReason[]
+  }[]
+  limitations: string[]
+}
+
 export type InvestmentTodayView = {
   publication?: InvestmentBriefPublication
+  publication_recovery?: InvestmentPublicationRecovery
   state: "ready" | "partial" | "unavailable"
   /** Source-owned question reviews; independent of Today/judgment freshness. */
   checkpoint_reviews?: import("./investmentCheckpointReviews").InvestmentCheckpointReviews | null
