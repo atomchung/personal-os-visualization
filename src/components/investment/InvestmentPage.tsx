@@ -790,21 +790,34 @@ function intradayReadingGroups<T>(rows: readonly T[], timestamp: (row: T) => str
 }
 
 function intradayUpdateTime(update: InvestmentTodayUpdate) {
-  return update.scan_completed_at || update.observed_at
+  return update.update_kind === "source_supplement" ? update.observed_at : update.scan_completed_at || update.observed_at
 }
+
+const RECOVERY_REASON_LABELS = {
+  checkpoint_pending: "檢查點尚待補齊",
+  time_inconsistent: "資料時間待核對",
+  source_incomplete: "部分來源尚未齊備",
+  structure_incomplete: "簡報結構待修補",
+  acceptance_incomplete: "正式發布驗證尚未完成",
+  expired: "補救期限已過，待重新查核",
+} as const
 
 export function TodayIntradayReading({ today, readFailed = false }: { today?: InvestmentTodayView; readFailed?: boolean }) {
   const updates = today?.updates ?? []
   const observations = uniqueMarketObservations(today?.intraday_refresh?.market_observations ?? [])
-  if (!updates.length && !observations.length) return null
+  const pendingRecovery = today?.publication_recovery?.pending ?? []
+  if (!updates.length && !observations.length && !pendingRecovery.length) return null
   const updateGroups = intradayReadingGroups(updates, intradayUpdateTime)
   const observationGroups = intradayReadingGroups(observations, row => row.observation_as_of || row.source?.at || row.observed_at || row.source_published_at)
   const renderUpdate = (update: InvestmentTodayUpdate, index: number) => {
+    const supplement = update.update_kind === "source_supplement"
+    const provenanceOnly = supplement && update.recovery_state === "source_supplement" && update.receipt_state === "provenance_only"
+    const supplementLabel = ["us-open-prep", "us-open"].includes(update.brief_session ?? "") ? "晚報來源補充" : ["tw-open-prep", "tw-pre"].includes(update.brief_session ?? "") ? "早報來源補充" : "簡報來源補充"
     const mode = update.scan_mode === "quick" ? "消息快掃" : update.scan_mode === "deep" ? "來源標示持倉深掃" : "盤中來源更新（模式未提供）"
     const market = update.market_scope === "tw" ? "台股" : update.market_scope === "us" ? "美股" : update.market_scope === "all" ? "跨市場" : "市場範圍未提供"
     const time = intradayUpdateTime(update)
     return <article key={`${update.id}:${index}`} aria-label="盤中來源判讀" className="flex min-w-0 flex-col gap-3 border-l-2 border-line-soft pl-3">
-      <p className="text-caption text-ink-3">{market} · {mode} · {update.scan_completed_at ? "完成" : "記錄"} {time ? sourceTimestamp(time) : "時間未提供"}{update.coverage_state === "partial" ? " · 部分來源完成" : ""}</p>
+      <p className="text-caption text-ink-3">{supplement ? <>{provenanceOnly ? supplementLabel : "補充來源待確認"}／未更新正式判斷 · 原查核 {time ? sourceTimestamp(time) : "時間未提供"}</> : <>{market} · {mode} · {update.scan_completed_at ? "完成" : "記錄"} {time ? sourceTimestamp(time) : "時間未提供"}{update.coverage_state === "partial" ? " · 部分來源完成" : ""}</>}</p>
       {update.summary?.trim() ? <p className="text-body font-medium leading-relaxed text-ink"><InlineText text={update.summary} /></p>
         : <p className="text-caption text-warn">這筆更新未提供摘要；來源影響與提醒如下。</p>}
       <FieldList>
@@ -815,29 +828,30 @@ export function TodayIntradayReading({ today, readFailed = false }: { today?: In
       <details className="text-caption text-ink-3">
         <summary className="cursor-pointer py-1">這筆更新的範圍與來源</summary>
         <div className="flex min-w-0 flex-col gap-1 pt-2">
-          {update.scan_mode === "quick" ? <p>消息快掃檢查市場新聞增量；未發現重要新事件不代表每個持倉均已重新分析。</p>
+          {supplement ? <p>{provenanceOnly ? "來源內容與出處已保存；尚未成為正式簡報判斷。" : "來源補充狀態尚未確認；保留原正式判斷。"}</p> : update.scan_mode === "quick" ? <p>消息快掃檢查市場新聞增量；未發現重要新事件不代表每個持倉均已重新分析。</p>
             : update.scan_mode === "deep" ? <p>來源將這筆更新標為持倉深掃；完成程度仍以來源覆蓋標記與限制為準。</p>
               : <p>來源未標明快掃或深掃，不推定掃描範圍。</p>}
-          <p>{update.coverage_state === "partial" ? "來源覆蓋：部分完成" : update.coverage_state === "complete" ? "來源覆蓋：來源回報完整" : "來源覆蓋：未提供"}</p>
-          <p>{update.declared_decision_transition === true ? "來源標記：正式判斷有變；是否採用仍以主卡已核對的判斷為準。" : update.declared_decision_transition === false ? "來源標記：正式判斷不變。" : "來源未明示是否改變正式判斷；這筆更新本身不取代主卡判斷。"}</p>
-          {update.transition_reason ? <p><InlineText text={update.transition_reason} /></p> : null}
+          {!supplement ? <p>{update.coverage_state === "partial" ? "來源覆蓋：部分完成" : update.coverage_state === "complete" ? "來源覆蓋：來源回報完整" : "來源覆蓋：未提供"}</p> : null}
+          {!supplement ? <p>{update.declared_decision_transition === true ? "來源標記：正式判斷有變；是否採用仍以主卡已核對的判斷為準。" : update.declared_decision_transition === false ? "來源標記：正式判斷不變。" : "來源未明示是否改變正式判斷；這筆更新本身不取代主卡判斷。"}</p> : null}
+          {!supplement && update.transition_reason ? <p><InlineText text={update.transition_reason} /></p> : null}
           {update.market_date ? <p>市場日期：{update.market_date === "unknown" ? "待核對" : update.market_date}</p> : null}
-          {update.scan_started_at ? <p>掃描開始：{sourceTimestamp(update.scan_started_at)}</p> : null}
-          {update.scan_completed_at ? <p>掃描完成：{sourceTimestamp(update.scan_completed_at)}</p> : null}
+          {!supplement && update.scan_started_at ? <p>掃描開始：{sourceTimestamp(update.scan_started_at)}</p> : null}
+          {!supplement && update.scan_completed_at ? <p>掃描完成：{sourceTimestamp(update.scan_completed_at)}</p> : null}
           {update.observed_at ? <p>記錄時間：{sourceTimestamp(update.observed_at)}</p> : null}
-          {update.source_cutoff ? <p>資訊截至：{sourceTimestamp(update.source_cutoff)}</p> : null}
+          {!supplement && update.source_cutoff ? <p>資訊截至：{sourceTimestamp(update.source_cutoff)}</p> : null}
           {update.information_kind ? <p>來源分類：{update.information_kind}</p> : null}
           {update.event ? <p>來源事件：<InlineText text={update.event} /></p> : null}
           {update.event_title ? <p>來源事件名稱：<InlineText text={update.event_title} /></p> : null}
           {update.market ? <p>來源市場：{update.market}</p> : null}
           {update.source_url ? <p className="break-all">來源網址：{update.source_url}</p> : null}
+          {supplement && update.incremental_source_url && update.incremental_source_url !== update.source_url ? <p className="break-all">補充來源網址：{update.incremental_source_url}</p> : null}
           {update.source_published_at ? <p>來源發布：{sourceTimestamp(update.source_published_at)}</p> : null}
           {update.source_category ? <p>來源類別：{update.source_category}</p> : null}
           {update.observation_value ? <p>觀察值：<InlineText text={update.observation_value} /></p> : null}
           {update.observation_as_of ? <p>觀察時間：{sourceTimestamp(update.observation_as_of)}</p> : null}
           {update.observation_relation ? <p>觀察對象：{update.observation_relation}</p> : null}
           {update.is_price_or_proxy_observation !== undefined ? <p>來源價格／代理指標標記：{String(update.is_price_or_proxy_observation)}</p> : null}
-          {update.source_path ? <p className="break-all">來源：{update.source_path}</p> : null}
+          {!supplement && update.source_path ? <p className="break-all">來源：{update.source_path}</p> : null}
           {update.id ? <p className="break-all">更新 ID {update.id}</p> : null}
           {update.story_id ? <p className="break-all">story_id {update.story_id}</p> : null}
           {update.relevance.length ? <p className="break-all">來源標示相關性：{JSON.stringify(update.relevance)}</p> : null}
@@ -851,6 +865,18 @@ export function TodayIntradayReading({ today, readFailed = false }: { today?: In
       <p className="text-caption text-ink-3">盤中內容是來源補充；是否更新正式判斷，以主卡已核對的結果為準。</p>
       {readFailed || today?.state === "unavailable" ? <p role="status" className="text-caption text-warn">本次盤中資料未確認；保留上次可讀內容。</p>
         : today?.state === "partial" ? <p role="status" className="text-caption text-warn">盤中資料部分可用；以下保留來源更新，未涵蓋的部分仍未知。</p> : null}
+      {pendingRecovery.length ? <div role="status" aria-label="簡報待修補" className="flex min-w-0 flex-col gap-2 border-l-2 border-warn pl-3">
+        <p className="text-body font-medium text-warn">有內容待修補；保留原判斷</p>
+        <details className="text-caption text-ink-3">
+          <summary className="cursor-pointer py-1">待修補內容 · {pendingRecovery.length} 份</summary>
+          <ul className="flex min-w-0 flex-col gap-3 pt-2">{pendingRecovery.map((row, index) => <li key={`${row.recovery_id}:${index}`} className="flex min-w-0 flex-col gap-1">
+            <p>{row.status === "expired_needs_review" ? "補救期限已過，待重新查核" : "等待修補與正式發布驗證"}</p>
+            {row.first_failed_at ? <p>首次未完成：{sourceTimestamp(row.first_failed_at)}</p> : null}
+            <p>已保存來源補充 {row.published_item_count} 則 · 尚待修補 {row.pending_item_count} 則</p>
+            <ul className="list-disc pl-4">{row.reason_codes.map((reason, reasonIndex) => <li key={reasonIndex}>{Object.hasOwn(RECOVERY_REASON_LABELS, reason) ? RECOVERY_REASON_LABELS[reason] : "仍有內容待核對"}</li>)}</ul>
+          </li>)}</ul>
+        </details>
+      </div> : null}
       {updateGroups.visible.map(renderUpdate)}
       {observationGroups.visible.length ? <MarketObservations title="盤中市場讀數" observations={observationGroups.visible} embedded /> : null}
       {updateGroups.older.length || observationGroups.older.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3">

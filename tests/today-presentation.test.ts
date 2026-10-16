@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createServer, type ViteDevServer } from "vite"
 import { currentTodayActionPlan, newsRefreshResultsConfirmed, newsScanNote } from "../src/lib/investmentFormat.ts"
-import { getInvestmentRefreshStatus, postInvestmentRefresh, getSelectedInvestmentProvider, rereadInvestmentRefreshStatuses, setInvestmentProvider, type InvestmentTodayView, type InvestmentRefreshStatus } from "../src/lib/investment.ts"
+import { getInvestmentRefreshStatus, postInvestmentRefresh, getSelectedInvestmentProvider, rereadInvestmentRefreshStatuses, setInvestmentProvider, type InvestmentTodayView, type InvestmentPublicationRecoveryReason, type InvestmentRefreshStatus } from "../src/lib/investment.ts"
 import { demoInvestmentProvider } from "../src/demo/investmentProvider.ts"
 import { syntheticBriefWithSameWording, syntheticJudgmentUpdate, syntheticIntradayUpdate, syntheticPresentationBrief, syntheticPresentationToday, syntheticIntradayReading, syntheticBothRefresh } from "./fixtures/today-presentation.ts"
 import type { InvestmentTimelineNode } from "../src/lib/investment.ts"
@@ -881,4 +881,70 @@ test("stale confirmation never adopts a delta or treats a quiet, failed, partial
     assert.match(html, /本次無法確認，保留既有判斷/, fault)
     assert.doesNotMatch(html, /已重評，判斷維持不變|判斷已更新|本次查核：|不得將舊正式版升格/, fault)
   }
+})
+
+
+test("source supplements preserve provenance clocks without claiming a scan or formal judgment update", async () => {
+  const today: InvestmentTodayView = syntheticPresentationToday()
+  today.intraday_refresh = undefined
+  today.timeline = []
+  today.updates = [{
+    ...syntheticIntradayUpdate(), id: "synthetic-recovery-source", update_kind: "source_supplement",
+    recovery_state: "source_supplement", receipt_state: "provenance_only", brief_session: "us-open-prep",
+    recovery_id: "brief-recovery:2001-02-03:us-open:" + "a".repeat(64),
+    observed_at: "2001-02-03T21:34:00+08:00", source_published_at: "2001-02-03T20:10:00+08:00",
+    scan_completed_at: "2001-02-03T22:05:00+08:00", source_cutoff: "2001-02-03T22:04:00+08:00",
+    source_url: "https://example.com/synthetic-original", incremental_source_url: "https://example.com/synthetic-source",
+    summary: "合成補充消息原文。", action: "合成來源提醒原文。", portfolio_impact: "", declared_decision_transition: true,
+    source_path: "/Users/synthetic/private-candidate.md",
+  }]
+  const { TodayIntradayReading } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  const html = renderToStaticMarkup(createElement(TodayIntradayReading, { today }))
+  assert.match(html, /晚報來源補充／未更新正式判斷/)
+  assert.match(html, /原查核 2001\/02\/03 21:34 台北/)
+  assert.match(html, /來源發布：2001\/02\/03 20:10 台北/)
+  assert.match(html, /https:\/\/example.com\/synthetic-original/)
+  assert.match(html, /https:\/\/example.com\/synthetic-source/)
+  assert.match(html, /合成補充消息原文/)
+  assert.doesNotMatch(html, /消息快掃|掃描完成|22:05|22:04|正式判斷有變|來源回報完整|private-candidate/)
+  const briefHtml = await renderTodayBrief(today)
+  assert.match(briefHtml, /合成正式判斷原文：目前維持觀察。/)
+  assert.ok(briefHtml.indexOf("合成正式判斷原文") < briefHtml.indexOf("合成補充消息原文"))
+  const unconfirmed = structuredClone(today)
+  delete unconfirmed.updates[0].receipt_state
+  const unknownHtml = renderToStaticMarkup(createElement(TodayIntradayReading, { today: unconfirmed }))
+  assert.match(unknownHtml, /補充來源待確認／未更新正式判斷/)
+  assert.doesNotMatch(unknownHtml, /來源內容與出處已保存|晚報來源補充/)
+})
+
+test("pending publication repair stays visible without updates and only renders fixed reason labels", async () => {
+  const today: InvestmentTodayView = syntheticPresentationToday()
+  today.updates = []
+  today.timeline = []
+  today.intraday_refresh = undefined
+  today.publication_recovery = { pending: [{
+    recovery_id: "brief-recovery:2001-02-03:us-open:" + "b".repeat(64), candidate_path: "/Users/synthetic/private-candidate.json",
+    input_sha256: "b".repeat(64), status: "recovery_pending", first_failed_at: "2001-02-03T21:35:00+08:00",
+    published_item_count: 0, pending_item_count: 1, reason_codes: ["time_inconsistent", "checkpoint_pending", "source_incomplete", "structure_incomplete", "acceptance_incomplete"],
+  }], limitations: ["RAW_PRIVATE_DIAGNOSTIC"] }
+  const { TodayIntradayReading } = await server.ssrLoadModule("/src/components/investment/InvestmentPage.tsx")
+  const html = renderToStaticMarkup(createElement(TodayIntradayReading, { today }))
+  assert.match(html, /有內容待修補；保留原判斷/)
+  assert.match(html, /已保存來源補充 0 則 · 尚待修補 1 則/)
+  assert.match(html, /資料時間待核對/)
+  assert.match(html, /檢查點尚待補齊/)
+  assert.match(html, /部分來源尚未齊備/)
+  assert.match(html, /簡報結構待修補/)
+  assert.match(html, /正式發布驗證尚未完成/)
+  assert.doesNotMatch(html, /private-candidate|RAW_PRIVATE_DIAGNOSTIC|time_inconsistent|checkpoint_pending|bbbbbbbb/)
+  const unknown = structuredClone(today)
+  unknown.publication_recovery!.pending[0].reason_codes = ["__proto__", "RAW_PRIVATE_REASON"] as unknown as InvestmentPublicationRecoveryReason[]
+  const unknownHtml = renderToStaticMarkup(createElement(TodayIntradayReading, { today: unknown }))
+  assert.match(unknownHtml, /仍有內容待核對/)
+  assert.doesNotMatch(unknownHtml, /RAW_PRIVATE_REASON|__proto__/)
+  today.publication_recovery.pending[0].status = "expired_needs_review"
+  today.publication_recovery.pending[0].reason_codes = ["expired"]
+  const expiredHtml = renderToStaticMarkup(createElement(TodayIntradayReading, { today }))
+  assert.match(expiredHtml, /補救期限已過，待重新查核/)
+  assert.doesNotMatch(expiredHtml, /已發布|已更新正式判斷|快掃完成/)
 })
