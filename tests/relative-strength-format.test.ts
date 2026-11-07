@@ -84,6 +84,41 @@ test("the relative-strength column header and mobile label carry no unit suffix"
   assert.doesNotMatch(taiwan, /相對強度（百分點）/)
 })
 
+test("a row explains a missing reading and shows its own window end; lookup results keep the same format", async () => {
+  const previousLocation = Object.getOwnPropertyDescriptor(globalThis, "location")
+  Object.defineProperty(globalThis, "location", { value: { origin: "http://localhost", hostname: "localhost" }, configurable: true })
+  const server = await createServer({ server: { middlewareMode: true }, appType: "custom" })
+  try {
+    const { UsRsCell, RsLookupResults, relativeStrengthGapMessage } = await server.ssrLoadModule("/src/components/investment/StockMomentum.tsx")
+    const { relativeStrengthLookup } = await server.ssrLoadModule("/src/demo/fixtures.ts")
+    const text = (element: ReturnType<typeof createElement>) => renderToStaticMarkup(element).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+    const window = { trading_days: 60, start_date: "2026-08-12", end_date: "2026-11-05" }
+
+    const earlier = { rs_spy: 1.5, rs_soxx: 2.5, group: null, group_label: null, rs_group: null, diagnostic: { reason_code: null, effective_window: window } }
+    assert.equal(text(createElement(UsRsCell, { rs: earlier, rsWindow: 60, rsDate: "2026-11-06" })), "對 SPY +1.50% 對半導體 +2.50% 60 交易日 · 2026-11-05")
+
+    for (const [reason_code, words] of [["ticker_data_unavailable", "查不到"], ["insufficient_history", "上市時間不足"], ["stale", "落後"], ["something_new", "來源未說明"]]) {
+      const none = { rs_spy: null, rs_soxx: null, diagnostic: { reason_code, effective_window: window } }
+      assert.match(text(createElement(UsRsCell, { rs: none, rsWindow: 60, rsDate: "2026-11-06" })), new RegExp(`^沒有讀數：.*${words}`))
+    }
+
+    const lookup = relativeStrengthLookup("synth，nope  SYNTH")
+    assert.deepEqual(lookup.rows.map((row: { ticker: string }) => row.ticker), ["SYNTH", "NOPE"])
+    assert.equal(lookup.state, "partial")
+    assert.deepEqual(lookup.coverage, { rows: 2, scored: 1, stale: 0, no_reading: 1 })
+    const rendered = text(createElement(RsLookupResults, { data: { ...lookup, rejected: [{ input: "2330", reason: "目前只支援美股代號" }] } }))
+    assert.match(rendered, /2330：目前只支援美股代號/)
+    assert.match(rendered, /SYNTH 60 日報酬 9\.4% 對 SPY \+5\.20% 對合成族群 \+3\.10%/)
+    assert.match(rendered, /NOPE 60 日報酬 — 沒有讀數：查不到這個代號的日線/)
+
+    assert.equal(relativeStrengthGapMessage([], new Map(), { state: "partial", message: "這次抓價失敗，顯示 11/06 的資料。", coverage: { rows: 1, scored: 1 } }, false), "這次抓價失敗，顯示 11/06 的資料。")
+  } finally {
+    await server.close()
+    if (previousLocation) Object.defineProperty(globalThis, "location", previousLocation)
+    else Reflect.deleteProperty(globalThis, "location")
+  }
+})
+
 // A figure and its benchmark must sit together: with the SPY label below the
 // semiconductor line, the headline number read as if it were against either one.
 test("each relative-strength figure names its benchmark immediately before the number", async () => {

@@ -18,6 +18,7 @@ import {
   momentum,
   quote,
   relativeStrength,
+  relativeStrengthLookup,
   STAMP,
 } from "./fixtures.ts"
 import { investmentScenario } from "./generated/investment-scenario.ts"
@@ -132,6 +133,7 @@ export const demoInvestmentProvider: InvestmentProvider = {
     }
   },
   async getRelativeStrength() { return relativeStrength },
+  async lookupRelativeStrength(symbols) { return relativeStrengthLookup(symbols) },
   async getRefreshStatus(action) { return refreshStatus(action) },
   async startRefresh(action, marketScope) {
     const status: InvestmentRefreshStatus = { ...refreshStatus(action), state: action === "news" ? "no-change" : "success", started_at: STAMP, last_updated: STAMP, message: "只重讀合成範例；沒有連接或執行外部服務。", discovery_state: action === "market" ? "ready" : "idle", discovery_updated_at: action === "market" ? STAMP : null, scan_mode: action === "news" ? "quick" : null, market_scope: marketScope ?? null, new_update_count: 0 }

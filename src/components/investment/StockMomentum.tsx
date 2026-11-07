@@ -6,8 +6,8 @@ import { Chip } from "@/components/ui/chip"
 import { DEMO_MODE } from "@/lib/transport"
 import {
   HOLDING_POLL_MS, IDLE_POLL_MS, SESSION_LABELS, getMomentumLeaders,
-  getRelativeStrength, getStockQuote, isRecentQuote,
-  type MomentumLeaders, type MomentumRow, type RelativeStrength, type RelativeStrengthRow, type StockQuote,
+  getRelativeStrength, getStockQuote, isRecentQuote, lookupRelativeStrength,
+  type MomentumLeaders, type MomentumRow, type RelativeStrength, type RelativeStrengthLookup, type RelativeStrengthRow, type StockQuote,
 } from "@/lib/investment"
 import { formatNumber, quoteTime } from "@/lib/investmentFormat"
 
@@ -106,14 +106,56 @@ function rsCaption(rs: RelativeStrengthRow): string {
   return `對半導體 ${formatRsPercent(rs.rs_soxx)}`
 }
 
+const RS_NO_READING: Record<string, string> = {
+  ticker_data_unavailable: "查不到這個代號的日線",
+  insufficient_history: "上市時間不足這段窗口",
+  missing_aligned_endpoint: "這段期間缺收盤資料",
+  invalid_price: "價格資料異常",
+  stale: "最新收盤落後超過 5 個交易日",
+}
+
 /** Each figure carries its own benchmark, so the SPY reading cannot be mistaken
- * for the secondary comparison beneath it. */
+ * for the secondary comparison beneath it. A row ends on its own date when its
+ * newest close is missing, and a row with no reading says why. */
 export function UsRsCell({ rs, rsWindow, rsDate }: { rs: RelativeStrengthRow; rsWindow: number | null; rsDate: string | null }) {
+  if (rs.rs_spy == null) return <span className="text-caption text-ink-3">沒有讀數：{RS_NO_READING[rs.diagnostic?.reason_code ?? ""] ?? "來源未說明原因"}</span>
   return <>
     <span className="tabular-nums"><span className="text-caption text-ink-3">對 SPY </span><span className={metricTone(rs.rs_spy)}>{formatRsPercent(rs.rs_spy)}</span></span>
     <span className="text-caption tabular-nums text-ink-3">{rsCaption(rs)}</span>
-    <span className="text-micro text-ink-3">{rsWindow ?? "未知"} 交易日 · {rsDate ?? "日期未提供"}</span>
+    <span className="text-micro text-ink-3">{rsWindow ?? "未知"} 交易日 · {rs.diagnostic?.effective_window.end_date ?? rsDate ?? "日期未提供"}</span>
   </>
+}
+
+export function RsLookupResults({ data }: { data: RelativeStrengthLookup }) {
+  return <div className="flex flex-col gap-2">
+    {data.message ? <p role="status" className="text-caption text-warn">{data.message}</p> : null}
+    {data.rejected.length ? <p role="status" className="text-caption text-warn">{data.rejected.map(item => `${item.input}：${item.reason}`).join("；")}</p> : null}
+    {data.rows.length ? <ul className="flex flex-col">
+      {data.rows.map(rs => <li key={rs.ticker} className="grid grid-cols-2 items-start gap-x-3 border-t border-line-soft py-2 text-label">
+        <span className="flex min-w-0 flex-col gap-0.5"><span className="font-semibold text-ink">{rs.ticker}</span><span className="text-caption text-ink-3">{data.window_trading_days ?? "—"} 日報酬 {num(rs.own_ret, true)}</span></span>
+        <span className="flex min-w-0 flex-col"><UsRsCell rs={rs} rsWindow={data.window_trading_days} rsDate={data.as_of} /></span>
+      </li>)}
+    </ul> : null}
+  </div>
+}
+
+/** Typed symbols go to the market-data source and nowhere else: nothing joins the roster or any record. */
+function RsLookup() {
+  const [draft, setDraft] = useState("")
+  const [symbols, setSymbols] = useState("")
+  const query = useQuery({ queryKey: ["investment-relative-strength-lookup", symbols], queryFn: ({ signal }) => lookupRelativeStrength(symbols, signal), enabled: Boolean(symbols), staleTime: 300_000, retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false })
+  return <div className="flex flex-col gap-2 border-b border-line-soft px-3 py-2">
+    <form className="flex flex-wrap items-center gap-2" onSubmit={event => { event.preventDefault(); setSymbols(draft.trim()) }}>
+      <span className="text-caption text-ink-3">查其他標的</span>
+      <input aria-label="查詢相對強度的代號" className="min-w-0 flex-1 rounded-sm border border-line bg-paper p-2 text-body text-ink" maxLength={80} placeholder="美股代號，例如 ORCL, ASML，最多 5 檔" value={draft} onChange={event => setDraft(event.target.value)} />
+      <Button size="sm" type="submit" disabled={!draft.trim()}>查詢</Button>
+      {symbols ? <Button size="sm" type="button" variant="ghost" onClick={() => { setDraft(""); setSymbols("") }}>清除</Button> : null}
+    </form>
+    {symbols && query.isFetching ? <p role="status" className="text-caption text-ink-3">查詢中…</p> : null}
+    {symbols && query.isError ? <p role="alert" className="text-caption text-warn">這次查詢失敗，請再試一次。</p> : null}
+    {symbols && query.data && !query.isFetching ? <RsLookupResults data={query.data} /> : null}
+    {symbols ? <p className="text-micro text-ink-3">臨時查詢，不加入清單，也不寫入紀錄。</p> : null}
+  </div>
 }
 
 /** The old table-level line just said "相對強度資料不完整。" with no way to
@@ -131,6 +173,7 @@ export function relativeStrengthGapMessage(
 ): string | null {
   if (isError) return "相對強度這次沒有取得。"
   if (!rs || rs.state === "ready") return null
+  if (rs.message) return rs.message
   const missing = rows
     .filter(row => !/\.(TW|TWO)$/.test(row.symbol) && (rsByTicker.get(row.symbol)?.rs_spy ?? null) == null)
     .map(row => row.symbol)
@@ -176,6 +219,7 @@ function Row({ row, quote, quoteError, rs, busy, majority, tw, rsDate, rsWindow 
       <p>20 日報酬：{num(row.return_20d_pct, true)} · 距 5／20／50 日線：{num(row.vs_5ma_pct, true)} ／ {num(row.vs_20ma_pct, true)} ／ {num(row.vs_50ma_pct, true)}</p>
       <p>RSI：{num(row.rsi14)} · MACD：{row.macd ? MACD[row.macd] : "—"} · 距一年高點：{num(row.distance_high_pct, true)}</p>
       <p>一年收盤區間位置：{num(row.range_252_position_pct, true)}（低 {num(row.range_252_low)} · 高 {num(row.range_252_high)}）</p>
+      {rs?.latest_close_source ? <p>Yahoo 尚未提供最新收盤，這一筆取自 {rs.latest_close_source === "nasdaq" ? "Nasdaq" : rs.latest_close_source}。</p> : null}
       {rs ? <p>60 日報酬：{num(rs.own_ret, true)} · 對大盤：{formatRsPercent(rs.rs_spy)} · 對半導體：{formatRsPercent(rs.rs_soxx)} · 對族群{rs.group_label ? `（${rs.group_label}）` : ""}：{rs.group ? formatRsPercent(rs.rs_group) : "未分組"}</p> : null}
       {/\.(TW|TWO)$/.test(row.symbol) ? <TaiwanRsDetails {...tw} /> : null}
       {busy ? <p>更新中…</p> : null}
@@ -239,6 +283,7 @@ export function StockMomentum() {
       {rows.length ? <div role="group" aria-label="排序方式" className="flex flex-wrap items-center gap-1 border-b border-line-soft px-3 py-2">
         {SORT_OPTIONS.map(option => <Button key={option.key} size="sm" aria-pressed={sortKey === option.key} variant={sortKey === option.key ? "selected" : "ghost"} onClick={() => setSortKey(option.key)}>{option.label}</Button>)}
       </div> : null}
+      {rowsQuery.data ? <RsLookup /> : null}
       {rows.length ? <div className={`hidden gap-x-3 border-b border-line px-3 py-2 text-caption text-ink-3 sm:grid ${GRID}`}><span>個股／價格</span><span>漲跌</span><span>20日報酬</span><span>距20日線</span><span>距50日線</span><span>RSI</span><span>相對強度<span className="block text-micro text-ink-3">依各列基準與日期</span></span></div> : null}
       <ul>{visible.map((row, index) => <Row key={row.symbol} tw={{ symbol: row.symbol, data: twQuery.data, pending: twQuery.isPending, failed: twQuery.isError }} rsDate={rs?.as_of ?? null} rsWindow={rs?.window_trading_days ?? null} row={row} quote={quotes[index]?.data} quoteError={quotes[index]?.isError ?? false} rs={rsByTicker.get(row.symbol)} busy={quotes[index]?.isFetching ?? false} majority={majority} />)}</ul>
       {showEmpty ? <p className="px-3 py-4 text-body text-ink-3">這份清單沒有可比較的標的。</p> : null}
