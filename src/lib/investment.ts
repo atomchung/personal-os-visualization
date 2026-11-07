@@ -1168,6 +1168,8 @@ export type RelativeStrength = {
 /** A one-off query for typed symbols; `rejected` lists input that was never sent to a source. */
 export type RelativeStrengthLookup = RelativeStrength & {
   rejected: { input: string; reason: string }[]
+  /** Typed Taiwan codes, read against ^TWII instead of SPY; null when none were typed. */
+  taiwan?: TwRelativeStrength | null
 }
 
 export type StockMomentumData = {
@@ -1363,6 +1365,7 @@ export type TwRelativeStrengthHolding = {
   reason_codes: string[]
   limitations: string[]
   market_rs_pp: number | null
+  own_ret?: number | null
   market_benchmark: { id: string | null; label: string | null } | null
   peer_rs_pp: number | null
   peer_group: string | null
