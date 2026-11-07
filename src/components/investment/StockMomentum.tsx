@@ -102,8 +102,18 @@ function mutedLagCaption(row: MomentumRow, majority: string | null): string | nu
 }
 
 function rsCaption(rs: RelativeStrengthRow): string {
-  if (rs.group && rs.group_label) return `${rs.group_label} ${formatRsPercent(rs.rs_group)}`
+  if (rs.group && rs.group_label) return `對${rs.group_label} ${formatRsPercent(rs.rs_group)}`
   return `對半導體 ${formatRsPercent(rs.rs_soxx)}`
+}
+
+/** Each figure carries its own benchmark, so the SPY reading cannot be mistaken
+ * for the secondary comparison beneath it. */
+export function UsRsCell({ rs, rsWindow, rsDate }: { rs: RelativeStrengthRow; rsWindow: number | null; rsDate: string | null }) {
+  return <>
+    <span className="tabular-nums"><span className="text-caption text-ink-3">對 SPY </span><span className={metricTone(rs.rs_spy)}>{formatRsPercent(rs.rs_spy)}</span></span>
+    <span className="text-caption tabular-nums text-ink-3">{rsCaption(rs)}</span>
+    <span className="text-micro text-ink-3">{rsWindow ?? "未知"} 交易日 · {rsDate ?? "日期未提供"}</span>
+  </>
 }
 
 /** The old table-level line just said "相對強度資料不完整。" with no way to
@@ -157,11 +167,7 @@ function Row({ row, quote, quoteError, rs, busy, majority, tw, rsDate, rsWindow 
       <span className="tabular-nums"><span className="text-caption text-ink-3 sm:hidden">RSI </span>{num(row.rsi14)}</span>
       <span className="col-span-2 flex flex-col sm:col-span-1">
         <span className="text-caption text-ink-3 sm:hidden">{/\.(TW|TWO)$/.test(row.symbol) ? "" : "相對強度 "}</span>
-        {/\.(TW|TWO)$/.test(row.symbol) ? <TaiwanRsCell {...tw} /> : rs ? <>
-          <span className={`tabular-nums ${metricTone(rs.rs_spy)}`}>{formatRsPercent(rs.rs_spy)}</span>
-          <span className="text-caption text-ink-3">{rsCaption(rs)}</span>
-          <span className="text-micro text-ink-3">對 SPY · {rsWindow ?? "未知"} 交易日 · {rsDate ?? "日期未提供"}</span>
-        </> : <span className="text-caption text-ink-3">未取得</span>}
+        {/\.(TW|TWO)$/.test(row.symbol) ? <TaiwanRsCell {...tw} /> : rs ? <UsRsCell rs={rs} rsWindow={rsWindow} rsDate={rsDate} /> : <span className="text-caption text-ink-3">未取得</span>}
       </span>
       {statusLine ? <span role="status" className="col-span-2 text-caption text-warn sm:col-span-7">{statusLine}</span> : null}
     </button>
