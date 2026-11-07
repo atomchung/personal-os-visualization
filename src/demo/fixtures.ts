@@ -1,6 +1,6 @@
 /** Synthetic showcase fixture; never generated from a real API or private vault. */
 import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
-import type { TwRelativeStrength, InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentMarketObservation, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchDetail, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, RelativeStrength, StockMomentumData, StockQuote } from "../lib/investment"
+import type { TwRelativeStrength, InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentMarketObservation, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchDetail, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, RelativeStrength, RelativeStrengthLookup, StockMomentumData, StockQuote } from "../lib/investment"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 import checkpointReviewExamples from "./checkpoint-review-examples.json" with { type: "json" }
 import { checkpointReviewsView } from "../lib/investmentCheckpointReviews.ts"
@@ -861,6 +861,21 @@ export const relativeStrength: RelativeStrength = {
   ],
   stale_tickers: [], coverage: { rows: 2, scored: 2, stale: 0, no_reading: 0 },
   note: "合成資料；不是真實的相對強度。", message: "",
+}
+
+/** Only the synthetic symbols have readings; anything else shows the no-data reason. */
+export function relativeStrengthLookup(symbols: string): RelativeStrengthLookup {
+  const window = { trading_days: 60, start_date: "2026-06-24", end_date: DATE }
+  const typed = [...new Set(symbols.toUpperCase().split(/[\s,，、]+/).filter(Boolean))].slice(0, 5)
+  const rows = typed.map(ticker => relativeStrength.rows.find(row => row.ticker === ticker) ?? {
+    ticker, stale: false, own_ret: null, rs_spy: null, rs_soxx: null, group: null, group_label: null, rs_group: null,
+    diagnostic: { reason_code: "ticker_data_unavailable", effective_window: window },
+  })
+  const scored = rows.filter(row => row.rs_spy != null).length
+  return {
+    ...relativeStrength, rows, state: scored === rows.length ? "ready" : "partial", rejected: [],
+    coverage: { rows: rows.length, scored, stale: 0, no_reading: rows.length - scored },
+  }
 }
 
 

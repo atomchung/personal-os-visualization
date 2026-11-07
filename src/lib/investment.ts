@@ -1140,6 +1140,13 @@ export type RelativeStrengthRow = {
   group: string | null
   group_label: string | null
   rs_group: number | null
+  /** Named when the newest close came from a second source. */
+  latest_close_source?: string | null
+  /** The window this row actually covers and why it has no reading, if so. */
+  diagnostic?: {
+    reason_code: string | null
+    effective_window: { trading_days: number; start_date: string | null; end_date: string | null }
+  }
 }
 
 export type RelativeStrength = {
@@ -1156,6 +1163,11 @@ export type RelativeStrength = {
   message: string
   fetched_at?: string
   cached?: boolean
+}
+
+/** A one-off query for typed symbols; `rejected` lists input that was never sent to a source. */
+export type RelativeStrengthLookup = RelativeStrength & {
+  rejected: { input: string; reason: string }[]
 }
 
 export type StockMomentumData = {
@@ -1405,6 +1417,7 @@ export interface InvestmentProvider {
   getSource?(sourceId: string, signal?: AbortSignal): Promise<InvestmentSourceText>
   getContext?(signal?: AbortSignal): Promise<InvestmentContext>
   getRelativeStrength?(signal?: AbortSignal, refresh?: boolean): Promise<RelativeStrength>
+  lookupRelativeStrength?(symbols: string, signal?: AbortSignal): Promise<RelativeStrengthLookup>
   getRefreshStatus?(action: InvestmentRefreshAction, signal?: AbortSignal): Promise<InvestmentRefreshStatus>
   startRefresh?(action: InvestmentRefreshAction, market?: InvestmentNewsScope): Promise<InvestmentRefreshStatus>
   getMarketData?<K extends InvestmentMarketResource>(resource: K, params?: { symbol?: string; refresh?: boolean; signal?: AbortSignal }): Promise<InvestmentMarketPayloads[K]>
@@ -1577,6 +1590,10 @@ export const getMomentumUniverse = (signal?: AbortSignal) =>
 export const getRelativeStrength = (signal?: AbortSignal, refresh = false) =>
   (requireAvailableCapability("market"), getSelectedInvestmentProvider().getRelativeStrength?.(signal, refresh))
     ?? Promise.reject(new Error("Investment relative-strength capability is unavailable."))
+
+export const lookupRelativeStrength = (symbols: string, signal?: AbortSignal) =>
+  (requireAvailableCapability("market"), getSelectedInvestmentProvider().lookupRelativeStrength?.(symbols, signal))
+    ?? Promise.reject(new Error("Investment relative-strength lookup is unavailable."))
 
 export const getMomentumLeaders = (signal?: AbortSignal, refresh = false) =>
   marketData("momentum-leaders", { signal, refresh })
