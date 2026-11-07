@@ -867,13 +867,21 @@ export const relativeStrength: RelativeStrength = {
 export function relativeStrengthLookup(symbols: string): RelativeStrengthLookup {
   const window = { trading_days: 60, start_date: "2026-06-24", end_date: DATE }
   const typed = [...new Set(symbols.toUpperCase().split(/[\s,，、]+/).filter(Boolean))].slice(0, 5)
-  const rows = typed.map(ticker => relativeStrength.rows.find(row => row.ticker === ticker) ?? {
+  const taiwanCodes = typed.filter(ticker => /^\d/.test(ticker))
+  const [readable, , unverified] = twRelativeStrength.holdings
+  const taiwan = taiwanCodes.length ? {
+    ...twRelativeStrength, cached: false,
+    holdings: taiwanCodes.map(code => code === "9999"
+      ? { ...unverified, symbol: `${code}.TW` }
+      : { ...readable, symbol: `${code}.TW`, provider_symbol: `${code}.TW`, own_ret: 6.5 }),
+  } : null
+  const rows = typed.filter(ticker => !taiwanCodes.includes(ticker)).map(ticker => relativeStrength.rows.find(row => row.ticker === ticker) ?? {
     ticker, stale: false, own_ret: null, rs_spy: null, rs_soxx: null, group: null, group_label: null, rs_group: null,
     diagnostic: { reason_code: "ticker_data_unavailable", effective_window: window },
   })
   const scored = rows.filter(row => row.rs_spy != null).length
   return {
-    ...relativeStrength, rows, state: scored === rows.length ? "ready" : "partial", rejected: [],
+    ...relativeStrength, rows, state: scored === rows.length ? "ready" : "partial", rejected: [], taiwan,
     coverage: { rows: rows.length, scored, stale: 0, no_reading: rows.length - scored },
   }
 }

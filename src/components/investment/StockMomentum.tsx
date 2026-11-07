@@ -11,7 +11,7 @@ import {
 } from "@/lib/investment"
 import { formatNumber, quoteTime } from "@/lib/investmentFormat"
 
-import { TaiwanRsCell, TaiwanRsDetails, useTaiwanRs, type TaiwanRsProps } from "./TaiwanRs"
+import { TaiwanRsCell, TaiwanRsDetails, twNoReading, useTaiwanRs, type TaiwanRsProps } from "./TaiwanRs"
 
 const NUM = new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 })
 const MACD = { bullish_cross: "偏多交叉", bearish_cross: "偏空交叉", bullish: "偏多", bearish: "偏空", flat: "持平" }
@@ -126,14 +126,28 @@ export function UsRsCell({ rs, rsWindow, rsDate }: { rs: RelativeStrengthRow; rs
   </>
 }
 
+function TwLookupReading({ row }: { row: NonNullable<RelativeStrengthLookup["taiwan"]>["holdings"][number] }) {
+  if (row.market_rs_pp == null) return <span className="text-caption text-ink-3">沒有讀數：{twNoReading(row)}</span>
+  return <>
+    <span className="tabular-nums"><span className="text-caption text-ink-3">對 {row.market_benchmark?.id ?? "基準未提供"} </span><span className={metricTone(row.market_rs_pp)}>{formatRsPercent(row.market_rs_pp)}</span></span>
+    <span className="text-micro text-ink-3">{row.window_trading_days ?? "未知"} 交易日 · {row.as_of ?? "日期未提供"}</span>
+  </>
+}
+
 export function RsLookupResults({ data }: { data: RelativeStrengthLookup }) {
+  const taiwan = data.taiwan?.holdings ?? []
   return <div className="flex flex-col gap-2">
     {data.message ? <p role="status" className="text-caption text-warn">{data.message}</p> : null}
     {data.rejected.length ? <p role="status" className="text-caption text-warn">{data.rejected.map(item => `${item.input}：${item.reason}`).join("；")}</p> : null}
-    {data.rows.length ? <ul className="flex flex-col">
+    {data.taiwan && !taiwan.length ? <p role="status" className="text-caption text-warn">台股來源這次沒有回應，請再試一次。</p> : null}
+    {data.rows.length || taiwan.length ? <ul className="flex flex-col">
       {data.rows.map(rs => <li key={rs.ticker} className="grid grid-cols-2 items-start gap-x-3 border-t border-line-soft py-2 text-label">
         <span className="flex min-w-0 flex-col gap-0.5"><span className="font-semibold text-ink">{rs.ticker}</span><span className="text-caption text-ink-3">{data.window_trading_days ?? "—"} 日報酬 {num(rs.own_ret, true)}</span></span>
         <span className="flex min-w-0 flex-col"><UsRsCell rs={rs} rsWindow={data.window_trading_days} rsDate={data.as_of} /></span>
+      </li>)}
+      {taiwan.map(row => <li key={row.symbol} className="grid grid-cols-2 items-start gap-x-3 border-t border-line-soft py-2 text-label">
+        <span className="flex min-w-0 flex-col gap-0.5"><span className="font-semibold text-ink">{row.provider_symbol ?? row.symbol.split(".")[0]}</span><span className="text-caption text-ink-3">{row.window_trading_days ?? "—"} 日報酬 {num(row.own_ret, true)}</span></span>
+        <span className="flex min-w-0 flex-col"><TwLookupReading row={row} /></span>
       </li>)}
     </ul> : null}
   </div>
@@ -147,7 +161,7 @@ function RsLookup() {
   return <div className="flex flex-col gap-2 border-b border-line-soft px-3 py-2">
     <form className="flex flex-wrap items-center gap-2" onSubmit={event => { event.preventDefault(); setSymbols(draft.trim()) }}>
       <span className="text-caption text-ink-3">查其他標的</span>
-      <input aria-label="查詢相對強度的代號" className="min-w-0 flex-1 rounded-sm border border-line bg-paper p-2 text-body text-ink" maxLength={80} placeholder="美股代號，例如 ORCL, ASML，最多 5 檔" value={draft} onChange={event => setDraft(event.target.value)} />
+      <input aria-label="查詢相對強度的代號" className="min-w-0 flex-1 rounded-sm border border-line bg-paper p-2 text-body text-ink" maxLength={80} placeholder="代號，例如 ORCL, 2330，最多 5 檔" value={draft} onChange={event => setDraft(event.target.value)} />
       <Button size="sm" type="submit" disabled={!draft.trim()}>查詢</Button>
       {symbols ? <Button size="sm" type="button" variant="ghost" onClick={() => { setDraft(""); setSymbols("") }}>清除</Button> : null}
     </form>

@@ -7,6 +7,27 @@ export function useTaiwanRs() {
 }
 export type TaiwanRsProps = { symbol: string; data?: TwRelativeStrength & { cached?: boolean }; pending: boolean; failed: boolean }
 
+const BENCHMARK_INCOMPLETE = "大盤基準資料不完整"
+const TW_NO_READING: Record<string, string> = {
+  exchange_unverified: "官方行情查不到這個代號",
+  holding_endpoint_mismatch: "最新收盤日和大盤不同",
+  return_unavailable: "報酬率無法計算",
+  session_unverified: BENCHMARK_INCOMPLETE,
+  official_calendar_unavailable: BENCHMARK_INCOMPLETE,
+  benchmark_stale: BENCHMARK_INCOMPLETE,
+  benchmark_history_short: BENCHMARK_INCOMPLETE,
+  benchmark_missing_session: BENCHMARK_INCOMPLETE,
+  adapter_contract_invalid: "來源資料格式異常",
+}
+/** Why a row has no reading. A short history names how short, which also covers a recent listing. */
+export function twNoReading(row: TwRelativeStrength["holdings"][number]) {
+  const code = row.reason_codes.find(item => item !== "peer_group_unavailable" && item !== "latest_close_official")
+  if (code === "holding_missing_session" && row.coverage.expected_sessions != null && row.coverage.holding_sessions != null) {
+    return `${row.coverage.expected_sessions} 個交易日裡只有 ${row.coverage.holding_sessions} 個有收盤`
+  }
+  return TW_NO_READING[code ?? ""] ?? "來源未說明原因"
+}
+
 function identity(symbol: string) {
   const match = /^.+\.(TW|TWO)$/.exec(symbol)
   if (!match) return undefined
@@ -26,7 +47,7 @@ function status(props: TaiwanRsProps, row: TwRelativeStrength["holdings"][number
   if (props.failed) return props.data ? "更新失敗，保留原資料" : "讀取失敗，來源狀態未知"
   if (props.data?.state === "unavailable") return "來源不可用"
   if (unverified) return "交易所身分未確認"
-  if (row?.state === "unavailable") return "此標的來源不可用"
+  if (row?.state === "unavailable") return twNoReading(row)
   if (row) return "部分可用"
   return "來源未提供此標的的比較資料"
 }

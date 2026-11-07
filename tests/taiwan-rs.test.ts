@@ -9,7 +9,7 @@ test("Taiwan RS renders in the holding cell with exact identity, truthful dates 
   Object.defineProperty(globalThis, "location", { value: { origin: "http://localhost", hostname: "localhost" }, configurable: true })
   const server = await createServer({ server: { middlewareMode: true }, appType: "custom" })
   try {
-    const { TaiwanRsCell, TaiwanRsDetails } = await server.ssrLoadModule("/src/components/investment/TaiwanRs.tsx")
+    const { TaiwanRsCell, TaiwanRsDetails, twNoReading } = await server.ssrLoadModule("/src/components/investment/TaiwanRs.tsx")
     const row = { symbol: "DEMO-TW-A", exchange: "TWSE", state: "partial", market_rs_pp: 1.28, as_of: "2026-09-24", window_start: "2026-07-01", window_trading_days: 60, market_benchmark: { id: "^TWII", label: "加權指數" }, peer_rs_pp: null, peer_group: null, coverage: { holding_sessions: 61, expected_sessions: 61 }, limitations: ["同業籃子未提供"], reason_codes: [], provider_symbol: "DEMO-TW-A.TW", price_source: "synthetic", benchmark_source: "synthetic" }
     const data = { state: "partial", holdings: [row], limitations: [], sources: [], requested_date: "2026-09-27", generated_at: "2026-09-27", source_cutoff: "2026-09-24", read_at: "2026-09-27", producer: "synthetic", id: "synthetic", cached: true }
     const props = { symbol: "DEMO-TW-A.TW", data, pending: false, failed: false }
@@ -25,6 +25,13 @@ test("Taiwan RS renders in the holding cell with exact identity, truthful dates 
     assert.doesNotMatch(cell({ ...props, data: { ...data, state: "unavailable" } }), /1\.28/)
     assert.doesNotMatch(cell({ ...props, data: { ...data, holdings: [{ ...row, state: "unavailable" }] } }), /1\.28/)
     assert.match(cell({ ...props, data: { ...data, holdings: [{ ...row, market_rs_pp: null }] } }), /未取得/)
+    const short = { ...row, state: "unavailable", market_rs_pp: null, reason_codes: ["holding_missing_session", "peer_group_unavailable"], coverage: { expected_sessions: 61, holding_sessions: 40 } }
+    assert.match(cell({ ...props, data: { ...data, holdings: [short] } }), /61 個交易日裡只有 40 個有收盤/)
+    assert.doesNotMatch(cell({ ...props, data: { ...data, holdings: [short] } }), /來源不可用/)
+    for (const [code, words] of [["exchange_unverified", "查不到"], ["holding_endpoint_mismatch", "收盤日"], ["benchmark_stale", "大盤基準"], ["something_new", "未說明"]]) {
+      assert.match(twNoReading({ ...short, reason_codes: ["latest_close_official", code, "peer_group_unavailable"] }), new RegExp(words))
+    }
+    assert.match(twNoReading({ ...short, coverage: { expected_sessions: null, holding_sessions: null } }), /未說明/)
     assert.match(cell({ ...props, data: undefined, pending: true }), /讀取中/)
     assert.match(cell({ ...props, data: undefined, failed: true }), /讀取失敗，來源狀態未知/)
     assert.match(cell({ ...props, data: { ...data, holdings: [{ ...row, exchange: null, market_rs_pp: 99 }] } }), /交易所身分未確認/)

@@ -111,6 +111,15 @@ test("a row explains a missing reading and shows its own window end; lookup resu
     assert.match(rendered, /SYNTH 60 日報酬 9\.4% 對 SPY \+5\.20% 對合成族群 \+3\.10%/)
     assert.match(rendered, /NOPE 60 日報酬 — 沒有讀數：查不到這個代號的日線/)
 
+    const mixed = relativeStrengthLookup("SYNTH, 1234, 9999")
+    assert.deepEqual(mixed.rows.map((row: { ticker: string }) => row.ticker), ["SYNTH"])
+    const taiwanRendered = text(createElement(RsLookupResults, { data: mixed }))
+    assert.match(taiwanRendered, /1234\.TW 60 日報酬 6\.5% 對 \^TWII \+3\.25% 60 交易日/)
+    assert.match(taiwanRendered, /9999 60 日報酬 — 沒有讀數：官方行情查不到這個代號/)
+    assert.equal(mixed.taiwan?.holdings.length, 2)
+    assert.equal(relativeStrengthLookup("SYNTH").taiwan, null)
+    assert.match(text(createElement(RsLookupResults, { data: { ...mixed, taiwan: { ...mixed.taiwan, state: "unavailable", holdings: [] } } })), /台股來源這次沒有回應/)
+
     assert.equal(relativeStrengthGapMessage([], new Map(), { state: "partial", message: "這次抓價失敗，顯示 11/06 的資料。", coverage: { rows: 1, scored: 1 } }, false), "這次抓價失敗，顯示 11/06 的資料。")
   } finally {
     await server.close()
