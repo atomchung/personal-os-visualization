@@ -39,8 +39,7 @@ export function TaiwanRsCell(props: TaiwanRsProps) {
   const value = props.data?.state === "unavailable" || row?.state === "unavailable" ? null : row?.market_rs_pp
   return <span data-tw-rs-symbol={props.symbol} className="flex min-w-0 flex-col gap-1">
     <span className="text-caption text-ink-3 sm:hidden">相對強度</span>
-    <span className={`tabular-nums ${value != null && value > 0 ? "text-ok" : value != null && value < 0 ? "text-bad" : "text-ink-3"}`}>{props.pending && !props.data ? "讀取中…" : formatRsPercent(value)}</span>
-    <span className="text-caption text-ink-3">對 {row?.market_benchmark?.id ?? unverified?.market_benchmark?.id ?? "基準未提供"}</span>
+    <span className="tabular-nums"><span className="text-caption text-ink-3">對 {row?.market_benchmark?.id ?? unverified?.market_benchmark?.id ?? "基準未提供"} </span><span className={value != null && value > 0 ? "text-ok" : value != null && value < 0 ? "text-bad" : "text-ink-3"}>{props.pending && !props.data ? "讀取中…" : formatRsPercent(value)}</span></span>
     <span className="text-micro text-ink-3">{(row ?? unverified)?.window_trading_days == null ? "窗口未提供" : `${(row ?? unverified)?.window_trading_days} 交易日`} · {(row ?? unverified)?.as_of ?? "日期未提供"}</span>
     {props.failed || props.data?.state === "unavailable" || row?.state === "unavailable" || unverified ? <span role="status" className="text-caption text-warn">{status(props, row, unverified)}</span> : null}
     {props.data?.cached ? <span className="text-micro text-ink-3">快取資料</span> : null}
