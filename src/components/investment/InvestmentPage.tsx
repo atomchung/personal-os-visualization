@@ -1054,7 +1054,7 @@ export function InvestmentPage() {
       {b ? <TodayBrief b={b} today={query.data?.today} readFailed={query.isError} newsStatus={newsRefresh.data} onOpenThesis={() => openView("thesis")} /> : null}
       {!b && !query.isPending ? <TodayIntradayReading today={query.data?.today} readFailed={query.isError} /> : null}
       {!b && !query.isPending ? <TodayCheckpointReviews projection={query.data?.today?.checkpoint_reviews} readFailed={query.isError} synthetic={DEMO_MODE} /> : null}
-      <TodayCatalysts enabled={view === "today"} />
+      <TodayCatalysts enabled={view === "today"} showPast />
       <section className="flex min-w-0 flex-col gap-3" aria-label="現在盤面">
         <TodayAnchor>現在盤面</TodayAnchor>
         <MarketPulse />

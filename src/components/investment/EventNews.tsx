@@ -14,7 +14,7 @@ export function EventSources({ sources }: { sources: EventSource[] }) {
   </li>)}</ul>
 }
 
-const CHECK_OUTCOMES: Record<EventCheckResult["outcome"], string> = {
+export const CHECK_OUTCOMES: Record<EventCheckResult["outcome"], string> = {
   resolved: "檢查已完成", no_new_disclosure: "本次沒有新增揭露", follow_up: "另有後續驗證點",
 }
 
@@ -27,7 +27,7 @@ function hasVerifiedResult(event: NewsEvent): boolean {
     && proof.verification_state === "verified" && proof.source_type === "primary"
 }
 
-function resultSourceUrl(value: string | undefined): string | null {
+export function resultSourceUrl(value: string | undefined): string | null {
   if (!value) return null
   try {
     const url = new URL(value)

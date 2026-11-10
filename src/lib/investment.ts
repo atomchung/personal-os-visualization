@@ -620,6 +620,14 @@ export type FutureCheckpoint = {
   affected_companies?: { ticker: string; display_name: string | null }[]
   checks: { scope: string; check: string | null; state: string; result_state: string; source: EventSource; result?: EventCheckResult }[]
   sources: EventSource[]; limitations: string[]
+  /** Calendar-journal fields; present on rows from the event calendar read model. */
+  event_id?: string
+  calendar_status?: "scheduled" | "occurred" | "unknown" | string
+  result_state?: string
+  event_result?: EventResultProof
+  /** Producer-validated http(s) source URLs. */
+  source_refs?: string[]
+  verification?: string
 }
 export type FutureCheckpoints = {
   state: string; window_start: string; window_end: string

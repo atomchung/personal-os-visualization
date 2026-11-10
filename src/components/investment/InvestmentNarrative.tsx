@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardSection, SectionHeading, SubsectionHeading } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { DEMO_MODE } from "@/lib/transport"
-import { filterLayerEntityGroups, layerEntityEvidenceGroups, layerEvidenceGroups, layerGapLine, layerReadingCaption, layerReadingText, layerStatusLineFor, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeDisplayState, narrativeSignalSections, narrativeSummaryLines, paginateLayerEntityGroups, sourceTimestamp } from "@/lib/investmentFormat"
-import { catalystDateGroups, futureCheckpointHeading, isEventIdentityLimitation, nonExactDateReason, splitNonExactByDateInfo, translateLegacyLimitation, withoutExpiredCatalystGaps } from "@/lib/investmentToday"
+import { filterLayerEntityGroups, layerEntityEvidenceGroups, layerEvidenceGroups, layerGapLine, layerReadingCaption, layerReadingText, layerStatusLineFor, NARRATIVE_FALSIFIER_UNAVAILABLE_COPY, narrativeDisplayState, narrativeSignalSections, narrativeSummaryLines, paginateLayerEntityGroups, sourceTimestamp, taipeiCalendarToday } from "@/lib/investmentFormat"
+import { catalystDateGroups, futureCheckpointHeading, partitionPastByHoldings, pastCheckpointStatus, tickerKey, recentPastCheckpoints, isEventIdentityLimitation, nonExactDateReason, splitNonExactByDateInfo, translateLegacyLimitation, withoutExpiredCatalystGaps } from "@/lib/investmentToday"
 import {
   getInvestmentNarrative,
+  getMomentumLeaders,
   type InvestmentCatalystItem,
   type FutureCheckpoint,
   type FutureCheckpoints,
@@ -22,7 +23,7 @@ import {
   type InvestmentNarrativeState,
 } from "@/lib/investment"
 import { InlineText } from "./ReadingText"
-import { EventSources } from "./EventNews"
+import { CHECK_OUTCOMES, EventSources, resultSourceUrl } from "./EventNews"
 import { ClaimEvidence } from "./ClaimEvidence"
 
 type DisplayState = InvestmentNarrativeState | "unavailable"
@@ -452,7 +453,48 @@ function FutureCoverageGapRow({ gap }: { gap: FutureCheckpoints["coverage_gaps"]
   </li>
 }
 
-export function FutureContent({ projection, heading = "公司近期事件" }: { projection: FutureCheckpoints; heading?: string }) {
+/** Past-seven-days row. A passed date is never read as a result: check
+ * outcomes appear only when the producer marked the event result resolved. */
+function PastRow({ item }: { item: FutureCheckpoint }) {
+  const heading = futureCheckpointHeading(item)
+  const resolved = item.result_state === "resolved"
+  const results = resolved ? item.checks.filter(check => check.result?.summary?.trim()) : []
+  const proof = item.event_result
+  const proofUrl = proof?.state === "verified" ? resultSourceUrl(proof.source_url) : null
+  const refs = (item.source_refs ?? []).map(resultSourceUrl).filter((url): url is string => !!url)
+  const occurred = item.calendar_status === "occurred"
+  return <li className="flex min-w-0 flex-col gap-2 border-t border-line-soft py-3 first:border-0 first:pt-0">
+    <FutureEventHeading heading={heading} />
+    <div className="flex flex-wrap items-center gap-2">
+      <Chip tone={occurred ? "ok" : "mute"}>{pastCheckpointStatus(item)}</Chip>
+      {resolved && proof?.state === "verified" ? <Chip tone="mute">結果已核實</Chip> : null}
+    </div>
+    {results.length ? <ul className="flex min-w-0 flex-col gap-1">{results.map((check, index) => <li key={index} className="text-body leading-relaxed text-ink-2">
+      <span className="text-caption text-ink-3">{check.scope} · {check.result && Object.hasOwn(CHECK_OUTCOMES, check.result.outcome) ? CHECK_OUTCOMES[check.result.outcome] : "結果"} · </span><InlineText text={check.result!.summary} />
+    </li>)}</ul> : null}
+    {proofUrl || refs.length ? <p className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-caption">
+      {proofUrl ? <a href={proofUrl} target="_blank" rel="noreferrer" className="text-accent underline underline-offset-2">結果一手來源 ↗</a> : null}
+      {refs.map((url, index) => <a key={index} href={url} target="_blank" rel="noreferrer" className="break-all text-accent underline underline-offset-2">{new URL(url).hostname} ↗</a>)}
+    </p> : null}
+    <FutureProvenanceDetails item={item} />
+  </li>
+}
+
+/** 過去 7 天已發生: the read model's past bucket, bounded to the last week. */
+function PastWeekEvents({ items, today, holdings }: { items: FutureCheckpoint[]; today: string; holdings: ReadonlySet<string> | null }) {
+  const recent = recentPastCheckpoints(items, today)
+  const { held, other, flagged } = partitionPastByHoldings(recent, holdings)
+  const list = (rows: FutureCheckpoint[], prefix: string) => <ul className="flex min-w-0 flex-col">{rows.map((item, index) => <PastRow key={item.event_id ?? item.story_id ?? `${prefix}:${index}`} item={item} />)}</ul>
+  return <section aria-label="過去 7 天已發生" className="flex min-w-0 flex-col gap-2 border-t border-line-soft pt-3">
+    <p className="text-body font-medium text-ink">過去 7 天已發生</p>
+    {!recent.length ? <p className="text-caption text-ink-3">過去 7 天沒有已發生的事件</p> : null}
+    {held.length ? list(held, "past") : recent.length ? <p className="text-caption text-ink-3">過去 7 天沒有持倉公司已發生的事件</p> : null}
+    {other.length ? <details className="border-t border-line-soft pt-2 text-caption text-ink-3"><summary className="cursor-pointer py-1">其他追蹤公司（{other.length}）</summary>{list(other, "other")}</details> : null}
+    {recent.length && !flagged ? <p className="text-caption text-ink-3">持倉清單尚未讀到，以上未區分是否為持倉。</p> : null}
+  </section>
+}
+
+export function FutureContent({ projection, heading = "公司近期事件", showPast = false, today, holdings = null }: { projection: FutureCheckpoints; heading?: string; showPast?: boolean; today?: string; holdings?: ReadonlySet<string> | null }) {
   const exact = projection.items.filter(item => item.date_precision === "day" && item.window_membership === "within")
   const nonExact = [...projection.items.filter(item => !exact.includes(item)), ...projection.uncertain_items]
   const { dated: foldA, undated: foldBEvents } = splitNonExactByDateInfo(nonExact)
@@ -478,12 +520,13 @@ export function FutureContent({ projection, heading = "公司近期事件" }: { 
         <p className="py-2">以下逐項顯示來源回報的涵蓋狀態與可用證據。</p>
         <ul className="flex min-w-0 flex-col">{foldBGaps.map((gap, index) => <FutureCoverageGapRow key={`coverage-gap:${index}`} gap={gap} />)}</ul>
       </details> : null}
+      {showPast ? <PastWeekEvents items={projection.past_items ?? []} today={today ?? taipeiCalendarToday()} holdings={holdings} /> : null}
     </Card>
   </section>
 }
 
 /** Compact Today projection. This is independent of the brief query and never links by ticker or prose. */
-export function TodayCatalysts({ enabled, heading = "公司近期事件" }: { enabled: boolean; heading?: string }) {
+export function TodayCatalysts({ enabled, heading = "公司近期事件", showPast = false }: { enabled: boolean; heading?: string; showPast?: boolean }) {
   const query = useQuery({
     queryKey: ["investment-narrative"],
     queryFn: ({ signal }) => getInvestmentNarrative(signal),
@@ -492,6 +535,10 @@ export function TodayCatalysts({ enabled, heading = "公司近期事件" }: { en
     refetchOnWindowFocus: false,
     staleTime: 60_000,
   })
+  // Same query key and options as the 持倉行情 board, so this reuses its cache
+  // instead of adding a request; holdings are the rows it flags `holding`.
+  const roster = useQuery({ queryKey: ["investment-momentum-leaders"], queryFn: ({ signal }) => getMomentumLeaders(signal), enabled: enabled && showPast, staleTime: 300_000, retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false })
+  const holdings = roster.data && roster.data.state !== "unavailable" ? new Set((roster.data.rows ?? []).filter(row => row.holding).map(row => tickerKey(row.symbol))) : null
   const projection = query.data?.catalysts_30d
   const view = catalystDateGroups(projection)
   const exact = view.exact.slice(0, 3)
@@ -503,7 +550,7 @@ export function TodayCatalysts({ enabled, heading = "公司近期事件" }: { en
     ...foldBItems.map((item, index) => ({ kind: "catalyst" as const, key: `event:${index}:${item.ticker}`, item })),
     ...withoutExpiredCatalystGaps(projection.coverage_gaps).map((gap, index) => ({ kind: "gap" as const, key: `gap:${index}:${gap.ticker}`, ticker: gap.ticker, reason: translateLegacyLimitation(gap.reason) })),
   ] : []
-  if (query.data?.future_checkpoints && !query.isError) return <FutureContent projection={query.data.future_checkpoints} heading={heading} />
+  if (query.data?.future_checkpoints && !query.isError) return <FutureContent projection={query.data.future_checkpoints} heading={heading} showPast={showPast} holdings={holdings} />
   return <section aria-label={heading} className="flex min-w-0 flex-col gap-2">
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2"><SubsectionHeading>{heading}</SubsectionHeading>{projection ? <Chip tone={projection.state === "ready" ? "mute" : "warn"}>{projection.state === "ready" ? "登記正常" : projection.state === "partial" ? "來源部分可用" : "狀態未知"}</Chip> : null}</div>
     <Card className="min-w-0 p-3 sm:p-4">
