@@ -392,3 +392,40 @@ export function taipeiCalendarDate(value: string | null | undefined): string | n
 export function staleBriefStatusText(date: string | null, sessionLabel: string | null, cutoff: string): string {
   return `目前沿用 ${date ?? "日期未提供"} · ${sessionLabel ?? "版次未標示"}；資訊截至 ${cutoff}。`
 }
+
+const PAST_WINDOW_DAYS = 7
+
+function shiftCalendarDay(day: string, offset: number): string {
+  const [year, month, date] = day.split("-").map(Number)
+  return new Date(Date.UTC(year, month - 1, date + offset)).toISOString().slice(0, 10)
+}
+
+/** Past events from the last seven days up to `today` (a Taipei calendar day),
+ * newest first. Rows without an exact calendar day or dated after today are
+ * not "already happened" evidence and are left out. */
+export function recentPastCheckpoints(items: FutureCheckpoint[] | null | undefined, today: string): FutureCheckpoint[] {
+  const since = shiftCalendarDay(today, -PAST_WINDOW_DAYS)
+  return (items ?? [])
+    .filter(item => isCalendarDay(item.date?.trim() ?? "") && item.date! >= since && item.date! <= today)
+    .sort((a, b) => b.date!.localeCompare(a.date!) || a.title.localeCompare(b.title))
+}
+
+/** Plain-language status for a past row; a missed date is never read as a result. */
+export function pastCheckpointStatus(item: Pick<FutureCheckpoint, "calendar_status">): string {
+  if (item.calendar_status === "occurred") return "已發生"
+  if (item.calendar_status === "scheduled") return "日期已過，結果未確認"
+  return "狀態未知"
+}
+
+/** Compare tickers across market suffixes (2330 / 2330.TW / 6488.TWO). */
+export function tickerKey(ticker: string): string {
+  return ticker.trim().toUpperCase().replace(/\.TWO?$/u, "")
+}
+
+/** Split past rows into those touching a current holding and the rest. With no
+ * holdings list (`null`) nothing is flagged: every row stays in `held`. */
+export function partitionPastByHoldings(rows: FutureCheckpoint[], holdings: ReadonlySet<string> | null): { held: FutureCheckpoint[]; other: FutureCheckpoint[]; flagged: boolean } {
+  if (!holdings) return { held: rows, other: [], flagged: false }
+  const isHeld = (row: FutureCheckpoint) => row.affected_tickers.some(ticker => holdings.has(tickerKey(ticker)))
+  return { held: rows.filter(isHeld), other: rows.filter(row => !isHeld(row)), flagged: true }
+}

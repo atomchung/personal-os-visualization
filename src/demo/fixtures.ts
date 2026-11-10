@@ -1,14 +1,25 @@
 /** Synthetic showcase fixture; never generated from a real API or private vault. */
 import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
-import type { TwRelativeStrength, InvestmentActionItem, InvestmentActions, InvestmentContext, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentMarketObservation, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchDetail, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, RelativeStrength, RelativeStrengthLookup, StockMomentumData, StockQuote } from "../lib/investment"
+import type { TwRelativeStrength, InvestmentActionItem, InvestmentActions, InvestmentContext, FutureCheckpoint, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentMarketObservation, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchDetail, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, RelativeStrength, RelativeStrengthLookup, StockMomentumData, StockQuote } from "../lib/investment"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 import checkpointReviewExamples from "./checkpoint-review-examples.json" with { type: "json" }
 import { checkpointReviewsView } from "../lib/investmentCheckpointReviews.ts"
+import { taipeiCalendarToday } from "../lib/investmentFormat.ts"
 
 export const DATE = investmentScenario.as_of
 export const STAMP = `${DATE}T12:00:00+08:00`
 const PREVIOUS_DATE = new Date(Date.parse(`${DATE}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
 const NEXT_DATE = new Date(Date.parse(`${DATE}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
+/** Past-event demo rows are dated against the viewer's own clock so the 7-day list never goes empty. */
+const daysAgo = (days: number) => new Date(Date.parse(`${taipeiCalendarToday()}T00:00:00Z`) - days * 86_400_000).toISOString().slice(0, 10)
+const pastCheckpoint = (id: string, days: number, title: string, status: "occurred" | "scheduled" | "unknown", extra: Partial<FutureCheckpoint> = {}): FutureCheckpoint => ({
+  event_id: id, story_id: null, title: `${daysAgo(days)} ${title}`, state: "ready",
+  date: daysAgo(days), date_label: daysAgo(days), date_precision: "day", window_membership: "past",
+  source_qualifiers: ["合成公司公告"], affected_tickers: ["SYNTH"], affected_companies: [{ ticker: "SYNTH", display_name: "虛構記憶體" }], affected_scopes: ["SYNTH"],
+  checks: [{ scope: "SYNTH", check: "檢查合成下一季需求說明。", state: "pending", result_state: "unknown", source: { path: "synthetic/future-checkpoints.md", line: 3 } }],
+  sources: [{ path: "synthetic/future-checkpoints.md", line: 3, raw: title }],
+  limitations: [], calendar_status: status, source_refs: ["https://example.com/synthetic-event"], verification: "reported", ...extra,
+})
 const BRIEF_GENERATED_AT = `${DATE}T21:30:00+08:00`
 const BRIEF_SOURCE_CUTOFF = `${DATE}T21:15:00+08:00`
 const UPDATE_OBSERVED_AT = `${NEXT_DATE}T00:27:00+08:00`
@@ -543,7 +554,17 @@ export const investmentNarrative: InvestmentNarrative = {
       sources: [{ path: "synthetic/future-checkpoints.md", line: 2, raw: "2026-10-12 15:00 SYNTH｜Q3 線上法說（公司 2026-09-18 公告）" }],
       limitations: ["此為合成示例，不代表真實市場事件。"],
     }],
-    uncertain_items: [], past_items: [], coverage_gaps: [], limitations: [],
+    uncertain_items: [],
+    past_items: [
+      pastCheckpoint("synthetic-past-resolved", 2, "SYNTH Q2 法說（合成）", "occurred", {
+        result_state: "resolved",
+        event_result: { state: "verified", limitations: [], source_url: "https://example.com/synthetic-result" },
+        checks: [{ scope: "SYNTH", check: "檢查合成下一季需求說明。", state: "pending", result_state: "resolved", source: { path: "synthetic/future-checkpoints.md", line: 3 }, result: { scope: "SYNTH", outcome: "resolved", summary: "合成結果：公司維持原先需求說明。" } }],
+      }),
+      pastCheckpoint("synthetic-past-missed", 5, "SYNTH 合成產品發表", "scheduled"),
+      pastCheckpoint("synthetic-past-old", 20, "SYNTH 較早的合成事件", "occurred"),
+    ],
+    coverage_gaps: [], limitations: [],
   },
   catalysts_30d: {
     state: "ready", window_start: DATE, window_end: "2026-10-20",
