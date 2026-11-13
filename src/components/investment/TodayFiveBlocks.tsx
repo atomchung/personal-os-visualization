@@ -90,7 +90,7 @@ function JudgmentBlock({ b, today, update }: { b?: InvestmentBrief; today?: Inve
     return <BlockCard index={1} title="今天怎麼做" time={taipeiClock(view.as_of)}>
       {failure ? <FailureLine update={failure} shownAt={view.checked_at} /> : null}
       <p className="text-body font-medium leading-relaxed text-ink"><InlineText text={view.text} /></p>
-      {checked !== null && asOf !== null && checked > asOf ? <p className="text-caption leading-relaxed text-ink-2">{taipeiClock(view.checked_at)} 檢查過，沒有新事實</p> : null}
+      {checked !== null && asOf !== null && checked > asOf ? <p className="text-caption leading-relaxed text-ink-2">{taipeiClock(view.checked_at)} 檢查過，看法不變</p> : null}
       {view.change_note ? <FollowupLine label="和上一版的差別" text={view.change_note} /> : null}
       {view.overturn ? <FollowupLine label="什麼會改變這個看法" text={view.overturn} /> : null}
     </BlockCard>
@@ -104,6 +104,7 @@ function JudgmentBlock({ b, today, update }: { b?: InvestmentBrief; today?: Inve
 
 // 2 · 之前關注的事，結論 -----------------------------------------------------
 
+// Block 2 has no brief source by design: without an update it says there is no new conclusion.
 function ConclusionsBlock({ b, update }: { b?: InvestmentBrief; update?: TodayUpdateStatus }) {
   const latest = update?.latest ?? null
   const items = latest?.conclusions ?? []
@@ -249,7 +250,16 @@ function MarketBlock({ note }: { note?: string | null }) {
   </BlockCard>
 }
 
-export function TodayFiveBlocks({ b, today, update }: { b?: InvestmentBrief; today?: InvestmentTodayView; update?: TodayUpdateStatus }) {
+/** The status with `latest` dropped when it is older than the brief being shown:
+ * an earlier day's update must not replace a newer brief in any block. */
+export function currentTodayUpdate(b: InvestmentBrief | undefined, update: TodayUpdateStatus | undefined): TodayUpdateStatus | undefined {
+  const latest = update?.latest
+  if (!update || !latest || !b?.date || latest.date >= b.date) return update
+  return { ...update, latest: null }
+}
+
+export function TodayFiveBlocks({ b, today, update: received }: { b?: InvestmentBrief; today?: InvestmentTodayView; update?: TodayUpdateStatus }) {
+  const update = currentTodayUpdate(b, received)
   return <ReadingColumn className="flex min-w-0 flex-col gap-4 break-words">
     <JudgmentBlock b={b} today={today} update={update} />
     <ConclusionsBlock b={b} update={update} />

@@ -28,13 +28,15 @@ type LiveIndexQuote = { value?: number | null; change?: number | null; change_pe
 
 /** The Taiwan index reading block 5 shows. Once the exchange has published the
  * close for the live quote's own day, that official figure is used: the live
- * feed's last bar can differ from the close. Before that, the live quote. */
+ * feed's last bar can differ from the close. Before that, or when the live
+ * quote's day cannot be read, the live quote. Without a live value, the
+ * published reading. */
 export function taiwanIndexReading(live: LiveIndexQuote | undefined, pulse: InvestmentMarketPulse | undefined) {
   const official = pulse?.index
   const officialDay = (official?.direction_check?.as_of ?? pulse?.as_of ?? "").slice(0, 10)
   const liveDay = taipeiCalendarDate(live?.quoted_at)
   const trusted = !official?.direction_check || official.direction_check.status === "confirmed"
-  const published = official?.value != null && trusted && /^\d{4}-\d{2}-\d{2}$/.test(officialDay) && (liveDay == null || officialDay >= liveDay)
+  const published = official?.value != null && trusted && /^\d{4}-\d{2}-\d{2}$/.test(officialDay) && liveDay != null && officialDay >= liveDay
   if (live?.value != null && !published) return { value: live.value, change: live.change ?? null, changePct: live.change_percent ?? null, time: live.quoted_at ?? null }
   return { value: official?.value ?? null, change: official?.change ?? null, changePct: official?.change_pct ?? null, time: pulse?.source_cutoff ?? null }
 }

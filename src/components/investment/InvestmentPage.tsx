@@ -1016,8 +1016,8 @@ export function InvestmentPage() {
   }, [client, newsRefresh.data?.last_updated, newsRefresh.data?.state])
   const todayUpdate = useTodayUpdate(view === "five")
   const marketData = useTodayMarketData(view === "five")
-  const updateRunning = todayUpdate.status.data?.state === "running"
-  const updateElapsed = elapsedLabel(todayUpdate.status.data?.started_at, useNowWhile(updateRunning))
+  const updateRunning = todayUpdate.presented?.state === "running"
+  const updateElapsed = elapsedLabel(todayUpdate.presented?.started_at, useNowWhile(updateRunning))
   const b = query.data?.brief
   function openView(next: View) {
     setView(next)
@@ -1074,7 +1074,7 @@ export function InvestmentPage() {
       </section>
     </div>
     <div id="investment-panel-five" role="tabpanel" aria-labelledby="investment-tab-five" hidden={view !== "five"} className={view === "five" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
-      {view === "five" ? <TodayFiveBlocks b={b} today={query.data?.today} update={todayUpdate.status.data} /> : null}
+      {view === "five" ? <TodayFiveBlocks b={b} today={query.data?.today} update={todayUpdate.presented} /> : null}
     </div>
     <div id="investment-panel-thesis" role="tabpanel" aria-labelledby="investment-tab-thesis" hidden={view !== "thesis"} className={view === "thesis" ? "judgment-workspace flex min-w-0 flex-col gap-5" : "hidden"}>
       <InvestmentNarrativeSection enabled={view === "thesis"} onOpenHistory={() => openView("history")}>

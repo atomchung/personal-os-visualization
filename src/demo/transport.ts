@@ -51,12 +51,24 @@ function resolveWatchExpiry(raw: unknown): string | null {
   return value
 }
 
-/** Shape check for the optional market snapshot sent with a manual today-update. */
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === "object" && !Array.isArray(value)
+const isNumberOrNull = (value: unknown) => value === null || (typeof value === "number" && Number.isFinite(value))
+
+/** Shape check for the optional market snapshot sent with a manual today-update,
+ * including every nested object and array element. */
 function isTodayMarketPayload(value: unknown): value is TodayMarketPayload {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false
-  const { taiwan_index, us_indicators, holdings } = value as Record<string, unknown>
-  return (taiwan_index === null || (typeof taiwan_index === "object" && !Array.isArray(taiwan_index)))
-    && Array.isArray(us_indicators) && Array.isArray(holdings)
+  if (!isRecord(value)) return false
+  const { taiwan_index, us_indicators, holdings } = value
+  const indexOk = taiwan_index === null
+    || (isRecord(taiwan_index) && [taiwan_index.value, taiwan_index.change, taiwan_index.change_pct].every(isNumberOrNull))
+  const indicatorsOk = Array.isArray(us_indicators) && us_indicators.every(item => isRecord(item)
+    && typeof item.symbol === "string" && typeof item.label === "string"
+    && isNumberOrNull(item.value) && isNumberOrNull(item.change_pct))
+  const holdingsOk = Array.isArray(holdings) && holdings.every(item => isRecord(item)
+    && typeof item.ticker === "string"
+    && isNumberOrNull(item.today_pct) && isNumberOrNull(item.return_20d_pct) && isNumberOrNull(item.relative_strength))
+  return indexOk && indicatorsOk && holdingsOk
 }
 
 export function createDemoRequest() {

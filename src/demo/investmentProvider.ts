@@ -130,7 +130,12 @@ export function createSyntheticTodayUpdateRun(runMs = 3_000, now: () => number =
     },
   }
 }
-const todayUpdateRun = createSyntheticTodayUpdateRun()
+// Module-level like the synthetic refresh state above; tests reset it explicitly.
+let todayUpdateRun = createSyntheticTodayUpdateRun()
+/** Restores the initial synthetic today-update so readers do not see an earlier start. */
+export function resetSyntheticTodayUpdate(runMs?: number, now?: () => number): void {
+  todayUpdateRun = createSyntheticTodayUpdateRun(runMs, now)
+}
 
 export const demoInvestmentProvider: InvestmentProvider = {
   id: "synthetic-reference",
