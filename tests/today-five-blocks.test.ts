@@ -123,6 +123,19 @@ test("five blocks: an update older than the brief does not replace it", async ()
   assert.match(failed, /23:10 的更新沒有成功：合成工具沒有回應。以下是 21:30 的內容。/, "content time is the brief's, not the stale update's")
 })
 
+test("five blocks: on the same day the newer of update and brief wins by time", async () => {
+  const brief = demoInvestment.brief
+  const updateAt = (generated_at: string) => status({ latest: { ...sample, generated_at, view: { ...sample.view, as_of: generated_at, checked_at: generated_at } } })
+  // update 09:00, brief 21:30: the brief is newer
+  assertBriefFallback(await render(updateAt(`${DATE}T09:00:00+08:00`), briefProps()))
+  // brief 08:00, update 15:00: the update is newer
+  const later = await render(updateAt(`${DATE}T15:00:00+08:00`), { ...briefProps(), b: { ...brief, generated_at: `${DATE}T08:00:00+08:00` } })
+  assert.match(later, /今天不調整星島設備（虛構）的研究判斷/)
+  // unreadable brief time: only the dates are compared, so the same-day update is shown
+  const unreadable = await render(updateAt(`${DATE}T09:00:00+08:00`), { ...briefProps(), b: { ...brief, generated_at: "unknown", source_cutoff: "unknown" } })
+  assert.match(unreadable, /今天不調整星島設備（虛構）的研究判斷/)
+})
+
 test("five blocks: an update from the brief's day, or with no brief, is shown", async () => {
   for (const props of [briefProps(), {}]) {
     const html = await render(status(), props)
@@ -236,6 +249,7 @@ test("demo transport rejects malformed nested market snapshots", async () => {
       { ...valid, taiwan_index: [] },
       { ...valid, taiwan_index: { ...index, value: "1234" } },
       { ...valid, taiwan_index: { change: 10, change_pct: 0.8 } },
+      { taiwan_index: { value: null, change: 10, change_pct: 0.8 }, us_indicators: [], holdings: [] },
       { ...valid, us_indicators: [null] },
       { ...valid, us_indicators: [{ ...indicator, symbol: 1 }] },
       { ...valid, us_indicators: [{ ...indicator, label: null }] },
@@ -395,5 +409,49 @@ test("a failed start keeps the error's own message and falls back only when it h
     assert.equal(after?.message, "合成工具忙碌中")
     assert.equal(after?.latest, sample)
     client.clear()
+  })
+})
+
+test("a status read that starts while the start is pending cannot overwrite running", async () => {
+  let resolveRead: (value: TodayUpdateStatus) => void = () => undefined
+  let resolveStart: (value: TodayUpdateStatus) => void = () => undefined
+  let readStarted = false
+  const running = ok({ state: "running", started_at: `${DATE}T23:00:00+08:00`, finished_at: null })
+  await withViteProvider({
+    getTodayUpdate: () => { readStarted = true; return new Promise<TodayUpdateStatus>(resolve => { resolveRead = resolve }) },
+    startTodayUpdate: () => new Promise<TodayUpdateStatus>(resolve => { resolveStart = resolve }),
+  }, async () => {
+    const { todayUpdateQueryOptions, todayUpdateStartOptions, TODAY_UPDATE_KEY } = await server.ssrLoadModule("/src/lib/investmentTodayUpdate.ts")
+    const client = new QueryClient()
+    const started = new MutationObserver(client, todayUpdateStartOptions(client)).mutate(undefined)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    // The read begins after onMutate, while the POST is still pending.
+    const read = client.fetchQuery(todayUpdateQueryOptions(client, true)).catch(() => undefined)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    assert.equal(readStarted, true)
+    resolveStart(running)
+    await started
+    resolveRead(ok())
+    await read
+    assert.equal(client.getQueryData<TodayUpdateStatus>(TODAY_UPDATE_KEY)?.state, "running")
+    client.clear()
+  })
+})
+
+test("polling stops once failed polls outlast the grace period", async () => {
+  await withViteProvider({ async getTodayUpdate() { throw new Error("合成讀取失敗") } }, async () => {
+    const { todayUpdateQueryOptions, TODAY_UPDATE_KEY } = await server.ssrLoadModule("/src/lib/investmentTodayUpdate.ts")
+    const running = ok({ state: "running", finished_at: null })
+    for (const [age, polling] of [[1_000, true], [61_000, false]] as const) {
+      const client = new QueryClient()
+      client.setQueryData(TODAY_UPDATE_KEY, running, { updatedAt: Date.now() - age })
+      const options = todayUpdateQueryOptions(client, true)
+      await client.fetchQuery(options).catch(() => undefined)
+      const query = client.getQueryCache().find({ queryKey: TODAY_UPDATE_KEY })!
+      assert.ok(query.state.error, "the poll failed")
+      assert.equal(options.refetchInterval(query), polling ? 5_000 : false, `age ${age}`)
+      assert.equal(todayUpdateQueryOptions(client, false).enabled, polling, `keep-alive at age ${age}`)
+      client.clear()
+    }
   })
 })

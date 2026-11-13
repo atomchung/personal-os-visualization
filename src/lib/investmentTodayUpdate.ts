@@ -40,6 +40,11 @@ export function presentTodayUpdate({ data, error, dataUpdatedAt, errorUpdatedAt 
   }
 }
 
+/** Whether a query state presents as a running run. */
+export function presentedRunning(state: TodayUpdateQueryView | undefined): boolean {
+  return state !== undefined && presentTodayUpdate(state)?.state === "running"
+}
+
 /** Message for a start that failed before the provider returned a status. */
 export function startFailureMessage(error: unknown): string {
   return error instanceof Error && error.message.trim() ? error.message : "更新要求沒有送出"
@@ -53,10 +58,11 @@ export function todayUpdateQueryOptions(client: QueryClient, enabled: boolean) {
   return {
     queryKey: TODAY_UPDATE_KEY,
     queryFn: ({ signal }: { signal: AbortSignal }) => getInvestmentTodayUpdate(signal),
-    enabled: enabled || client.getQueryData<TodayUpdateStatus>(TODAY_UPDATE_KEY)?.state === "running",
+    enabled: enabled || presentedRunning(client.getQueryState<TodayUpdateStatus, Error>(TODAY_UPDATE_KEY)),
     retry: false,
     refetchOnWindowFocus: true,
-    refetchInterval: (query: Query<TodayUpdateStatus, Error, TodayUpdateStatus, typeof TODAY_UPDATE_KEY>) => query.state.data?.state === "running" ? POLL_MS : false,
+    // Polling follows the presented state: it stops once failed polls outlast the grace period.
+    refetchInterval: (query: Query<TodayUpdateStatus, Error, TodayUpdateStatus, typeof TODAY_UPDATE_KEY>) => presentedRunning(query.state) ? POLL_MS : false,
     // A run takes minutes; the reader usually looks elsewhere meanwhile.
     refetchIntervalInBackground: true,
   } as const
@@ -65,11 +71,16 @@ export function todayUpdateQueryOptions(client: QueryClient, enabled: boolean) {
 /** Mutation options for starting a run. */
 export function todayUpdateStartOptions(client: QueryClient) {
   return {
-    // An in-flight read started before the POST must not overwrite the returned `running`.
+    // Reads in flight before the POST, or started while it was pending, must not
+    // overwrite the status it returns: cancel them before and again after it settles.
     onMutate: () => client.cancelQueries({ queryKey: TODAY_UPDATE_KEY }),
     mutationFn: (market?: TodayMarketPayload) => postInvestmentTodayUpdate(market),
-    onSuccess: (next: TodayUpdateStatus) => { client.setQueryData(TODAY_UPDATE_KEY, next) },
-    onError: (error: Error) => {
+    onSuccess: async (next: TodayUpdateStatus) => {
+      await client.cancelQueries({ queryKey: TODAY_UPDATE_KEY })
+      client.setQueryData(TODAY_UPDATE_KEY, next)
+    },
+    onError: async (error: Error) => {
+      await client.cancelQueries({ queryKey: TODAY_UPDATE_KEY })
       // A request that never reached the backend still has to show up as a failed update.
       const now = new Date().toISOString()
       client.setQueryData<TodayUpdateStatus>(TODAY_UPDATE_KEY, current => ({

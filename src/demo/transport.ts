@@ -61,7 +61,8 @@ function isTodayMarketPayload(value: unknown): value is TodayMarketPayload {
   if (!isRecord(value)) return false
   const { taiwan_index, us_indicators, holdings } = value
   const indexOk = taiwan_index === null
-    || (isRecord(taiwan_index) && [taiwan_index.value, taiwan_index.change, taiwan_index.change_pct].every(isNumberOrNull))
+    || (isRecord(taiwan_index) && typeof taiwan_index.value === "number" && Number.isFinite(taiwan_index.value)
+      && isNumberOrNull(taiwan_index.change) && isNumberOrNull(taiwan_index.change_pct))
   const indicatorsOk = Array.isArray(us_indicators) && us_indicators.every(item => isRecord(item)
     && typeof item.symbol === "string" && typeof item.label === "string"
     && isNumberOrNull(item.value) && isNumberOrNull(item.change_pct))

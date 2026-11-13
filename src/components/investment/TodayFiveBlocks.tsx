@@ -250,12 +250,18 @@ function MarketBlock({ note }: { note?: string | null }) {
   </BlockCard>
 }
 
-/** The status with `latest` dropped when it is older than the brief being shown:
- * an earlier day's update must not replace a newer brief in any block. */
+/** The status with `latest` dropped when it is older than the brief being shown,
+ * so the newest content wins in every block: an earlier day's update, or a
+ * same-day update generated before the brief. When either instant cannot be
+ * read, only the calendar dates are compared. */
 export function currentTodayUpdate(b: InvestmentBrief | undefined, update: TodayUpdateStatus | undefined): TodayUpdateStatus | undefined {
   const latest = update?.latest
-  if (!update || !latest || !b?.date || latest.date >= b.date) return update
-  return { ...update, latest: null }
+  if (!update || !latest || !b?.date) return update
+  if (latest.date < b.date) return { ...update, latest: null }
+  const updateAt = instant(latest.generated_at)
+  const briefAt = instant(b.generated_at ?? b.source_cutoff)
+  if (updateAt !== null && briefAt !== null && updateAt < briefAt) return { ...update, latest: null }
+  return update
 }
 
 export function TodayFiveBlocks({ b, today, update: received }: { b?: InvestmentBrief; today?: InvestmentTodayView; update?: TodayUpdateStatus }) {
