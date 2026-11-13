@@ -597,6 +597,8 @@ try {
     }
     await page.getByRole('tab', { name: 'Today', exact: true }).focus()
     await page.keyboard.press('ArrowRight')
+    assert.equal(await page.getByRole('tab', { name: 'Today 五塊', exact: true }).getAttribute('aria-selected'), 'true')
+    await page.keyboard.press('ArrowRight')
     assert.equal(await page.getByRole('tab', { name: '我的判斷', exact: true }).getAttribute('aria-selected'), 'true')
     await page.keyboard.press('End')
     assert.equal(await page.getByRole('tab', { name: '復盤與學習', exact: true }).getAttribute('aria-selected'), 'true')

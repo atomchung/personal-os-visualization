@@ -1,6 +1,6 @@
 /** Synthetic showcase fixture; never generated from a real API or private vault. */
 import type { Cockpit, FocusData, GoalsData, HealthData, Home, IdealData, TimeData, TimePeriod, TodosData } from "../lib/api"
-import type { TwRelativeStrength, InvestmentActionItem, InvestmentActions, InvestmentContext, FutureCheckpoint, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentMarketObservation, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchDetail, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, RelativeStrength, RelativeStrengthLookup, StockMomentumData, StockQuote } from "../lib/investment"
+import type { TwRelativeStrength, InvestmentActionItem, InvestmentActions, InvestmentContext, FutureCheckpoint, InvestmentData, InvestmentHistory, InvestmentHistoryDetail, InvestmentHistoryItem, InvestmentMarket, InvestmentMarketPulse, InvestmentMarketObservation, InvestmentNarrative, InvestmentNarrativeDirectionalSignal, InvestmentNarrativeEvidenceLayer, InvestmentNarrativeSource, InvestmentNarrativeThesisEvidence, InvestmentPending, InvestmentResearch, InvestmentResearchDetail, InvestmentWatch, InvestmentWork, MarketExplore, MarketExploreItem, MomentumLeaders, MomentumUniverse, RelativeStrength, RelativeStrengthLookup, StockMomentumData, StockQuote, TodayUpdate } from "../lib/investment"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 import checkpointReviewExamples from "./checkpoint-review-examples.json" with { type: "json" }
 import { checkpointReviewsView } from "../lib/investmentCheckpointReviews.ts"
@@ -1058,3 +1058,106 @@ export const work = {
     completed: [{ id: "sample-4", name: "修正範例標題", summary: "標題已修正，並完成畫面檢查。" }],
   },
 } as const
+
+/** Fictional manual "update view and news" content for the demo's fixed day.
+ * It reuses the scenario's invented company and checkpoint; no real market,
+ * person or event is described. */
+const TODAY_UPDATE_AT = `${DATE}T22:10:00+08:00`
+const nextCheckLabel = investmentScenario.next_check_date.slice(5).replace("-", "/")
+export const todayUpdate: TodayUpdate = {
+  schema_version: 1,
+  date: DATE,
+  generated_at: TODAY_UPDATE_AT,
+  trigger: "manual",
+  model: "synthetic-demo",
+  duration_seconds: 184,
+  view: {
+    text: `今天不調整${investmentScenario.label}的研究判斷：新產品消息已反映在範例價格上，交付能力仍要等${nextCheckLabel}的${investmentScenario.next_check}。`,
+    as_of: TODAY_UPDATE_AT,
+    checked_at: TODAY_UPDATE_AT,
+    changed: true,
+    change_note: "前一版只寫等產品發表；發表已經完成，改成等交付證據。",
+    overturn: `${investmentScenario.next_check}若給不出明確交期，或早期產品回饋以退貨為主，這個看法就要改。`,
+  },
+  conclusions: [{
+    watch_id: "demo-watch-launch",
+    watched: `${investmentScenario.label}發表新一代儲能產品`,
+    expected: "發表會公布規格，但不會給出貨數量",
+    result: `規格如期公布，${investmentScenario.market_reaction}；沒有提到出貨數量。`,
+    conclusion: "發表本身沒有回答交付能力，問題維持待驗證。",
+    changes_view: false,
+    source_url: "https://example.com/synthetic/launch",
+  }],
+  news: [
+    {
+      headline: "星島設備（虛構）公布新一代儲能產品規格",
+      summary: "合成消息：公司說明產品規格與目標客群，沒有給出貨時程。",
+      affects: [investmentScenario.symbol],
+      effect: "需求面加分，交付面仍是空白",
+      source_name: "合成新聞",
+      source_url: "https://example.com/synthetic/launch",
+      published: `${DATE}T14:05:00+08:00`,
+      added_at: `${DATE}T21:58:00+08:00`,
+    },
+    {
+      headline: "範例指數收高 0.8%（虛構）",
+      summary: "合成消息：設備類範例股同步走高，沒有新的公司公告。",
+      affects: [investmentScenario.symbol, "DEMO-C"],
+      effect: null,
+      source_name: "合成行情摘要",
+      source_url: "https://example.com/synthetic/index-close",
+      published: null,
+      added_at: `${DATE}T21:40:00+08:00`,
+    },
+  ],
+  watch: [
+    {
+      id: "demo-watch-delivery",
+      kind: "event",
+      question: `${investmentScenario.upcoming_event}會給出明確交期嗎？`,
+      expected: "會給季度區間，不會給月份",
+      due: investmentScenario.next_check_date,
+      why: "交期是判斷交付能力的第一個證據",
+      added: DATE,
+    },
+    {
+      id: "demo-watch-feedback",
+      kind: "research",
+      question: "早期產品回饋要從哪裡讀到？",
+      expected: null,
+      due: null,
+      why: "回饋決定需求能否轉成訂單",
+      added: DATE,
+    },
+  ],
+  market_note: "合成盤面：範例指數上漲，設備類範例股同步走強；這是示範數字，不是行情。",
+}
+
+/** What one synthetic manual run changes: one later item and a revised note. */
+export function todayUpdateAfterRun(base: TodayUpdate, finishedAt: string, firstRun: boolean): TodayUpdate {
+  if (!firstRun) return { ...base, generated_at: finishedAt, view: { ...base.view, checked_at: finishedAt, changed: false, change_note: null } }
+  return {
+    ...base,
+    generated_at: finishedAt,
+    trigger: "manual",
+    duration_seconds: 3,
+    view: {
+      ...base.view,
+      text: `今天不調整${investmentScenario.label}的研究判斷：通路商的交期說法和公司一致，仍等${nextCheckLabel}的${investmentScenario.next_check}確認出貨節奏。`,
+      as_of: finishedAt,
+      checked_at: finishedAt,
+      changed: true,
+      change_note: "多了一則通路商的交期說法，方向和上一版相同，只把要確認的事縮小到出貨節奏。",
+    },
+    news: [{
+      headline: "虛構通路商：新一代儲能產品預計下一季到貨",
+      summary: "合成消息：通路商在說明中提到到貨季度，沒有提到數量。",
+      affects: [investmentScenario.symbol],
+      effect: "交期有第一個旁證，出貨節奏仍未知",
+      source_name: "合成新聞",
+      source_url: "https://example.com/synthetic/distributor",
+      published: null,
+      added_at: finishedAt,
+    }, ...base.news],
+  }
+}

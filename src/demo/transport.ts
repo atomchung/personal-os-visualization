@@ -25,7 +25,11 @@ import {
   getTwRelativeStrength,
   saveInvestmentWork,
   getInvestmentPulse,
+  getInvestmentTodayUpdate,
+  postInvestmentTodayUpdate,
   setInvestmentProvider,
+  TODAY_UPDATE_PATH,
+  type TodayMarketPayload,
   type InvestmentWork,
 } from "../lib/investment.ts"
 import { demoInvestmentProvider } from "./investmentProvider.ts"
@@ -45,6 +49,14 @@ function resolveWatchExpiry(raw: unknown): string | null {
   const parsed = Date.parse(`${value}T00:00:00Z`)
   if (!Number.isFinite(parsed) || new Date(parsed).toISOString().slice(0, 10) !== value) return null
   return value
+}
+
+/** Shape check for the optional market snapshot sent with a manual today-update. */
+function isTodayMarketPayload(value: unknown): value is TodayMarketPayload {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  const { taiwan_index, us_indicators, holdings } = value as Record<string, unknown>
+  return (taiwan_index === null || (typeof taiwan_index === "object" && !Array.isArray(taiwan_index)))
+    && Array.isArray(us_indicators) && Array.isArray(holdings)
 }
 
 export function createDemoRequest() {
@@ -89,6 +101,7 @@ export function createDemoRequest() {
         case "/api/investment/actions": return read(() => { assertCapability("actions"); return getInvestmentActions() })
         case "/api/investment/explore": return read(() => { assertCapability("market"); return getMarketExplore() })
         case "/api/investment/market": return read(() => { assertCapability("market"); return getInvestmentMarket() })
+        case TODAY_UPDATE_PATH: return read(() => getInvestmentTodayUpdate())
         case "/api/investment/pulse": return read(() => { assertCapability("market"); return getInvestmentPulse() })
         case "/api/investment/tw-relative-strength": return read(() => { assertCapability("market"); return getTwRelativeStrength() })
         case "/api/investment/momentum/universe": return read(() => { assertCapability("market"); return getMomentumUniverse() })
@@ -170,6 +183,11 @@ export function createDemoRequest() {
       if (path.endsWith("accept")) state.nextAction = typeof body.text === "string" && body.text.trim() ? body.text.trim() : state.nomination
       state.nomination = ""
       return reply({ slug: "demo-paper-plane", next_action: state.nextAction })
+    }
+    if (method === "POST" && path === TODAY_UPDATE_PATH) {
+      const market = body.market
+      if (market !== undefined && !isTodayMarketPayload(market)) return rejected("盤面內容格式錯誤。")
+      return read(() => postInvestmentTodayUpdate(market))
     }
     if (method === "POST" && path === "/api/investment/work") {
       if (typeof body.text !== "string" || !body.text.trim() || body.text.length > 500 || !["decision", "research", "watch"].includes(String(body.kind))) return rejected("請提供有效的範例工作。")
