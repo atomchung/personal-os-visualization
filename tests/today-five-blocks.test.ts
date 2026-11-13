@@ -283,7 +283,9 @@ test("demo transport rejects malformed nested market snapshots", async () => {
 })
 
 test("demo mode: the five-block view renders the synthetic update read through the showcase transport", async () => {
-  const { request } = await server.ssrLoadModule("/src/lib/transport.ts")
+  // `src/lib/transport.ts` is a generated boundary that differs per checkout; the
+  // synthetic transport itself is shared, so the test builds its request from it.
+  const request = (await server.ssrLoadModule("/src/demo/transport.ts")).createDemoRequest()
   ;(await server.ssrLoadModule("/src/demo/investmentProvider.ts")).resetSyntheticTodayUpdate()
   const update = await (await request("/api/investment/today-update")).json() as TodayUpdateStatus
   assert.equal(update.latest?.date, DATE)
