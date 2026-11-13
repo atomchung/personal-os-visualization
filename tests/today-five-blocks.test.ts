@@ -204,3 +204,22 @@ test("the investment page keeps Today as the default view and adds the five-bloc
   assert.match(html, /<div id="investment-panel-five"[^>]*hidden=""[^>]*><\/div>/)
   client.clear()
 })
+
+test("five blocks: the index tile uses the exchange's published close once it exists for the live quote's day", async () => {
+  const { taiwanIndexReading } = await server.ssrLoadModule("/src/lib/investmentTodayMarket.ts")
+  const live = { value: 1240, change: 16, change_percent: 1.31, quoted_at: `${DATE}T05:29:00+00:00` }
+  const pulse = (asOf: string, statusValue: "confirmed" | "needs_review" = "confirmed") => ({
+    as_of: asOf, source_cutoff: `${asOf}T14:30:00+08:00`,
+    index: { label: "範例指數", value: 1234, change: 10, change_pct: 0.82, direction_check: { status: statusValue, as_of: asOf } },
+  })
+  const yesterday = new Date(Date.parse(`${DATE}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
+  // Same day, close published: the official figure replaces the live last bar.
+  assert.deepEqual(taiwanIndexReading(live, pulse(DATE)), { value: 1234, change: 10, changePct: 0.82, time: `${DATE}T14:30:00+08:00` })
+  // The published close is still yesterday's: keep the live quote.
+  assert.deepEqual(taiwanIndexReading(live, pulse(yesterday)), { value: 1240, change: 16, changePct: 1.31, time: live.quoted_at })
+  // A close whose direction check did not pass is not preferred over the live quote.
+  assert.equal(taiwanIndexReading(live, pulse(DATE, "needs_review")).value, 1240)
+  // No live quote: the published reading is all there is; nothing at all gives nulls.
+  assert.equal(taiwanIndexReading(undefined, pulse(yesterday)).value, 1234)
+  assert.deepEqual(taiwanIndexReading(undefined, undefined), { value: null, change: null, changePct: null, time: null })
+})
