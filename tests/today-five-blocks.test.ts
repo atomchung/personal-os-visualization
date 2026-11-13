@@ -22,13 +22,16 @@ after(async () => {
   else Reflect.deleteProperty(globalThis, "location")
 })
 
+const DEMO_NOW = new Date(`${DATE}T12:00:00+08:00`)
+
 const status = (over: Partial<TodayUpdateStatus> = {}): TodayUpdateStatus => ({
   state: "ok", started_at: `${DATE}T22:07:00+08:00`, finished_at: `${DATE}T22:10:00+08:00`, message: null, latest: sample, ...over,
 })
 
 async function render(update: TodayUpdateStatus | undefined, props: Record<string, unknown> = {}): Promise<string> {
   const { TodayFiveBlocks } = await server.ssrLoadModule("/src/components/investment/TodayFiveBlocks.tsx")
-  return renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(TodayFiveBlocks, { update, ...props })))
+  // The clock is fixed to the demo's day so a brief-less render keeps the demo update.
+  return renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(TodayFiveBlocks, { update, now: DEMO_NOW, ...props })))
 }
 
 test("five blocks render blocks 1-4 and the market note from the synthetic update", async () => {
@@ -70,7 +73,7 @@ test("five blocks: block 1 header shows the update time", async () => {
 test("five blocks: a later check shows the no-new-facts line; unsafe links are not linked", async () => {
   const latest: TodayUpdate = {
     ...sample,
-    view: { ...sample.view, checked_at: `${DATE}T23:05:00+08:00`, change_note: null, overturn: null },
+    view: { ...sample.view, checked_at: `${DATE}T23:05:00+08:00`, changed: false, change_note: null, overturn: null },
     news: [{ ...sample.news[0], source_url: "javascript:alert(1)" }],
     conclusions: [], watch: [], market_note: null,
   }
@@ -136,12 +139,29 @@ test("five blocks: on the same day the newer of update and brief wins by time", 
   assert.match(unreadable, /今天不調整星島設備（虛構）的研究判斷/)
 })
 
-test("five blocks: an update from the brief's day, or with no brief, is shown", async () => {
-  for (const props of [briefProps(), {}]) {
-    const html = await render(status(), props)
-    assert.match(html, /今天不調整星島設備（虛構）的研究判斷/)
-    assert.match(html, /合成盤面：範例指數上漲/)
-  }
+test("five blocks: an update from the brief's day is shown", async () => {
+  const html = await render(status(), briefProps())
+  assert.match(html, /今天不調整星島設備（虛構）的研究判斷/)
+  assert.match(html, /合成盤面：範例指數上漲/)
+})
+
+test("five blocks: without a brief date, only an update for today's Taipei date is shown", async () => {
+  const shown = await render(status(), { now: DEMO_NOW })
+  assert.match(shown, /今天不調整星島設備（虛構）的研究判斷/)
+  const nextDay = new Date(`${DATE}T12:00:00+08:00`)
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1)
+  const hidden = await render(status(), { now: nextDay })
+  assert.doesNotMatch(hidden, /今天不調整星島設備（虛構）的研究判斷/)
+  assert.doesNotMatch(hidden, /合成盤面：範例指數上漲/)
+  const undated = await render(status(), { now: DEMO_NOW, b: { ...demoInvestment.brief, date: "" } })
+  assert.match(undated, /今天不調整星島設備（虛構）的研究判斷/, "a brief without a date uses the same rule")
+})
+
+test("five blocks: a changed view checked later has no unchanged-view caption", async () => {
+  const latest: TodayUpdate = { ...sample, view: { ...sample.view, changed: true, checked_at: `${DATE}T23:05:00+08:00` } }
+  const html = await render(status({ latest }))
+  assert.doesNotMatch(html, /檢查過，看法不變/)
+  assert.match(html, /和上一版的差別/)
 })
 
 test("five blocks: a failed run shows one line at the top of block 1 with both times", async () => {
