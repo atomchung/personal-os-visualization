@@ -25,6 +25,9 @@ import { InvestmentHistory } from "./InvestmentHistory"
 import { InvestmentNarrativeSection, TodayCatalysts } from "./InvestmentNarrative"
 import { InvestmentThesis } from "./InvestmentThesis"
 import { TodayCheckpointReviews } from "./TodayCheckpointReviews"
+import { TodayFiveBlocks } from "./TodayFiveBlocks"
+import { buildTodayMarketPayload, useTodayMarketData } from "@/lib/investmentTodayMarket"
+import { elapsedLabel, useNowWhile, useTodayUpdate } from "@/lib/investmentTodayUpdate"
 import {
   BRIEF_SESSION_LABELS, getInvestment, getInvestmentWatch, getInvestmentResearch,
   getInvestmentHistory, getInvestmentContext, getInvestmentSource,
@@ -969,7 +972,7 @@ export function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: {
   </section>
 }
 
-const VIEWS = [["today", "Today"], ["thesis", "我的判斷"], ["work", "研究與策略"], ["history", "復盤與學習"]] as const
+const VIEWS = [["today", "Today"], ["five", "Today 五塊"], ["thesis", "我的判斷"], ["work", "研究與策略"], ["history", "復盤與學習"]] as const
 type View = typeof VIEWS[number][0]
 
 export function InvestmentPage() {
@@ -1011,6 +1014,10 @@ export function InvestmentPage() {
       client.invalidateQueries({ queryKey: ["investment-source"], refetchType: "active" }),
     ])
   }, [client, newsRefresh.data?.last_updated, newsRefresh.data?.state])
+  const todayUpdate = useTodayUpdate(view === "five")
+  const marketData = useTodayMarketData(view === "five")
+  const updateRunning = todayUpdate.presented?.state === "running"
+  const updateElapsed = elapsedLabel(todayUpdate.presented?.started_at, useNowWhile(updateRunning))
   const b = query.data?.brief
   function openView(next: View) {
     setView(next)
@@ -1035,15 +1042,17 @@ export function InvestmentPage() {
 
   return <div className="flex min-w-0 flex-col gap-4 break-words">
     <PageHeader page="investment" />
-    {view === "today" ? <div className="flex min-w-0 flex-col gap-2" aria-label="Today 更新操作">
+    {view === "today" || view === "five" ? <div className="flex min-w-0 flex-col gap-2" aria-label="Today 更新操作">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Button disabled={startingRefresh.has("market") || marketRefresh.data?.state === "running"} onClick={() => void runRefresh("market")}>刷新盤面</Button>
-        <Button disabled={startingRefresh.has("news") || newsRefresh.data?.state === "running"} onClick={() => void runRefresh("news", "both")}>更新消息</Button>
+        {view === "five"
+          ? <Button disabled={updateRunning || todayUpdate.start.isPending} onClick={() => todayUpdate.start.mutate(buildTodayMarketPayload(marketData))}>{updateRunning ? `更新中 ${updateElapsed ?? "0:00"}` : "更新看法與消息"}</Button>
+          : <Button disabled={startingRefresh.has("news") || newsRefresh.data?.state === "running"} onClick={() => void runRefresh("news", "both")}>更新消息</Button>}
         {marketRefresh.isError || newsRefresh.isError ? <Button disabled={marketRefresh.isFetching || newsRefresh.isFetching} title="只重新讀取狀態，不會啟動行情或新聞刷新" onClick={() => void rereadInvestmentRefreshStatuses(() => marketRefresh.refetch(), () => newsRefresh.refetch())}>重新讀取狀態</Button> : null}
       </div>
-      <p className="text-caption text-ink-3">更新台股與美股消息，結果集中在盤中更新。</p>
+      {view === "today" ? <p className="text-caption text-ink-3">更新台股與美股消息，結果集中在盤中更新。</p> : null}
     </div> : null}
-    <InvestmentRefreshDetails marketStatus={marketRefresh.data} newsStatus={newsRefresh.data} marketError={marketRefresh.error} newsError={newsRefresh.error} operationError={refreshError} refresh={query.data?.today?.intraday_refresh} readFailed={query.isError} />
+    {view === "five" ? null : <InvestmentRefreshDetails marketStatus={marketRefresh.data} newsStatus={newsRefresh.data} marketError={marketRefresh.error} newsError={newsRefresh.error} operationError={refreshError} refresh={query.data?.today?.intraday_refresh} readFailed={query.isError} />}
     <nav aria-label="投資內容" className="flex min-w-0 gap-4 overflow-x-auto border-b border-line-soft sm:gap-5" role="tablist">{VIEWS.map(([key, label], index) => <Button key={key} id={`investment-tab-${key}`} role="tab" aria-controls={`investment-panel-${key}`} aria-selected={view === key} tabIndex={view === key ? 0 : -1} variant="link" className={`shrink-0 rounded-none border-b-2 px-0 py-3 ${view === key ? "border-accent text-ink" : "border-transparent text-ink-3"}`} onClick={() => setView(key)} onKeyDown={event => {
       const next = event.key === "ArrowRight" ? (index + 1) % VIEWS.length : event.key === "ArrowLeft" ? (index + VIEWS.length - 1) % VIEWS.length : event.key === "Home" ? 0 : event.key === "End" ? VIEWS.length - 1 : null
       if (next !== null) { event.preventDefault(); openView(VIEWS[next][0]) }
@@ -1063,6 +1072,9 @@ export function InvestmentPage() {
         <TodayAnchor>我的持倉</TodayAnchor>
         <StockMomentum />
       </section>
+    </div>
+    <div id="investment-panel-five" role="tabpanel" aria-labelledby="investment-tab-five" hidden={view !== "five"} className={view === "five" ? "flex min-w-0 flex-col gap-5" : "hidden"}>
+      {view === "five" ? <TodayFiveBlocks b={b} today={query.data?.today} update={todayUpdate.presented} /> : null}
     </div>
     <div id="investment-panel-thesis" role="tabpanel" aria-labelledby="investment-tab-thesis" hidden={view !== "thesis"} className={view === "thesis" ? "judgment-workspace flex min-w-0 flex-col gap-5" : "hidden"}>
       <InvestmentNarrativeSection enabled={view === "thesis"} onOpenHistory={() => openView("history")}>
@@ -1108,7 +1120,7 @@ export function InvestmentPage() {
       {context.isError ? <p role="alert" className="text-body text-warn">研究脈絡這次無法取得；歷史資料仍可單獨查看。</p> : null}
       {history.data ? <ReadingColumn><InvestmentHistory data={history.data} context={context.data} /></ReadingColumn> : null}
     </div>
-    <details className="border-t border-line-soft pt-3"><summary className="cursor-pointer py-2 text-caption text-ink-3">資料來源與讀取狀況{watch.data?.watch.coverage.errors.length ? ` · ${watch.data.watch.coverage.errors.length} 項異常` : ""}</summary><div className="flex flex-col gap-2 pt-2 text-caption text-ink-3">
+    <details hidden={view === "five"} className="border-t border-line-soft pt-3"><summary className="cursor-pointer py-2 text-caption text-ink-3">資料來源與讀取狀況{watch.data?.watch.coverage.errors.length ? ` · ${watch.data.watch.coverage.errors.length} 項異常` : ""}</summary><div className="flex flex-col gap-2 pt-2 text-caption text-ink-3">
       <p>{DEMO_MODE ? "簡報、研究、日期與行情全由合成資料提供。更新資料只重讀範例，不連接帳戶或外部資料。" : "簡報、研究和日期讀取本機 Investment Note；行情向 Yahoo Finance 查詢。「刷新盤面」會先把本機 Investment Note 快轉到 GitHub 最新（只 fast-forward，本機有分岔或未提交重疊就停），不會重新生成正式簡報；若 Investment Note 提供已核實且明示可處理的財報結果，可能送出結果 PR 供審查，但不會自動合併。"}</p>
       <p>每週觀察：{query.data?.weekly_watch.date ?? "尚未取得日期"}。目前只提供日期，無法據此確認本週回顧是否完成。</p>
       <p>投資論點的自動檢查尚未接入；没有提醒不代表論點已通過檢查。</p>

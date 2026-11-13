@@ -1411,6 +1411,84 @@ export type InvestmentMarketPayloads = {
 }
 export type InvestmentMarketResource = keyof InvestmentMarketPayloads
 
+/** Manual "update view and news" run: the provider starts an external tool that
+ * writes one JSON file holding the content of Today blocks 1-4. Everything
+ * nullable below is explicitly null in the file, never absent. Served as
+ * `GET/POST /api/investment/today-update`; POST body `{ market?: TodayMarketPayload }`. */
+
+export type TodayUpdateView = {
+  text: string
+  as_of: string
+  checked_at: string
+  changed: boolean
+  change_note: string | null
+  overturn: string | null
+}
+
+export type TodayUpdateConclusion = {
+  watch_id: string | null
+  watched: string
+  expected: string | null
+  result: string
+  conclusion: string
+  changes_view: boolean
+  source_url: string | null
+}
+
+export type TodayUpdateNews = {
+  headline: string
+  summary: string
+  affects: string[]
+  effect: string | null
+  source_name: string
+  source_url: string
+  published: string | null
+  added_at: string
+}
+
+export type TodayUpdateWatch = {
+  id: string
+  kind: "event" | "research"
+  question: string
+  expected: string | null
+  due: string | null
+  why: string | null
+  added: string
+}
+
+export type TodayUpdate = {
+  schema_version: 1
+  date: string
+  generated_at: string
+  trigger: string
+  model: string
+  duration_seconds: number
+  view: TodayUpdateView
+  conclusions: TodayUpdateConclusion[]
+  news: TodayUpdateNews[]
+  watch: TodayUpdateWatch[]
+  market_note: string | null
+}
+
+export type TodayUpdateState = "idle" | "running" | "ok" | "failed"
+
+export type TodayUpdateStatus = {
+  state: TodayUpdateState
+  started_at: string | null
+  finished_at: string | null
+  message: string | null
+  latest: TodayUpdate | null
+}
+
+/** Compact market snapshot sent with a manual run; the same numbers block 5 shows. */
+export type TodayMarketPayload = {
+  taiwan_index: { value: number; change: number | null; change_pct: number | null } | null
+  us_indicators: { symbol: string; label: string; value: number | null; change_pct: number | null }[]
+  holdings: { ticker: string; today_pct: number | null; return_20d_pct: number | null; relative_strength: number | null }[]
+}
+
+export const TODAY_UPDATE_PATH = "/api/investment/today-update"
+
 /** Shared module boundary. Private providers implement this without changing UI callers. */
 export interface InvestmentProvider {
   readonly id: string
@@ -1432,6 +1510,10 @@ export interface InvestmentProvider {
   getRefreshStatus?(action: InvestmentRefreshAction, signal?: AbortSignal): Promise<InvestmentRefreshStatus>
   startRefresh?(action: InvestmentRefreshAction, market?: InvestmentNewsScope): Promise<InvestmentRefreshStatus>
   getMarketData?<K extends InvestmentMarketResource>(resource: K, params?: { symbol?: string; refresh?: boolean; signal?: AbortSignal }): Promise<InvestmentMarketPayloads[K]>
+  /** Latest manual today-update run and its last successful content. */
+  getTodayUpdate?(signal?: AbortSignal): Promise<TodayUpdateStatus>
+  /** Starts a manual today-update run; returns the run status right after the start. */
+  startTodayUpdate?(market?: TodayMarketPayload): Promise<TodayUpdateStatus>
 }
 export interface InvestmentProviderBase {
   readonly id: string
@@ -1576,6 +1658,16 @@ export async function postInvestmentRefresh(
 export const getInvestmentRefreshStatus = (action: InvestmentRefreshAction, signal?: AbortSignal) =>
   refreshOperations().getRefreshStatus?.(action, signal).then(applyReferenceReadHook)
     ?? Promise.reject(new Error("Investment refresh status is unavailable."))
+
+export const getInvestmentTodayUpdate = (signal?: AbortSignal): Promise<TodayUpdateStatus> =>
+  getSelectedInvestmentProvider().getTodayUpdate?.(signal).then(applyReferenceReadHook)
+    ?? Promise.reject(new Error("更新狀態暫時無法讀取（這個資料來源沒有提供看法與消息更新）"))
+
+export async function postInvestmentTodayUpdate(market?: TodayMarketPayload): Promise<TodayUpdateStatus> {
+  const provider = getSelectedInvestmentProvider()
+  if (!provider.startTodayUpdate) throw new Error("更新要求沒有送出（這個資料來源沒有提供看法與消息更新）")
+  return provider.startTodayUpdate(market)
+}
 
 /** Re-read only the two persisted status queries; this accepts read callbacks, never a refresh/write operation. */
 export async function rereadInvestmentRefreshStatuses(

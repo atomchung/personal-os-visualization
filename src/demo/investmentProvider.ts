@@ -20,6 +20,8 @@ import {
   relativeStrength,
   relativeStrengthLookup,
   STAMP,
+  todayUpdate,
+  todayUpdateAfterRun,
 } from "./fixtures.ts"
 import { investmentScenario } from "./generated/investment-scenario.ts"
 import type { InvestmentWork } from "../lib/investment.ts"
@@ -39,6 +41,7 @@ import type {
   InvestmentMarketPayloads,
   InvestmentRefreshAction,
   InvestmentRefreshStatus,
+  TodayUpdateStatus,
 } from "../lib/investment.ts"
 
 const available = { status: "available" as const, limitations: [] as string[] }
@@ -101,6 +104,39 @@ function refreshStatus(action: InvestmentRefreshAction): InvestmentRefreshStatus
   return refreshStates.get(action) ?? { action, state: "idle", started_at: null, last_updated: null, message: "合成範例尚未重讀。", error: null, discovery_state: "idle", discovery_updated_at: null, trigger: null, new_update_count: null, sync_note: "Synthetic reference only", reconciled_at: null, provider: null, model: null, fallback_depth: null, provider_errors: {} }
 }
 
+/** Browser-memory synthetic manual run: a start reports `running`, and the first
+ * read after `runMs` reports `ok` with a slightly changed fictional update. No
+ * timer, tool or network call is involved. */
+export function createSyntheticTodayUpdateRun(runMs = 3_000, now: () => number = Date.now) {
+  let status: TodayUpdateStatus = { state: "ok", started_at: `${todayUpdate.date}T22:07:00+08:00`, finished_at: todayUpdate.generated_at, message: null, latest: todayUpdate }
+  let startedMs: number | null = null
+  let runs = 0
+  const settle = () => {
+    if (status.state !== "running" || startedMs === null || now() - startedMs < runMs) return
+    const finishedAt = new Date(now()).toISOString()
+    runs += 1
+    status = { ...status, state: "ok", finished_at: finishedAt, message: null, latest: todayUpdateAfterRun(status.latest ?? todayUpdate, finishedAt, runs === 1) }
+    startedMs = null
+  }
+  return {
+    async get(): Promise<TodayUpdateStatus> { settle(); return structuredClone(status) },
+    async start(): Promise<TodayUpdateStatus> {
+      settle()
+      if (status.state !== "running") {
+        startedMs = now()
+        status = { ...status, state: "running", started_at: new Date(startedMs).toISOString(), finished_at: null, message: null }
+      }
+      return structuredClone(status)
+    },
+  }
+}
+// Module-level like the synthetic refresh state above; tests reset it explicitly.
+let todayUpdateRun = createSyntheticTodayUpdateRun()
+/** Restores the initial synthetic today-update so readers do not see an earlier start. */
+export function resetSyntheticTodayUpdate(runMs?: number, now?: () => number): void {
+  todayUpdateRun = createSyntheticTodayUpdateRun(runMs, now)
+}
+
 export const demoInvestmentProvider: InvestmentProvider = {
   id: "synthetic-reference",
   capabilities: demoInvestmentCapabilities,
@@ -148,6 +184,8 @@ export const demoInvestmentProvider: InvestmentProvider = {
     refreshStates.set(action, status)
     return status
   },
+  async getTodayUpdate() { return todayUpdateRun.get() },
+  async startTodayUpdate() { return todayUpdateRun.start() },
   async getContext() { return investmentContext },
   async getSource(sourceId: string) {
     if (sourceId !== investmentScenario.source_id) throw new Error("NOT_FOUND: 找不到這份合成來源。")
