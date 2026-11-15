@@ -117,6 +117,70 @@ test("five blocks: without an update, blocks fall back to the brief rendering", 
   }
 })
 
+/** The time shown in one block's header. */
+function headerTime(html: string, title: string): string | null {
+  const match = new RegExp(`aria-label="${title}"[\\s\\S]*?<span class="shrink-0[^"]*">([^<]*)</span>`).exec(html)
+  return match ? match[1] : null
+}
+
+const monthDay = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`
+const NEXT_DAY = new Date(DEMO_NOW.getTime() + 86_400_000)
+const BRIEF_BLOCKS = ["今天怎麼做", "之前關注的事，結論", "今天發生了什麼", "未來要關注的事"]
+
+test("five blocks: a brief from an earlier day still gives block 1 its view, and every block names the day", async () => {
+  const stale = { ...demoInvestment.brief, state: "stale" }
+  const html = await render(undefined, { ...briefProps(), b: stale, now: NEXT_DAY })
+  assert.match(html, /整理兩個待查問題，不由新聞直接形成交易。/, "the last view is shown instead of a dash")
+  for (const title of BRIEF_BLOCKS) assert.equal(headerTime(html, title), `${monthDay(DATE)} 21:30`, title)
+  // read on its own day, the same content keeps the bare clock (block 3 takes its newest row's time instead)
+  const sameDay = await render(undefined, briefProps())
+  for (const title of BRIEF_BLOCKS.filter(title => title !== "今天發生了什麼")) assert.equal(headerTime(sameDay, title), "21:30", title)
+  // a brief the page could not read gives no view
+  for (const state of ["missing", "invalid"]) {
+    const unreadable = await render(undefined, { ...briefProps(), b: { ...demoInvestment.brief, state }, now: NEXT_DAY })
+    assert.doesNotMatch(unreadable, /整理兩個待查問題，不由新聞直接形成交易。/)
+  }
+})
+
+test("five blocks: a stale brief's stories are not relabelled by a newer update row, and rows name their day", async () => {
+  const stale = { ...demoInvestment.brief, state: "stale" }
+  const row = demoInvestment.today.updates[0]
+  const newer = { ...row, update_kind: "scan", scan_completed_at: `${NEXT_DAY.toISOString().slice(0, 10)}T09:10:00+08:00`, observed_at: `${NEXT_DAY.toISOString().slice(0, 10)}T09:10:00+08:00` }
+  const older = { ...row, id: `${row.id}-older`, update_kind: "scan", scan_completed_at: `${DATE}T22:15:00+08:00`, observed_at: `${DATE}T22:15:00+08:00` }
+  const html = await render(undefined, { b: stale, today: { ...demoInvestment.today, updates: [newer, older] }, now: NEXT_DAY })
+  assert.equal(headerTime(html, "今天發生了什麼"), `${monthDay(DATE)} 21:30`, "the block is labelled with the stale brief's time")
+  assert.match(html, />09:10</, "a row from today keeps the bare clock")
+  assert.match(html, new RegExp(`>${monthDay(DATE)} 22:15<`), "a row from the earlier day names its day")
+})
+
+test("five blocks: news items from different days each name their own day", async () => {
+  const item = sample.news[0]
+  const news = [
+    { ...item, added_at: `${DATE}T10:00:00+08:00` },
+    { ...item, source_url: "https://example.com/earlier-day", added_at: `${previousDay}T22:15:00+08:00` },
+  ]
+  const html = await render(status({ latest: { ...sample, news } }))
+  assert.equal(headerTime(html, "今天發生了什麼"), "10:00")
+  assert.match(html, / · 10:00</)
+  assert.match(html, new RegExp(` · ${monthDay(previousDay)} 22:15<`))
+})
+
+test("five blocks: the failure line names the day of both of its times when they are not today", async () => {
+  const failed = status({ state: "failed", latest: null, finished_at: `${DATE}T23:10:00+08:00`, message: "合成工具沒有回應" })
+  const html = await render(failed, { ...briefProps(), b: { ...demoInvestment.brief, state: "stale" }, now: NEXT_DAY })
+  assert.match(html, new RegExp(`${monthDay(DATE)} 23:10 的更新沒有成功：合成工具沒有回應。以下是 ${monthDay(DATE)} 21:30 的內容。`))
+})
+
+test("five blocks: dayClock is HH:MM on today's Taipei date and M/D HH:MM on any other day", async () => {
+  const { dayClock } = await server.ssrLoadModule("/src/components/investment/TodayFiveBlocks.tsx")
+  const now = new Date("2026-03-05T09:00:00+08:00")
+  assert.equal(dayClock("2026-03-05T08:05:00+08:00", now), "08:05")
+  assert.equal(dayClock("2026-03-04T21:18:00+08:00", now), "3/4 21:18")
+  // 23:30 UTC on the 4th is 07:30 on the 5th in Taipei
+  assert.equal(dayClock("2026-03-04T23:30:00Z", now), "07:30")
+  for (const unreadable of ["2026-03-04", "2026-03-04T21:18:00", "not a time", "", null, undefined]) assert.equal(dayClock(unreadable, now), null, String(unreadable))
+})
+
 test("five blocks: an update older than the brief does not replace it", async () => {
   const stale = status({ latest: { ...sample, date: previousDay } })
   const html = await render(stale, briefProps())

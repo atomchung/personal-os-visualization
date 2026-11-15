@@ -13,15 +13,20 @@ export function instant(value: string | null | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-/** HH:MM (Taipei) of the newest qualified timestamp, or null. */
-export function newestClock(values: (string | null | undefined)[]): string | null {
+/** The newest qualified timestamp among the values, or null. */
+export function newestTime(values: (string | null | undefined)[]): string | null {
   let best: string | null = null
   let bestAt = -Infinity
   for (const value of values) {
     const at = instant(value)
     if (at !== null && at > bestAt) { best = value ?? null; bestAt = at }
   }
-  return best ? taipeiClock(best) : null
+  return best
+}
+
+/** HH:MM (Taipei) of the newest qualified timestamp, or null. */
+export function newestClock(values: (string | null | undefined)[]): string | null {
+  return taipeiClock(newestTime(values))
 }
 
 type LiveIndexQuote = { value?: number | null; change?: number | null; change_percent?: number | null; quoted_at?: string | null }
@@ -73,8 +78,8 @@ export function useTodayMarketData(enabled = true) {
     return20d: row.return_20d_pct ?? null,
     relativeStrength: /\.(TW|TWO)$/.test(row.symbol) ? twRsReading(row.symbol) : rsByTicker.get(row.symbol)?.rs_spy ?? null,
   }))
-  const time = newestClock([tw.time, ...usItems.map(item => item.quoted_at), ...quotes.map(q => q.data?.quoted_at)])
-  return { twValue, twChange, twChangePct, usItems, holdings, reading: leaders.data?.reading, coverage: leaders.data?.coverage, time }
+  const timeAt = newestTime([tw.time, ...usItems.map(item => item.quoted_at), ...quotes.map(q => q.data?.quoted_at)])
+  return { twValue, twChange, twChangePct, usItems, holdings, reading: leaders.data?.reading, coverage: leaders.data?.coverage, time: taipeiClock(timeAt), timeAt }
 }
 
 type TodayMarketData = ReturnType<typeof useTodayMarketData>

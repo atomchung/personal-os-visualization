@@ -7,11 +7,12 @@ import type { TodayUpdate, TodayUpdateStatus } from "@/lib/investmentTodayUpdate
 import { formatNumber, taipeiCalendarToday, taipeiClock, validatedBriefJudgment } from "@/lib/investmentFormat"
 import { buildTodayStories, todayStoryHeadline } from "@/lib/investmentToday"
 import { InlineText } from "./ReadingText"
-import { instant, newestClock, useTodayMarketData } from "@/lib/investmentTodayMarket"
+import { instant, newestTime, useTodayMarketData } from "@/lib/investmentTodayMarket"
 
 /** A second reading of Today as five blocks. Blocks 1-4 render from the
  * manual update when one exists for today, otherwise from the daily brief. The
- * only status text is one failure line at the top of block 1. */
+ * only status text is one failure line at the top of block 1. When the newest
+ * content is from an earlier day it is still shown, and its time carries the date. */
 
 const DASH = "—"
 
@@ -23,6 +24,20 @@ function safeUrl(value: string | null | undefined): string | null {
   } catch {
     return null
   }
+}
+
+function monthDay(value: string): string {
+  const match = /^\d{4}-(\d{2})-(\d{2})/.exec(value)
+  return match ? `${Number(match[1])}/${Number(match[2])}` : value
+}
+
+/** `HH:MM` for a time on today's Taipei date and `M/D HH:MM` for any other day,
+ * so content carried over from an earlier day says which day it is from. */
+export function dayClock(value: string | null | undefined, now: Date): string | null {
+  const at = instant(value)
+  if (at === null) return null
+  const day = taipeiCalendarToday(new Date(at))
+  return day === taipeiCalendarToday(now) ? taipeiClock(value) : `${monthDay(day)} ${taipeiClock(value)}`
 }
 
 function signedPct(value: number | null | undefined): string {
@@ -64,7 +79,8 @@ function currentJudgmentReading(b: InvestmentBrief | undefined, today: Investmen
     const delta = current.current_delta ?? current.effective_judgment
     if (delta?.judgment?.trim()) return { text: delta.judgment.trim(), at: delta.provenance?.assessed_at ?? current.latest_assessment?.assessed_at ?? null }
   }
-  const formal = b.state === "current" ? validatedBriefJudgment(b) : null
+  // A stale brief is the newest view the page has; it is shown with its own date.
+  const formal = b.state === "current" || b.state === "stale" ? validatedBriefJudgment(b) : null
   if (formal) return { text: formal.judgment.trim(), at: b.generated_at ?? b.source_cutoff }
   return null
 }
@@ -74,30 +90,30 @@ function FollowupLine({ label, text }: { label: string; text: string }) {
 }
 
 /** `HH:MM 的更新沒有成功：<message>。以下是 HH:MM 的內容。` */
-function FailureLine({ update, shownAt }: { update: TodayUpdateStatus; shownAt: string | null | undefined }) {
+function FailureLine({ update, shownAt, now }: { update: TodayUpdateStatus; shownAt: string | null | undefined; now: Date }) {
   const message = (update.message?.trim() || "原因不明").replace(/[。.]+$/, "")
-  const failedClock = taipeiClock(update.finished_at ?? update.started_at) ?? DASH
-  return <p role="status" className="text-caption text-warn">{failedClock} 的更新沒有成功：{message}。以下是 {taipeiClock(shownAt) ?? DASH} 的內容。</p>
+  const failedClock = dayClock(update.finished_at ?? update.started_at, now) ?? DASH
+  return <p role="status" className="text-caption text-warn">{failedClock} 的更新沒有成功：{message}。以下是 {dayClock(shownAt, now) ?? DASH} 的內容。</p>
 }
 
-function JudgmentBlock({ b, today, update }: { b?: InvestmentBrief; today?: InvestmentTodayView; update?: TodayUpdateStatus }) {
+function JudgmentBlock({ b, today, update, now }: { b?: InvestmentBrief; today?: InvestmentTodayView; update?: TodayUpdateStatus; now: Date }) {
   const latest = update?.latest ?? null
   const failure = update?.state === "failed" ? update : null
   if (latest) {
     const { view } = latest
     const asOf = instant(view.as_of)
     const checked = instant(view.checked_at)
-    return <BlockCard index={1} title="今天怎麼做" time={taipeiClock(view.as_of)}>
-      {failure ? <FailureLine update={failure} shownAt={view.checked_at} /> : null}
+    return <BlockCard index={1} title="今天怎麼做" time={dayClock(view.as_of, now)}>
+      {failure ? <FailureLine update={failure} shownAt={view.checked_at} now={now} /> : null}
       <p className="text-body font-medium leading-relaxed text-ink"><InlineText text={view.text} /></p>
-      {view.changed === false && checked !== null && asOf !== null && checked > asOf ? <p className="text-caption leading-relaxed text-ink-2">{taipeiClock(view.checked_at)} 檢查過，看法不變</p> : null}
+      {view.changed === false && checked !== null && asOf !== null && checked > asOf ? <p className="text-caption leading-relaxed text-ink-2">{dayClock(view.checked_at, now)} 檢查過，看法不變</p> : null}
       {view.change_note ? <FollowupLine label="和上一版的差別" text={view.change_note} /> : null}
       {view.overturn ? <FollowupLine label="什麼會改變這個看法" text={view.overturn} /> : null}
     </BlockCard>
   }
   const reading = currentJudgmentReading(b, today)
-  return <BlockCard index={1} title="今天怎麼做" time={reading ? taipeiClock(reading.at) : null}>
-    {failure ? <FailureLine update={failure} shownAt={reading?.at} /> : null}
+  return <BlockCard index={1} title="今天怎麼做" time={reading ? dayClock(reading.at, now) : null}>
+    {failure ? <FailureLine update={failure} shownAt={reading?.at} now={now} /> : null}
     <p className="text-body font-medium leading-relaxed text-ink">{reading ? <InlineText text={reading.text} /> : DASH}</p>
   </BlockCard>
 }
@@ -105,10 +121,10 @@ function JudgmentBlock({ b, today, update }: { b?: InvestmentBrief; today?: Inve
 // 2 · 之前關注的事，結論 -----------------------------------------------------
 
 // Block 2 has no brief source by design: without an update it says there is no new conclusion.
-function ConclusionsBlock({ b, update }: { b?: InvestmentBrief; update?: TodayUpdateStatus }) {
+function ConclusionsBlock({ b, update, now }: { b?: InvestmentBrief; update?: TodayUpdateStatus; now: Date }) {
   const latest = update?.latest ?? null
   const items = latest?.conclusions ?? []
-  const time = latest ? taipeiClock(latest.generated_at) : b ? taipeiClock(b.generated_at ?? b.source_cutoff) : null
+  const time = latest ? dayClock(latest.generated_at, now) : b ? dayClock(b.generated_at ?? b.source_cutoff, now) : null
   return <BlockCard index={2} title="之前關注的事，結論" time={time}>
     {items.length ? <ul className="flex min-w-0 flex-col">
       {items.map((item, index) => <li key={`${item.watch_id ?? item.watched}:${index}`} className="flex min-w-0 flex-col gap-1 border-t border-line-soft py-2 first:border-0 first:pt-0">
@@ -127,14 +143,14 @@ function updateTime(update: InvestmentTodayUpdate): string | null {
   return update.update_kind === "source_supplement" ? update.observed_at : update.scan_completed_at || update.observed_at
 }
 
-function NewsFromUpdate({ latest }: { latest: TodayUpdate }) {
-  return <BlockCard index={3} title="今天發生了什麼" time={newestClock(latest.news.map(item => item.added_at))}>
+function NewsFromUpdate({ latest, now }: { latest: TodayUpdate; now: Date }) {
+  return <BlockCard index={3} title="今天發生了什麼" time={dayClock(newestTime(latest.news.map(item => item.added_at)), now)}>
     {latest.news.length ? <ul className="flex min-w-0 flex-col">
       {latest.news.map((item, index) => {
         const url = safeUrl(item.source_url)
         return <li key={`${item.source_url}:${index}`} className="flex min-w-0 flex-col gap-1 border-t border-line-soft py-2 first:border-0 first:pt-0">
           <p className="text-body leading-relaxed text-ink">{url ? <a href={url} target="_blank" rel="noreferrer" className="text-accent underline underline-offset-2">{item.headline}</a> : item.headline}</p>
-          <p className="text-caption tabular-nums text-ink-3">{item.source_name} · {taipeiClock(item.added_at) ?? DASH}</p>
+          <p className="text-caption tabular-nums text-ink-3">{item.source_name} · {dayClock(item.added_at, now) ?? DASH}</p>
           <p className="text-body leading-relaxed text-ink-2">{item.summary}</p>
           {item.affects.length ? <p className="text-caption leading-relaxed text-ink-3">{item.affects.join("、")}{item.effect ? <span className="pl-2 text-ink-2">{item.effect}</span> : null}</p> : null}
         </li>
@@ -143,19 +159,22 @@ function NewsFromUpdate({ latest }: { latest: TodayUpdate }) {
   </BlockCard>
 }
 
-function StoriesBlock({ b, today, update }: { b?: InvestmentBrief; today?: InvestmentTodayView; update?: TodayUpdateStatus }) {
-  if (update?.latest) return <NewsFromUpdate latest={update.latest} />
+function StoriesBlock({ b, today, update, now }: { b?: InvestmentBrief; today?: InvestmentTodayView; update?: TodayUpdateStatus; now: Date }) {
+  if (update?.latest) return <NewsFromUpdate latest={update.latest} now={now} />
   const updates = [...(today?.updates ?? [])]
     .filter(update => update.summary?.trim())
     .sort((left, right) => (instant(updateTime(right)) ?? -Infinity) - (instant(updateTime(left)) ?? -Infinity))
   const stories = b ? buildTodayStories(b.date, b.events, []) : []
-  const contentClock = newestClock([...updates.map(updateTime), b?.generated_at ?? b?.source_cutoff])
+  // Brief stories carry no time of their own. A brief that is not current labels
+  // the block with its own time, so a newer update row cannot make its stories look newer.
+  const briefAt = b?.generated_at ?? b?.source_cutoff
+  const contentClock = dayClock(b && b.state !== "current" ? briefAt : newestTime([...updates.map(updateTime), briefAt]), now)
   return <BlockCard index={3} title="今天發生了什麼" time={contentClock}>
     {updates.length || stories.length ? <ul className="flex min-w-0 flex-col">
       {updates.map((update, index) => {
         const url = safeUrl(update.source_url)
         return <Row key={`${update.id}:${index}`}
-          title={<><span className="pr-2 text-caption tabular-nums text-ink-3">{taipeiClock(updateTime(update)) ?? DASH}</span><InlineText text={update.summary} /></>}
+          title={<><span className="pr-2 text-caption tabular-nums text-ink-3">{dayClock(updateTime(update), now) ?? DASH}</span><InlineText text={update.summary} /></>}
           secondary={update.portfolio_impact?.trim() ? <InlineText text={update.portfolio_impact} /> : undefined}
           links={url ? [url] : undefined} />
       })}
@@ -169,11 +188,6 @@ function StoriesBlock({ b, today, update }: { b?: InvestmentBrief; today?: Inves
 
 // 4 · 未來要關注的事 ---------------------------------------------------------
 
-function monthDay(value: string): string {
-  const match = /^\d{4}-(\d{2})-(\d{2})/.exec(value)
-  return match ? `${Number(match[1])}/${Number(match[2])}` : value
-}
-
 function WatchItem({ item, showDue }: { item: TodayUpdate["watch"][number]; showDue: boolean }) {
   return <li className="flex min-w-0 flex-col gap-1 border-t border-line-soft py-2 first:border-0 first:pt-0">
     <p className="text-body leading-relaxed text-ink">{showDue && item.due ? <span className="pr-2 text-caption tabular-nums text-ink-3">{monthDay(item.due)}</span> : null}{item.question}</p>
@@ -182,13 +196,13 @@ function WatchItem({ item, showDue }: { item: TodayUpdate["watch"][number]; show
   </li>
 }
 
-function AheadFromUpdate({ latest }: { latest: TodayUpdate }) {
+function AheadFromUpdate({ latest, now }: { latest: TodayUpdate; now: Date }) {
   const events = latest.watch.filter(item => item.kind === "event")
     .sort((left, right) => (left.due ?? "9999-99-99").localeCompare(right.due ?? "9999-99-99"))
   const research = latest.watch.filter(item => item.kind === "research")
   const sections = [["未來事件", events, true], ["研究選題", research, false]] as const
   const shown = sections.filter(([, items]) => items.length)
-  return <BlockCard index={4} title="未來要關注的事" time={taipeiClock(latest.generated_at)}>
+  return <BlockCard index={4} title="未來要關注的事" time={dayClock(latest.generated_at, now)}>
     {shown.length ? shown.map(([label, items, showDue], index) => <div key={label} className={`flex min-w-0 flex-col gap-2 ${index > 0 ? "border-t border-line-soft pt-3" : ""}`}>
       <SubLabel>{label}</SubLabel>
       <ul className="flex min-w-0 flex-col">{items.map(item => <WatchItem key={item.id} item={item} showDue={showDue} />)}</ul>
@@ -196,11 +210,11 @@ function AheadFromUpdate({ latest }: { latest: TodayUpdate }) {
   </BlockCard>
 }
 
-function AheadBlock({ b, update }: { b?: InvestmentBrief; update?: TodayUpdateStatus }) {
-  if (update?.latest) return <AheadFromUpdate latest={update.latest} />
+function AheadBlock({ b, update, now }: { b?: InvestmentBrief; update?: TodayUpdateStatus; now: Date }) {
+  if (update?.latest) return <AheadFromUpdate latest={update.latest} now={now} />
   const risks = (b?.risks ?? []).filter(row => row.risk.trim())
   const upcoming = (b?.upcoming ?? []).filter(row => row.event.trim())
-  return <BlockCard index={4} title="未來要關注的事" time={taipeiClock(b?.generated_at ?? b?.source_cutoff)}>
+  return <BlockCard index={4} title="未來要關注的事" time={dayClock(b?.generated_at ?? b?.source_cutoff, now)}>
     <div className="flex min-w-0 flex-col gap-2">
       <SubLabel>研究選題</SubLabel>
       {risks.length ? <ul className="flex min-w-0 flex-col">{risks.map((row, index) => <Row key={`risk:${index}`} title={<InlineText text={row.risk} />} secondary={row.status.trim() ? <InlineText text={row.status} /> : undefined} />)}</ul>
@@ -226,9 +240,9 @@ function Tile({ label, value, detail }: { label: string; value: string; detail?:
 
 const HOLDING_GRID = "grid grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))] gap-x-3"
 
-function MarketBlock({ note }: { note?: string | null }) {
-  const { twValue, twChange, twChangePct, usItems, holdings, reading, coverage, time } = useTodayMarketData()
-  return <BlockCard index={5} title="盤面整理" time={time}>
+function MarketBlock({ note, now }: { note?: string | null; now: Date }) {
+  const { twValue, twChange, twChangePct, usItems, holdings, reading, coverage, timeAt } = useTodayMarketData()
+  return <BlockCard index={5} title="盤面整理" time={dayClock(timeAt, now)}>
     {note ? <p className="text-body leading-relaxed text-ink">{note}</p> : null}
     <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
       {twValue != null ? <Tile label="台股加權指數" value={formatNumber(twValue)} detail={`${formatNumber(twChange, true)} 點 · ${signedPct(twChangePct)}`} /> : null}
@@ -266,14 +280,14 @@ export function currentTodayUpdate(b: InvestmentBrief | undefined, update: Today
   return update
 }
 
-/** `now` fixes the clock for the no-brief date check; it defaults to the current time. */
-export function TodayFiveBlocks({ b, today, update: received, now }: { b?: InvestmentBrief; today?: InvestmentTodayView; update?: TodayUpdateStatus; now?: Date }) {
+/** `now` fixes the clock for the date checks and the time labels; it defaults to the current time. */
+export function TodayFiveBlocks({ b, today, update: received, now = new Date() }: { b?: InvestmentBrief; today?: InvestmentTodayView; update?: TodayUpdateStatus; now?: Date }) {
   const update = currentTodayUpdate(b, received, now)
   return <ReadingColumn className="flex min-w-0 flex-col gap-4 break-words">
-    <JudgmentBlock b={b} today={today} update={update} />
-    <ConclusionsBlock b={b} update={update} />
-    <StoriesBlock b={b} today={today} update={update} />
-    <AheadBlock b={b} update={update} />
-    <MarketBlock note={update?.latest?.market_note} />
+    <JudgmentBlock b={b} today={today} update={update} now={now} />
+    <ConclusionsBlock b={b} update={update} now={now} />
+    <StoriesBlock b={b} today={today} update={update} now={now} />
+    <AheadBlock b={b} update={update} now={now} />
+    <MarketBlock note={update?.latest?.market_note} now={now} />
   </ReadingColumn>
 }
