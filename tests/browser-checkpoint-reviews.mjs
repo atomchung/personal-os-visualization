@@ -83,6 +83,8 @@ async function openPage(width, scenario, projection) {
     }
   }, { scenario, projection, preserved: syntheticJudgmentUpdate('preserved') })
   await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
+  // Checkpoint reviews live on the legacy Today view; the page opens on the five-block view.
+  await page.getByRole('tab', { name: '舊版 Today', exact: true }).click()
   return { page, errors, externalRequests, dataRequests }
 }
 

@@ -224,7 +224,7 @@ test("the Investment page still exposes available checkpoint answers when the br
     today: { ...syntheticPresentationToday(), state: "partial", current_judgment: undefined, checkpoint_reviews: example() },
   })
   try {
-    const html = renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(InvestmentPage)))
+    const html = renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(InvestmentPage, { initialView: "today" })))
     containsText(html, examples.day2.display!.title)
     containsText(html, examples.day2.items[0].display.result)
     assert.doesNotMatch(html, /判斷已更新/)
