@@ -33,7 +33,8 @@ and can use the same small binding without inheriting Investment semantics.
 Private PersonalOS may implement the same contract with its own runtime,
 credentials and private context. Those implementation details and records stay
 outside this repository. Replacing the provider must not require forking the UI.
-Keep the default Today page and distinguish missing/stale data from no events.
+Keep the five-block Today view as the Investment default and distinguish
+missing/stale data from no events.
 Investment history quotes existing records; never invent a person's conclusions. The
 public history screen uses only synthetic/reference data and keeps provenance and
 detail lookup within the module contract.

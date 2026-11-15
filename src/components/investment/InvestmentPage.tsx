@@ -972,11 +972,11 @@ export function TodayBrief({ b, today, newsStatus, onOpenThesis, readFailed }: {
   </section>
 }
 
-const VIEWS = [["today", "Today"], ["five", "Today 五塊"], ["thesis", "我的判斷"], ["work", "研究與策略"], ["history", "復盤與學習"]] as const
+const VIEWS = [["five", "Today"], ["today", "舊版 Today"], ["thesis", "我的判斷"], ["work", "研究與策略"], ["history", "復盤與學習"]] as const
 type View = typeof VIEWS[number][0]
 
-export function InvestmentPage() {
-  const [view, setView] = useState<View>("today")
+export function InvestmentPage({ initialView = "five" }: { initialView?: View }) {
+  const [view, setView] = useState<View>(initialView)
   const [refreshError, setRefreshError] = useState("")
   const [startingRefresh, setStartingRefresh] = useState<ReadonlySet<InvestmentRefreshAction>>(() => new Set())
   const pendingRefresh = useRef(new Set<InvestmentRefreshAction>())

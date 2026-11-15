@@ -14,7 +14,8 @@ for (let attempt = 0; attempt < 40; attempt++) {
 }
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_EXECUTABLE })
 const report = { revision: process.env.GITHUB_SHA || 'local-preview', browser: browser.version(), mode: 'synthetic-only', pages: [], scenarios: [] }
-const tabs = ['Today', '我的判斷', '研究與策略', '復盤與學習']
+const LEGACY_TODAY = '舊版 Today'
+const tabs = ['Today', LEGACY_TODAY, '我的判斷', '研究與策略', '復盤與學習']
 async function layout(page, label) {
   const result = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth,
     headings: [...document.querySelectorAll('h1,h2,h3')].filter(el => el.getClientRects().length).map(el => el.textContent) }))
@@ -415,6 +416,10 @@ async function openPage(width, scenario = 'baseline') {
   page.on('request', request => { if (!request.url().startsWith(origin)) externalRequests.push(request.url()) })
   await fault(page, scenario)
   await page.goto(`${origin}/?tab=investment`, { waitUntil: 'networkidle' })
+  // The page opens on the five-block view; the legacy Today scenarios below read the legacy tab.
+  assert.equal(await page.getByRole('tab', { name: 'Today', exact: true }).getAttribute('aria-selected'), 'true')
+  await page.locator('[data-slot="today-five-blocks"]').waitFor()
+  await page.getByRole('tab', { name: LEGACY_TODAY, exact: true }).click()
   return { page, errors, externalRequests }
 }
 try {
@@ -595,9 +600,9 @@ try {
       await page.screenshot({ path: `${output}/${width}-${label}.png`, fullPage: true })
       report.pages.push({ width, tab: label, collapsed, expanded })
     }
-    await page.getByRole('tab', { name: 'Today', exact: true }).focus()
-    await page.keyboard.press('ArrowRight')
-    assert.equal(await page.getByRole('tab', { name: 'Today 五塊', exact: true }).getAttribute('aria-selected'), 'true')
+    await page.getByRole('tab', { name: LEGACY_TODAY, exact: true }).focus()
+    await page.keyboard.press('ArrowLeft')
+    assert.equal(await page.getByRole('tab', { name: 'Today', exact: true }).getAttribute('aria-selected'), 'true')
     // Five-block layout from 1024px up: blocks 1-4 flow down two columns in reading order, block 5 spans both.
     await page.locator('[data-slot="today-five-blocks"]').waitFor()
     const fiveBlocks = await page.evaluate(() => Array.from(document.querySelectorAll('[data-slot="today-five-blocks"] [aria-label]'))
@@ -628,6 +633,8 @@ try {
     } else {
       assert.deepEqual([...fiveBlocks].sort((left, right) => left.y - right.y).map(block => block.label), fiveOrder, 'one column in reading order')
     }
+    await page.keyboard.press('ArrowRight')
+    assert.equal(await page.getByRole('tab', { name: LEGACY_TODAY, exact: true }).getAttribute('aria-selected'), 'true')
     await page.keyboard.press('ArrowRight')
     assert.equal(await page.getByRole('tab', { name: '我的判斷', exact: true }).getAttribute('aria-selected'), 'true')
     await page.keyboard.press('End')
@@ -928,7 +935,7 @@ try {
   await reminders.getByText('合成瀏覽器提醒', { exact: true }).waitFor()
   await reminders.getByRole('button', { name: '加入今日', exact: true }).click()
   await reminders.getByText(/已加入今日/).waitFor()
-  await page.getByRole('tab', { name: 'Today', exact: true }).click()
+  await page.getByRole('tab', { name: LEGACY_TODAY, exact: true }).click()
   assert.equal(await page.locator('#investment-panel-today').getByText('合成瀏覽器提醒', { exact: true }).count(), 0)
   await page.close()
   console.log(JSON.stringify({ pages: report.pages.length, scenarios: report.scenarios.length, result: 'passed' }))
