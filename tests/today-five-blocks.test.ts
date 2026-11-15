@@ -117,6 +117,35 @@ test("five blocks: without an update, blocks fall back to the brief rendering", 
   }
 })
 
+test("five blocks: a brief from an earlier day still gives block 1 its view, and times carry the date", async () => {
+  const nextDay = new Date(DEMO_NOW.getTime() + 86_400_000)
+  const briefDay = `${Number(DATE.slice(5, 7))}/${Number(DATE.slice(8, 10))}`
+  const dated = new RegExp(`${briefDay} 21:30`)
+  const html = await render(undefined, { ...briefProps(), b: { ...demoInvestment.brief, state: "stale" }, now: nextDay })
+  assert.match(html, /整理兩個待查問題，不由新聞直接形成交易。/, "the last view is shown instead of a dash")
+  assert.match(html, dated, "the earlier day's content names its day")
+  // read on its own day, the same content keeps the bare clock
+  const sameDay = await render(undefined, briefProps())
+  assert.match(sameDay, /21:30/)
+  assert.doesNotMatch(sameDay, dated)
+  // a brief the page could not read gives no view
+  for (const state of ["missing", "invalid"]) {
+    const unreadable = await render(undefined, { ...briefProps(), b: { ...demoInvestment.brief, state }, now: nextDay })
+    assert.doesNotMatch(unreadable, /整理兩個待查問題，不由新聞直接形成交易。/)
+  }
+})
+
+test("five blocks: dayClock is HH:MM on today's Taipei date and M/D HH:MM on any other day", async () => {
+  const { dayClock } = await server.ssrLoadModule("/src/components/investment/TodayFiveBlocks.tsx")
+  const now = new Date("2026-03-05T09:00:00+08:00")
+  assert.equal(dayClock("2026-03-05T08:05:00+08:00", now), "08:05")
+  assert.equal(dayClock("2026-03-04T21:18:00+08:00", now), "3/4 21:18")
+  // 23:30 UTC on the 4th is 07:30 on the 5th in Taipei
+  assert.equal(dayClock("2026-03-04T23:30:00Z", now), "07:30")
+  assert.equal(dayClock("2026-03-04", now), null)
+  assert.equal(dayClock(null, now), null)
+})
+
 test("five blocks: an update older than the brief does not replace it", async () => {
   const stale = status({ latest: { ...sample, date: previousDay } })
   const html = await render(stale, briefProps())
