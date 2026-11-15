@@ -150,7 +150,7 @@ function NewsFromUpdate({ latest, now }: { latest: TodayUpdate; now: Date }) {
         const url = safeUrl(item.source_url)
         return <li key={`${item.source_url}:${index}`} className="flex min-w-0 flex-col gap-1 border-t border-line-soft py-2 first:border-0 first:pt-0">
           <p className="text-body leading-relaxed text-ink">{url ? <a href={url} target="_blank" rel="noreferrer" className="text-accent underline underline-offset-2">{item.headline}</a> : item.headline}</p>
-          <p className="text-caption tabular-nums text-ink-3">{item.source_name} · {taipeiClock(item.added_at) ?? DASH}</p>
+          <p className="text-caption tabular-nums text-ink-3">{item.source_name} · {dayClock(item.added_at, now) ?? DASH}</p>
           <p className="text-body leading-relaxed text-ink-2">{item.summary}</p>
           {item.affects.length ? <p className="text-caption leading-relaxed text-ink-3">{item.affects.join("、")}{item.effect ? <span className="pl-2 text-ink-2">{item.effect}</span> : null}</p> : null}
         </li>
@@ -165,13 +165,16 @@ function StoriesBlock({ b, today, update, now }: { b?: InvestmentBrief; today?: 
     .filter(update => update.summary?.trim())
     .sort((left, right) => (instant(updateTime(right)) ?? -Infinity) - (instant(updateTime(left)) ?? -Infinity))
   const stories = b ? buildTodayStories(b.date, b.events, []) : []
-  const contentClock = dayClock(newestTime([...updates.map(updateTime), b?.generated_at ?? b?.source_cutoff]), now)
+  // Brief stories carry no time of their own. A brief that is not current labels
+  // the block with its own time, so a newer update row cannot make its stories look newer.
+  const briefAt = b?.generated_at ?? b?.source_cutoff
+  const contentClock = dayClock(b && b.state !== "current" ? briefAt : newestTime([...updates.map(updateTime), briefAt]), now)
   return <BlockCard index={3} title="今天發生了什麼" time={contentClock}>
     {updates.length || stories.length ? <ul className="flex min-w-0 flex-col">
       {updates.map((update, index) => {
         const url = safeUrl(update.source_url)
         return <Row key={`${update.id}:${index}`}
-          title={<><span className="pr-2 text-caption tabular-nums text-ink-3">{taipeiClock(updateTime(update)) ?? DASH}</span><InlineText text={update.summary} /></>}
+          title={<><span className="pr-2 text-caption tabular-nums text-ink-3">{dayClock(updateTime(update), now) ?? DASH}</span><InlineText text={update.summary} /></>}
           secondary={update.portfolio_impact?.trim() ? <InlineText text={update.portfolio_impact} /> : undefined}
           links={url ? [url] : undefined} />
       })}
