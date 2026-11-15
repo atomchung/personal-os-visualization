@@ -181,6 +181,110 @@ test("five blocks: dayClock is HH:MM on today's Taipei date and M/D HH:MM on any
   for (const unreadable of ["2026-03-04", "2026-03-04T21:18:00", "not a time", "", null, undefined]) assert.equal(dayClock(unreadable, now), null, String(unreadable))
 })
 
+/** Class names on the card that carries one block's label. */
+function blockClasses(html: string, title: string): string[] {
+  const tag = new RegExp(`<[^>]*aria-label="${title}"[^>]*>`).exec(html)?.[0] ?? ""
+  return (/class="([^"]*)"/.exec(tag)?.[1] ?? "").split(/\s+/)
+}
+
+test("five blocks: blocks 1-4 flow in two columns that fill the page width, block 5 spans it below", async () => {
+  const html = await render(status(), briefProps())
+  const flow = /<div[^>]*data-slot="today-five-blocks-flow"[^>]*>/.exec(html)?.[0] ?? ""
+  assert.match(flow, /lg:columns-2/, "two columns from the lg breakpoint")
+  assert.doesNotMatch(html, /data-slot="reading-column"/, "no 800px reading column around the blocks")
+  const titles = ["今天怎麼做", "之前關注的事，結論", "今天發生了什麼", "未來要關注的事", "盤面整理"]
+  // each of blocks 1-4 stays whole inside one column; block 5 is outside the flow
+  for (const title of titles.slice(0, 4)) assert.ok(blockClasses(html, title).includes("lg:break-inside-avoid"), title)
+  assert.ok(!blockClasses(html, "盤面整理").includes("lg:break-inside-avoid"))
+  assert.ok(html.indexOf('aria-label="盤面整理"') > html.indexOf("</div>", html.indexOf('aria-label="未來要關注的事"')))
+  // DOM order is reading order, so a narrow screen stacks blocks 1-5 as they are.
+  const position = (title: string) => html.indexOf(`aria-label="${title}"`)
+  assert.deepEqual([...titles].sort((left, right) => position(left) - position(right)), titles)
+})
+
+const marketData = (over: Record<string, unknown> = {}) => ({
+  twValue: 1234.5, twChange: 10.25, twChangePct: 0.84,
+  usItems: [{ symbol: "DEMO-US", label: "範例美股指數", value: 980, change_percent: -0.3, quoted_at: `${DATE}T05:00:00+08:00` }],
+  holdings: [
+    { symbol: "DEMO", holding: true, price: 101.5, today: 1.2, return20d: 4.8, vs20ma: 2.1, vs50ma: -3.4, rsi: 55.5, relativeStrength: 6.3, vsSemis: -1.1, macdBearish: false },
+    { symbol: "DEMO-B.TW", holding: false, price: 88, today: -2.5, return20d: -7.25, vs20ma: -4, vs50ma: null, rsi: 31.2, relativeStrength: null, vsSemis: null, macdBearish: true },
+  ],
+  reading: { strong: 1, as_of: DATE },
+  coverage: { candidate_count: 2, holding_count: 1 },
+  pulse: {
+    as_of: DATE,
+    breadth: { combined: { up: 900, down: 300, flat: 50, limit_up: 12, limit_down: 3 }, advancer_ratio: 0.72 },
+    themes: { strongest: [{ theme: "範例族群甲", avg_change_pct: 3.2 }], weakest: [{ theme: "範例族群乙", avg_change_pct: -1.5 }] },
+    flow: {
+      as_of: DATE, turnover_ntd: 350_000_000_000, turnover_vs_prev_pct: -9.96, turnover_vs_avg20_pct: 2.5,
+      institutional: { status: "published", foreign_net_ntd: 12_300_000_000, trust_net_ntd: -2_000_000_000, dealer_net_ntd: 500_000_000, total_net_ntd: 10_800_000_000 },
+    },
+  },
+  exploreMarkets: [{
+    market: "tw", as_of: DATE, buckets: [
+      { key: "fast", items: [{ symbol: "DEMO-F", label: "範例公司甲", change_1d_pct: 9.9, change_7d_pct: 14.2, activity: { label: null, value: null }, rs_benchmark_1m_pp: null, vs_50ma_pct: null }] },
+      { key: "active", items: [{ symbol: "DEMO-A", label: "範例公司乙", change_1d_pct: 1, change_7d_pct: null, activity: { label: "turnover", value: 73_000_000_000 }, rs_benchmark_1m_pp: null, vs_50ma_pct: null }] },
+      { key: "sustained", items: [] },
+    ],
+  }],
+  timeAt: `${DATE}T13:30:00+08:00`,
+  ...over,
+})
+
+async function renderMarket(data: Record<string, unknown>, now: Date = DEMO_NOW): Promise<string> {
+  const { MarketBlockView } = await server.ssrLoadModule("/src/components/investment/TodayFiveBlocks.tsx")
+  return renderToStaticMarkup(createElement(MarketBlockView, { data, now }))
+}
+
+test("five blocks: block 5 shows breadth, turnover, institutions, themes, money flow and the full holdings table", async () => {
+  const html = await renderMarket(marketData())
+  assert.equal(headerTime(html, "盤面整理"), "13:30")
+  assert.match(html, />市場廣度</)
+  assert.match(html, /漲方 72%/)
+  assert.match(html, /漲停 12 · 跌停 3/)
+  assert.match(html, />上市成交額</)
+  assert.match(html, />3,500 億</)
+  assert.match(html, /比前一日 <span[^>]*>-9\.96%<\/span>/)
+  assert.match(html, />三大法人</)
+  assert.match(html, />\+108\.00 億</)
+  assert.match(html, /外資 <span[^>]*>\+123\.00 億<\/span>/)
+  assert.match(html, /投信 <span[^>]*text-bad[^>]*>-20\.00 億<\/span>/)
+  assert.match(html, />族群熱度</)
+  assert.match(html, /範例族群甲<\/span><span[^>]*text-ok[^>]*>\+3\.20%/)
+  assert.match(html, /範例族群乙<\/span><span[^>]*text-bad[^>]*>-1\.50%/)
+  assert.match(html, />市場資金在哪 · 台股</)
+  assert.match(html, /範例公司甲<span[^>]*>DEMO-F<\/span>/)
+  assert.match(html, /1 日 <span[^>]*>\+9\.90%<\/span> · 7 日 <span[^>]*>\+14\.20%<\/span>/)
+  assert.match(html, /成交額 730 億/)
+  assert.match(html, />持倉與觀察 · 2 檔（持倉 1） · 強勢 1 檔</)
+  assert.match(html, /MACD 偏空：DEMO-B\.TW/)
+  for (const column of ["價格", "今天", "20 日", "距 20 日線", "距 50 日線", "RSI", "對大盤", "對半導體"]) assert.match(html, new RegExp(`>${column}<`), column)
+  assert.match(html, /DEMO-B\.TW<span[^>]*>觀察<\/span>/, "a watchlist row is marked")
+  assert.doesNotMatch(html, />DEMO<span[^>]*>觀察/, "a holding is not")
+  assert.match(html, />55\.5</, "RSI")
+  assert.doesNotMatch(html, /<details/, "nothing is folded away")
+})
+
+test("five blocks: block 5 names the day of daily readings that are not from today", async () => {
+  const html = await renderMarket(marketData(), NEXT_DAY)
+  const day = monthDay(DATE)
+  assert.equal(headerTime(html, "盤面整理"), `${day} 13:30`)
+  for (const label of ["市場廣度", "上市成交額", "三大法人", "族群熱度", "市場資金在哪 · 台股"]) assert.match(html, new RegExp(`>${label} · ${day}<`), label)
+  assert.match(html, new RegExp(`強勢 1 檔 · ${day}<`))
+})
+
+test("five blocks: block 5 leaves out what its sources did not give", async () => {
+  const bare = await renderMarket(marketData({ pulse: undefined, exploreMarkets: undefined, reading: undefined, coverage: undefined }))
+  for (const label of ["市場廣度", "上市成交額", "三大法人", "族群熱度", "市場資金在哪"]) assert.doesNotMatch(bare, new RegExp(label), label)
+  assert.match(bare, />持倉與觀察</)
+  const base = marketData()
+  const unpublished = await renderMarket({ ...base, pulse: { ...base.pulse, flow: { ...base.pulse.flow, institutional: { ...base.pulse.flow.institutional, status: "not_published" } } } })
+  assert.doesNotMatch(unpublished, /三大法人/)
+  assert.match(unpublished, />上市成交額</)
+  const empty = await renderMarket(marketData({ exploreMarkets: [{ market: "us", as_of: DATE, buckets: [{ key: "fast", items: [] }] }] }))
+  assert.doesNotMatch(empty, /市場資金在哪/, "a market with no names is not shown")
+})
+
 test("five blocks: an update older than the brief does not replace it", async () => {
   const stale = status({ latest: { ...sample, date: previousDay } })
   const html = await render(stale, briefProps())

@@ -1,18 +1,20 @@
 import type { ReactNode } from "react"
-import { Card, CardSection, ReadingColumn, SectionHeading } from "@/components/ui/card"
+import { Card, CardSection, SectionHeading } from "@/components/ui/card"
 import {
-  type InvestmentBrief, type InvestmentTodayUpdate, type InvestmentTodayView,
+  type InvestmentBrief, type InvestmentTodayUpdate, type InvestmentTodayView, type MarketExploreBucket, type MarketExploreItem,
 } from "@/lib/investment"
 import type { TodayUpdate, TodayUpdateStatus } from "@/lib/investmentTodayUpdate"
 import { formatNumber, taipeiCalendarToday, taipeiClock, validatedBriefJudgment } from "@/lib/investmentFormat"
 import { buildTodayStories, todayStoryHeadline } from "@/lib/investmentToday"
 import { InlineText } from "./ReadingText"
-import { instant, newestTime, useTodayMarketData } from "@/lib/investmentTodayMarket"
+import { instant, newestTime, useTodayMarketData, type TodayMarketData } from "@/lib/investmentTodayMarket"
 
 /** A second reading of Today as five blocks. Blocks 1-4 render from the
  * manual update when one exists for today, otherwise from the daily brief. The
  * only status text is one failure line at the top of block 1. When the newest
- * content is from an earlier day it is still shown, and its time carries the date. */
+ * content is from an earlier day it is still shown, and its time carries the date.
+ * Blocks 1-4 fill the page width in two balanced columns with block 5 across the
+ * full width below them; a narrow screen shows one column. */
 
 const DASH = "—"
 
@@ -44,8 +46,11 @@ function signedPct(value: number | null | undefined): string {
   return value == null || !Number.isFinite(value) ? DASH : `${formatNumber(value, true)}%`
 }
 
+// Blocks 1-4 sit in the two-column flow: each keeps to one column and carries the gap below it.
+const FLOW_BLOCK = "min-w-0 lg:mb-4 lg:break-inside-avoid"
+
 function BlockCard({ index, title, time, children }: { index: number; title: string; time: string | null; children: ReactNode }) {
-  return <Card className="min-w-0" aria-label={title}>
+  return <Card className={index < 5 ? FLOW_BLOCK : "min-w-0"} aria-label={title}>
     <CardSection>
       <div className="flex min-w-0 items-baseline justify-between gap-3">
         <SectionHeading><span className="pr-2 text-caption font-normal tabular-nums text-ink-3">{index}</span>{title}</SectionHeading>
@@ -230,38 +235,161 @@ function AheadBlock({ b, update, now }: { b?: InvestmentBrief; update?: TodayUpd
 
 // 5 · 盤面整理 ---------------------------------------------------------------
 
-function Tile({ label, value, detail }: { label: string; value: string; detail?: string }) {
+const PLAIN = new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 })
+
+function tone(value: number | null | undefined): string {
+  return value == null || !Number.isFinite(value) ? "text-ink-3" : value > 0 ? "text-ok" : value < 0 ? "text-bad" : "text-ink-2"
+}
+
+function plain(value: number | null | undefined): string {
+  return value == null || !Number.isFinite(value) ? DASH : PLAIN.format(value)
+}
+
+/** An amount in its currency's units shown in 億 (1e8). */
+function yi(value: number | null | undefined, signed = false): string {
+  if (value == null || !Number.isFinite(value)) return DASH
+  return `${signed ? formatNumber(value / 100_000_000, true) : PLAIN.format(value / 100_000_000)} 億`
+}
+
+/** ` · M/D` for a daily reading that is not from today's Taipei date; empty for today or an unreadable date. */
+function daySuffix(day: string | null | undefined, now: Date): string {
+  const date = /^\d{4}-\d{2}-\d{2}/.exec(day ?? "")?.[0]
+  return date && date !== taipeiCalendarToday(now) ? ` · ${monthDay(date)}` : ""
+}
+
+function Tile({ label, value, children }: { label: string; value?: string; children?: ReactNode }) {
   return <div className="flex min-w-0 flex-col gap-1 rounded-lg border-[0.5px] border-line-soft p-3">
     <p className="text-caption text-ink-3">{label}</p>
-    <p className="text-body font-semibold tabular-nums text-ink">{value}</p>
-    {detail ? <p className="text-caption tabular-nums text-ink-2">{detail}</p> : null}
+    {value ? <p className="text-body font-semibold tabular-nums text-ink">{value}</p> : null}
+    {children}
   </div>
 }
 
-const HOLDING_GRID = "grid grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))] gap-x-3"
+function TileLine({ children }: { children: ReactNode }) {
+  return <p className="text-caption tabular-nums leading-relaxed text-ink-2">{children}</p>
+}
 
-function MarketBlock({ note, now }: { note?: string | null; now: Date }) {
-  const { twValue, twChange, twChangePct, usItems, holdings, reading, coverage, timeAt } = useTodayMarketData()
+function Signed({ value, text }: { value: number | null | undefined; text: string }) {
+  return <span className={`tabular-nums ${tone(value)}`}>{text}</span>
+}
+
+const BUCKET_LABEL = { fast: "漲得快", active: "量能熱", sustained: "持續強" } as const
+const BUCKET_ORDER = ["fast", "active", "sustained"] as const
+const EXPLORE_MARKET_LABEL = { tw: "台股", us: "美股" } as const
+const ACTIVITY_LABEL: Record<string, string> = { turnover: "成交額", turnover_estimate: "估算成交額（美元）", relative_volume: "相對成交量", volume_shares: "成交股數" }
+
+function activityText(item: MarketExploreItem): string {
+  const kind = item.activity.label?.trim() || ""
+  const label = ACTIVITY_LABEL[kind] ?? kind
+  const value = item.activity.value
+  if (value == null || !Number.isFinite(value)) return label || DASH
+  const amount = kind === "turnover" || kind === "turnover_estimate" ? yi(value) : PLAIN.format(value)
+  return label ? `${label} ${amount}` : amount
+}
+
+function BucketReading({ bucket, item }: { bucket: MarketExploreBucket["key"]; item: MarketExploreItem }) {
+  if (bucket === "fast") return <>1 日 <Signed value={item.change_1d_pct} text={signedPct(item.change_1d_pct)} />{item.change_7d_pct != null ? <> · 7 日 <Signed value={item.change_7d_pct} text={signedPct(item.change_7d_pct)} /></> : null}</>
+  if (bucket === "active") return <>{activityText(item)}</>
+  return <>相對強弱 <Signed value={item.rs_benchmark_1m_pp} text={signedPct(item.rs_benchmark_1m_pp)} /> · 距 50 日線 <Signed value={item.vs_50ma_pct} text={signedPct(item.vs_50ma_pct)} /></>
+}
+
+/** Where money is going outside the holdings: the producer's three screens, three names each. */
+function MoneyFlow({ markets, now }: { markets: NonNullable<TodayMarketData["exploreMarkets"]>; now: Date }) {
+  const shown = [...markets].sort((left, right) => (left.market === "tw" ? 0 : 1) - (right.market === "tw" ? 0 : 1))
+    .filter(market => market.buckets.some(bucket => bucket.items.length))
+  if (!shown.length) return null
+  return <div className="flex min-w-0 flex-col gap-3 lg:col-span-2">
+    {shown.map(market => <div key={market.market} className="flex min-w-0 flex-col gap-2">
+      <SubLabel>市場資金在哪 · {EXPLORE_MARKET_LABEL[market.market] ?? market.market}{daySuffix(market.as_of, now)}</SubLabel>
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
+        {BUCKET_ORDER.map(key => {
+          const items = market.buckets.find(bucket => bucket.key === key)?.items.slice(0, 3) ?? []
+          return <div key={key} className="flex min-w-0 flex-col gap-1">
+            <p className="text-caption text-ink-3">{BUCKET_LABEL[key]}</p>
+            {items.length ? <ul className="flex min-w-0 flex-col">{items.map(item => <li key={item.symbol} className="flex min-w-0 flex-col border-t border-line-soft py-1 first:border-0 first:pt-0">
+              <p className="min-w-0 text-body text-ink">{item.label}<span className="pl-2 text-caption tabular-nums text-ink-3">{item.symbol}</span></p>
+              <p className="text-caption leading-relaxed text-ink-3"><BucketReading bucket={key} item={item} /></p>
+            </li>)}</ul> : <p className="text-body text-ink-3">{DASH}</p>}
+          </div>
+        })}
+      </div>
+    </div>)}
+  </div>
+}
+
+const HOLDING_GRID = "grid grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))] gap-x-3 lg:grid-cols-[minmax(0,1.3fr)_repeat(8,minmax(0,1fr))]"
+const WIDE_CELL = "hidden text-right lg:block"
+
+/** Block 5 from one data object, so the same numbers can be rendered, tested and sent with an update. */
+export function MarketBlockView({ data, note, now }: { data: TodayMarketData; note?: string | null; now: Date }) {
+  const { twValue, twChange, twChangePct, usItems, holdings, reading, coverage, pulse, exploreMarkets, timeAt } = data
+  const breadth = pulse?.breadth
+  const flow = pulse?.flow
+  const institutional = flow?.institutional.status === "published" ? flow.institutional : null
+  const strongest = pulse?.themes?.strongest ?? []
+  const weakest = pulse?.themes?.weakest ?? []
+  const bearish = holdings.filter(row => row.macdBearish).map(row => row.symbol)
+  const hasBreadth = breadth != null && (breadth.advancer_ratio != null || breadth.combined.limit_up != null || breadth.combined.limit_down != null)
   return <BlockCard index={5} title="盤面整理" time={dayClock(timeAt, now)}>
     {note ? <p className="text-body leading-relaxed text-ink">{note}</p> : null}
-    <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
-      {twValue != null ? <Tile label="台股加權指數" value={formatNumber(twValue)} detail={`${formatNumber(twChange, true)} 點 · ${signedPct(twChangePct)}`} /> : null}
-      {usItems.length ? <div className="flex min-w-0 flex-col gap-1 rounded-lg border-[0.5px] border-line-soft p-3">
-        <p className="text-caption text-ink-3">美股</p>
-        {usItems.map(item => <p key={item.symbol} className="flex min-w-0 justify-between gap-2 text-caption tabular-nums text-ink-2"><span className="min-w-0 truncate">{item.label}</span><span className="shrink-0">{signedPct(item.change_percent)}</span></p>)}
-      </div> : null}
-      {coverage && reading ? <Tile label="持倉與觀察" value={`${coverage.candidate_count} 檔`} detail={`強勢 ${reading.strong} 檔 · 持倉 ${coverage.holding_count} 檔`} /> : null}
+    <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      {twValue != null ? <Tile label="台股加權指數" value={formatNumber(twValue)}><TileLine><Signed value={twChange} text={`${formatNumber(twChange, true)} 點 · ${signedPct(twChangePct)}`} /></TileLine></Tile> : null}
+      {hasBreadth ? <Tile label={`市場廣度${daySuffix(pulse?.as_of, now)}`} value={`漲方 ${breadth.advancer_ratio == null ? DASH : `${PLAIN.format(breadth.advancer_ratio * 100)}%`}`}>
+        <TileLine>漲停 {plain(breadth.combined.limit_up)} · 跌停 {plain(breadth.combined.limit_down)}</TileLine>
+        <TileLine>漲 {plain(breadth.combined.up)} · 跌 {plain(breadth.combined.down)} · 平 {plain(breadth.combined.flat)}</TileLine>
+      </Tile> : null}
+      {flow?.turnover_ntd != null ? <Tile label={`上市成交額${daySuffix(flow.as_of, now)}`} value={yi(flow.turnover_ntd)}>
+        <TileLine>比前一日 <Signed value={flow.turnover_vs_prev_pct} text={signedPct(flow.turnover_vs_prev_pct)} /></TileLine>
+        <TileLine>比 20 日均 <Signed value={flow.turnover_vs_avg20_pct} text={signedPct(flow.turnover_vs_avg20_pct)} /></TileLine>
+      </Tile> : null}
+      {institutional ? <Tile label={`三大法人${daySuffix(flow?.as_of, now)}`} value={yi(institutional.total_net_ntd, true)}>
+        <TileLine>外資 <Signed value={institutional.foreign_net_ntd} text={yi(institutional.foreign_net_ntd, true)} /></TileLine>
+        <TileLine>投信 <Signed value={institutional.trust_net_ntd} text={yi(institutional.trust_net_ntd, true)} /> · 自營商 <Signed value={institutional.dealer_net_ntd} text={yi(institutional.dealer_net_ntd, true)} /></TileLine>
+      </Tile> : null}
+      {usItems.length ? <Tile label="美股">
+        {usItems.map(item => <p key={item.symbol} className="flex min-w-0 justify-between gap-2 text-caption tabular-nums text-ink-2"><span className="min-w-0 truncate">{item.label}</span><span className={`shrink-0 ${tone(item.change_percent)}`}>{signedPct(item.change_percent)}</span></p>)}
+      </Tile> : null}
     </div>
-    {holdings.length ? <div className="flex min-w-0 flex-col">
-      <div className={`${HOLDING_GRID} border-b border-line pb-2 text-caption text-ink-3`}><span>標的</span><span className="text-right">今天</span><span className="text-right">20 日</span><span className="text-right">相對強度</span></div>
-      {holdings.map(row => <div key={row.symbol} className={`${HOLDING_GRID} border-b border-line-soft py-2 text-body tabular-nums text-ink-2 last:border-b-0`}>
-        <span className="min-w-0 truncate font-medium text-ink">{row.symbol}</span>
-        <span className="text-right">{signedPct(row.today)}</span>
-        <span className="text-right">{signedPct(row.return20d)}</span>
-        <span className="text-right">{signedPct(row.relativeStrength)}</span>
-      </div>)}
+    {strongest.length || weakest.length || exploreMarkets?.length ? <div className="grid min-w-0 grid-cols-1 gap-4 border-t border-line-soft pt-3 lg:grid-cols-3">
+      {strongest.length || weakest.length ? <div className="flex min-w-0 flex-col gap-2">
+        <SubLabel>族群熱度{daySuffix(pulse?.as_of, now)}</SubLabel>
+        <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-1">
+          {([["強", strongest], ["弱", weakest]] as const).map(([label, rows]) => <div key={label} className="flex min-w-0 flex-col gap-1">
+            <p className="text-caption text-ink-3">{label}</p>
+            {rows.length ? <ul className="flex min-w-0 flex-col">{rows.map(row => <li key={row.theme} className="flex min-w-0 items-baseline justify-between gap-2 py-1 text-body text-ink-2"><span className="min-w-0 truncate">{row.theme}</span><span className={`shrink-0 tabular-nums ${tone(row.avg_change_pct)}`}>{signedPct(row.avg_change_pct)}</span></li>)}</ul>
+              : <p className="text-body text-ink-3">{DASH}</p>}
+          </div>)}
+        </div>
+      </div> : null}
+      {exploreMarkets?.length ? <MoneyFlow markets={exploreMarkets} now={now} /> : null}
+    </div> : null}
+    {holdings.length ? <div className="flex min-w-0 flex-col gap-2 border-t border-line-soft pt-3">
+      <SubLabel>持倉與觀察{coverage ? ` · ${coverage.candidate_count} 檔（持倉 ${coverage.holding_count}）` : ""}{reading ? ` · 強勢 ${reading.strong} 檔` : ""}{daySuffix(reading?.as_of, now)}</SubLabel>
+      {bearish.length ? <p className="text-caption leading-relaxed text-ink-2">MACD 偏空：{bearish.join("、")}</p> : null}
+      <div className="flex min-w-0 flex-col">
+        <div className={`${HOLDING_GRID} border-b border-line pb-2 text-caption text-ink-3`}>
+          <span>標的</span><span className={WIDE_CELL}>價格</span><span className="text-right">今天</span><span className="text-right">20 日</span>
+          <span className={WIDE_CELL}>距 20 日線</span><span className={WIDE_CELL}>距 50 日線</span><span className={WIDE_CELL}>RSI</span>
+          <span className="text-right">對大盤</span><span className={WIDE_CELL}>對半導體</span>
+        </div>
+        {holdings.map(row => <div key={row.symbol} className={`${HOLDING_GRID} border-b border-line-soft py-2 text-body tabular-nums text-ink-2 last:border-b-0`}>
+          <span className="min-w-0 truncate font-medium text-ink">{row.symbol}{row.holding === false ? <span className="pl-2 text-caption font-normal text-ink-3">觀察</span> : null}</span>
+          <span className={WIDE_CELL}>{row.price == null ? DASH : formatNumber(row.price)}</span>
+          <span className={`text-right ${tone(row.today)}`}>{signedPct(row.today)}</span>
+          <span className={`text-right ${tone(row.return20d)}`}>{signedPct(row.return20d)}</span>
+          <span className={`${WIDE_CELL} ${tone(row.vs20ma)}`}>{signedPct(row.vs20ma)}</span>
+          <span className={`${WIDE_CELL} ${tone(row.vs50ma)}`}>{signedPct(row.vs50ma)}</span>
+          <span className={WIDE_CELL}>{plain(row.rsi)}</span>
+          <span className={`text-right ${tone(row.relativeStrength)}`}>{signedPct(row.relativeStrength)}</span>
+          <span className={`${WIDE_CELL} ${tone(row.vsSemis)}`}>{signedPct(row.vsSemis)}</span>
+        </div>)}
+      </div>
     </div> : null}
   </BlockCard>
+}
+
+function MarketBlock({ note, now }: { note?: string | null; now: Date }) {
+  return <MarketBlockView data={useTodayMarketData()} note={note} now={now} />
 }
 
 /** The status with `latest` dropped when it is older than the brief being shown,
@@ -280,14 +408,20 @@ export function currentTodayUpdate(b: InvestmentBrief | undefined, update: Today
   return update
 }
 
+/** From `lg` up, blocks 1-4 flow down two balanced columns in reading order, so the
+ * page width is used whatever each block's length is that day. Below `lg` they are one column. */
+const BLOCK_FLOW = "flex min-w-0 flex-col gap-4 lg:block lg:columns-2 lg:gap-4"
+
 /** `now` fixes the clock for the date checks and the time labels; it defaults to the current time. */
 export function TodayFiveBlocks({ b, today, update: received, now = new Date() }: { b?: InvestmentBrief; today?: InvestmentTodayView; update?: TodayUpdateStatus; now?: Date }) {
   const update = currentTodayUpdate(b, received, now)
-  return <ReadingColumn className="flex min-w-0 flex-col gap-4 break-words">
-    <JudgmentBlock b={b} today={today} update={update} now={now} />
-    <ConclusionsBlock b={b} update={update} now={now} />
-    <StoriesBlock b={b} today={today} update={update} now={now} />
-    <AheadBlock b={b} update={update} now={now} />
+  return <div data-slot="today-five-blocks" className="flex min-w-0 flex-col gap-4 break-words">
+    <div data-slot="today-five-blocks-flow" className={BLOCK_FLOW}>
+      <JudgmentBlock b={b} today={today} update={update} now={now} />
+      <ConclusionsBlock b={b} update={update} now={now} />
+      <StoriesBlock b={b} today={today} update={update} now={now} />
+      <AheadBlock b={b} update={update} now={now} />
+    </div>
     <MarketBlock note={update?.latest?.market_note} now={now} />
-  </ReadingColumn>
+  </div>
 }

@@ -1,8 +1,8 @@
 import { useQueries, useQuery } from "@tanstack/react-query"
 import {
-  getInvestmentMarket, getInvestmentPulse, getMomentumLeaders, getRelativeStrength, getStockQuote, getTwRelativeStrength,
+  getInvestmentMarket, getInvestmentPulse, getMarketExplore, getMomentumLeaders, getRelativeStrength, getStockQuote, getTwRelativeStrength,
 } from "@/lib/investment"
-import type { InvestmentMarketPulse } from "@/lib/investment"
+import type { InvestmentMarketPulse, MarketExploreMarket, MomentumLeadersCoverage, MomentumReading } from "@/lib/investment"
 import { taipeiClock } from "@/lib/investmentFormat"
 import { taipeiCalendarDate } from "@/lib/investmentToday"
 import type { TodayMarketPayload } from "@/lib/investmentTodayUpdate"
@@ -46,17 +46,48 @@ export function taiwanIndexReading(live: LiveIndexQuote | undefined, pulse: Inve
   return { value: official?.value ?? null, change: official?.change ?? null, changePct: official?.change_pct ?? null, time: pulse?.source_cutoff ?? null }
 }
 
-type MarketHoldingRow = { symbol: string; today: number | null; return20d: number | null; relativeStrength: number | null }
+/** One row of the holdings table. `relativeStrength` is against the row's own
+ * market benchmark; `vsSemis` exists for US rows only. */
+export type MarketHoldingRow = {
+  symbol: string
+  holding?: boolean
+  price?: number | null
+  today: number | null
+  return20d: number | null
+  vs20ma?: number | null
+  vs50ma?: number | null
+  rsi?: number | null
+  relativeStrength: number | null
+  vsSemis?: number | null
+  macdBearish?: boolean
+}
+
+/** What block 5 renders. Only the first five fields are needed to build the update payload. */
+export type TodayMarketData = {
+  twValue: number | null
+  twChange: number | null
+  twChangePct: number | null
+  usItems: { symbol: string; label: string; value: number | null; change_percent?: number | null; quoted_at?: string | null }[]
+  holdings: MarketHoldingRow[]
+  reading?: MomentumReading
+  coverage?: MomentumLeadersCoverage
+  pulse?: InvestmentMarketPulse
+  exploreMarkets?: MarketExploreMarket[]
+  time?: string | null
+  timeAt?: string | null
+}
 
 /** Everything block 5 displays. Shared with the page-level update button so the
  * numbers sent with a manual run are the numbers the reader sees. */
-export function useTodayMarketData(enabled = true) {
+export function useTodayMarketData(enabled = true): TodayMarketData {
   const market = useQuery({ queryKey: ["investment-market"], queryFn: ({ signal }) => getInvestmentMarket(signal), enabled, staleTime: 15_000, retry: false, refetchOnWindowFocus: true })
   const pulse = useQuery({ queryKey: ["investment-pulse"], queryFn: ({ signal }) => getInvestmentPulse(signal), enabled, staleTime: 60_000, retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false })
   const leaders = useQuery({ queryKey: ["investment-momentum-leaders"], queryFn: ({ signal }) => getMomentumLeaders(signal), enabled, staleTime: 300_000, retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false })
   const usRs = useQuery({ queryKey: ["investment-relative-strength"], queryFn: ({ signal }) => getRelativeStrength(signal), enabled, staleTime: 300_000, retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false })
   const twRs = useQuery({ queryKey: ["investment-tw-relative-strength"], queryFn: ({ signal }) => getTwRelativeStrength(signal), enabled, staleTime: 300_000, retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false })
-  const rows = (leaders.data?.rows ?? []).slice(0, 8)
+  const explore = useQuery({ queryKey: ["investment-explore"], queryFn: ({ signal }) => getMarketExplore(signal), enabled, staleTime: 60_000, retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false })
+  // The whole registered roster: holdings by book value, then the watchlist.
+  const rows = leaders.data?.rows ?? []
   const quotes = useQueries({ queries: rows.map(row => ({ queryKey: ["investment-quote", row.symbol], queryFn: ({ signal }: { signal: AbortSignal }) => getStockQuote(row.symbol, signal), enabled, staleTime: 15_000, retry: false, refetchOnWindowFocus: true })) })
 
   const twii = market.data?.items.find(item => item.symbol === "^TWII")
@@ -72,17 +103,29 @@ export function useTodayMarketData(enabled = true) {
     const row = twRs.data?.state === "unavailable" ? undefined : twRs.data?.holdings.find(item => item.provider_symbol === symbol && item.exchange === exchange)
     return row && row.state !== "unavailable" ? row.market_rs_pp : null
   }
-  const holdings: MarketHoldingRow[] = rows.map((row, index) => ({
-    symbol: row.symbol,
-    today: quotes[index]?.data?.change_percent ?? null,
-    return20d: row.return_20d_pct ?? null,
-    relativeStrength: /\.(TW|TWO)$/.test(row.symbol) ? twRsReading(row.symbol) : rsByTicker.get(row.symbol)?.rs_spy ?? null,
-  }))
+  const holdings: MarketHoldingRow[] = rows.map((row, index) => {
+    const taiwan = /\.(TW|TWO)$/.test(row.symbol)
+    return {
+      symbol: row.symbol,
+      holding: row.holding,
+      price: quotes[index]?.data?.value ?? row.last_close ?? null,
+      today: quotes[index]?.data?.change_percent ?? null,
+      return20d: row.return_20d_pct ?? null,
+      vs20ma: row.vs_20ma_pct ?? null,
+      vs50ma: row.vs_50ma_pct ?? null,
+      rsi: row.rsi14 ?? null,
+      relativeStrength: taiwan ? twRsReading(row.symbol) : rsByTicker.get(row.symbol)?.rs_spy ?? null,
+      vsSemis: taiwan ? null : rsByTicker.get(row.symbol)?.rs_soxx ?? null,
+      // Same rule as the holdings table on the default Today view.
+      macdBearish: row.return_20d_pct != null && (row.macd === "bearish" || row.macd === "bearish_cross"),
+    }
+  })
   const timeAt = newestTime([tw.time, ...usItems.map(item => item.quoted_at), ...quotes.map(q => q.data?.quoted_at)])
-  return { twValue, twChange, twChangePct, usItems, holdings, reading: leaders.data?.reading, coverage: leaders.data?.coverage, time: taipeiClock(timeAt), timeAt }
+  return {
+    twValue, twChange, twChangePct, usItems, holdings, reading: leaders.data?.reading, coverage: leaders.data?.coverage,
+    pulse: pulse.data, exploreMarkets: explore.data?.markets, time: taipeiClock(timeAt), timeAt,
+  }
 }
-
-type TodayMarketData = ReturnType<typeof useTodayMarketData>
 
 /** Compact object sent with a manual update: index tile, US indicators, per-holding rows. */
 export function buildTodayMarketPayload(data: TodayMarketData): TodayMarketPayload {
