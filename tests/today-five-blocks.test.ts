@@ -181,6 +181,24 @@ test("five blocks: dayClock is HH:MM on today's Taipei date and M/D HH:MM on any
   for (const unreadable of ["2026-03-04", "2026-03-04T21:18:00", "not a time", "", null, undefined]) assert.equal(dayClock(unreadable, now), null, String(unreadable))
 })
 
+/** Class names on the card that carries one block's label. */
+function blockClasses(html: string, title: string): string[] {
+  const tag = new RegExp(`<[^>]*aria-label="${title}"[^>]*>`).exec(html)?.[0] ?? ""
+  return (/class="([^"]*)"/.exec(tag)?.[1] ?? "").split(/\s+/)
+}
+
+test("five blocks: two columns fill the page width, and a narrow screen keeps blocks 1-5 in order", async () => {
+  const html = await render(status(), briefProps())
+  const root = /<div[^>]*data-slot="today-five-blocks"[^>]*>/.exec(html)?.[0] ?? ""
+  assert.match(root, /lg:grid-cols-2/, "two columns from the lg breakpoint")
+  assert.doesNotMatch(html, /data-slot="reading-column"/, "no 800px reading column around the blocks")
+  // DOM order is column by column (1, 3, 5 then 2, 4); the order classes restore 1-5 when the columns dissolve.
+  const titles = ["今天怎麼做", "之前關注的事，結論", "今天發生了什麼", "未來要關注的事", "盤面整理"]
+  titles.forEach((title, index) => assert.ok(blockClasses(html, title).includes(`order-${index + 1}`), title))
+  const position = (title: string) => html.indexOf(`aria-label="${title}"`)
+  assert.deepEqual([...titles].sort((left, right) => position(left) - position(right)), ["今天怎麼做", "今天發生了什麼", "盤面整理", "之前關注的事，結論", "未來要關注的事"])
+})
+
 test("five blocks: an update older than the brief does not replace it", async () => {
   const stale = status({ latest: { ...sample, date: previousDay } })
   const html = await render(stale, briefProps())

@@ -598,6 +598,25 @@ try {
     await page.getByRole('tab', { name: 'Today', exact: true }).focus()
     await page.keyboard.press('ArrowRight')
     assert.equal(await page.getByRole('tab', { name: 'Today 五塊', exact: true }).getAttribute('aria-selected'), 'true')
+    // Five-block layout: two columns that fill the page from 1024px up, one column in reading order below it.
+    await page.locator('[data-slot="today-five-blocks"]').waitFor()
+    const fiveBlocks = await page.evaluate(() => Array.from(document.querySelectorAll('[data-slot="today-five-blocks"] [aria-label]'))
+      .filter(element => element.querySelector('span.shrink-0'))
+      .map(element => {
+        const box = element.getBoundingClientRect()
+        return { label: element.getAttribute('aria-label'), x: Math.round(box.x), y: Math.round(box.y), right: Math.round(box.right) }
+      }))
+    const fiveOrder = ['今天怎麼做', '之前關注的事，結論', '今天發生了什麼', '未來要關注的事', '盤面整理']
+    const fiveBy = Object.fromEntries(fiveBlocks.map(block => [block.label, block]))
+    assert.deepEqual(fiveBlocks.map(block => block.label).sort(), [...fiveOrder].sort())
+    if (width >= 1024) {
+      assert.equal(fiveBy['之前關注的事，結論'].y, fiveBy['今天怎麼做'].y, 'blocks 1 and 2 start on the same line')
+      assert.ok(fiveBy['之前關注的事，結論'].x >= fiveBy['今天怎麼做'].right, 'block 2 sits to the right of block 1')
+      for (const label of ['今天發生了什麼', '盤面整理']) assert.equal(fiveBy[label].x, fiveBy['今天怎麼做'].x, `${label} is in the left column`)
+      assert.equal(fiveBy['未來要關注的事'].x, fiveBy['之前關注的事，結論'].x, 'block 4 is in the right column')
+    } else {
+      assert.deepEqual([...fiveBlocks].sort((left, right) => left.y - right.y).map(block => block.label), fiveOrder, 'one column in reading order')
+    }
     await page.keyboard.press('ArrowRight')
     assert.equal(await page.getByRole('tab', { name: '我的判斷', exact: true }).getAttribute('aria-selected'), 'true')
     await page.keyboard.press('End')

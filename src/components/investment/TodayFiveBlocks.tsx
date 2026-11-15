@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { Card, CardSection, ReadingColumn, SectionHeading } from "@/components/ui/card"
+import { Card, CardSection, SectionHeading } from "@/components/ui/card"
 import {
   type InvestmentBrief, type InvestmentTodayUpdate, type InvestmentTodayView,
 } from "@/lib/investment"
@@ -12,7 +12,8 @@ import { instant, newestTime, useTodayMarketData } from "@/lib/investmentTodayMa
 /** A second reading of Today as five blocks. Blocks 1-4 render from the
  * manual update when one exists for today, otherwise from the daily brief. The
  * only status text is one failure line at the top of block 1. When the newest
- * content is from an earlier day it is still shown, and its time carries the date. */
+ * content is from an earlier day it is still shown, and its time carries the date.
+ * The blocks fill the page width in two columns; a narrow screen shows one column. */
 
 const DASH = "—"
 
@@ -44,8 +45,11 @@ function signedPct(value: number | null | undefined): string {
   return value == null || !Number.isFinite(value) ? DASH : `${formatNumber(value, true)}%`
 }
 
+// On a narrow screen the two columns dissolve into one; `order` keeps blocks 1-5 in reading order there.
+const BLOCK_ORDER = ["order-1", "order-2", "order-3", "order-4", "order-5"]
+
 function BlockCard({ index, title, time, children }: { index: number; title: string; time: string | null; children: ReactNode }) {
-  return <Card className="min-w-0" aria-label={title}>
+  return <Card className={`min-w-0 ${BLOCK_ORDER[index - 1] ?? ""}`} aria-label={title}>
     <CardSection>
       <div className="flex min-w-0 items-baseline justify-between gap-3">
         <SectionHeading><span className="pr-2 text-caption font-normal tabular-nums text-ink-3">{index}</span>{title}</SectionHeading>
@@ -280,14 +284,22 @@ export function currentTodayUpdate(b: InvestmentBrief | undefined, update: Today
   return update
 }
 
+/** From `lg` up the page width is split into two columns, each stacking its own
+ * blocks: today (1, 3, 5) on the left and the watched items (2, 4) on the right. */
+const BLOCK_COLUMN = "contents lg:flex lg:min-w-0 lg:flex-col lg:gap-4"
+
 /** `now` fixes the clock for the date checks and the time labels; it defaults to the current time. */
 export function TodayFiveBlocks({ b, today, update: received, now = new Date() }: { b?: InvestmentBrief; today?: InvestmentTodayView; update?: TodayUpdateStatus; now?: Date }) {
   const update = currentTodayUpdate(b, received, now)
-  return <ReadingColumn className="flex min-w-0 flex-col gap-4 break-words">
-    <JudgmentBlock b={b} today={today} update={update} now={now} />
-    <ConclusionsBlock b={b} update={update} now={now} />
-    <StoriesBlock b={b} today={today} update={update} now={now} />
-    <AheadBlock b={b} update={update} now={now} />
-    <MarketBlock note={update?.latest?.market_note} now={now} />
-  </ReadingColumn>
+  return <div data-slot="today-five-blocks" className="flex min-w-0 flex-col gap-4 break-words lg:grid lg:grid-cols-2 lg:items-start">
+    <div className={BLOCK_COLUMN}>
+      <JudgmentBlock b={b} today={today} update={update} now={now} />
+      <StoriesBlock b={b} today={today} update={update} now={now} />
+      <MarketBlock note={update?.latest?.market_note} now={now} />
+    </div>
+    <div className={BLOCK_COLUMN}>
+      <ConclusionsBlock b={b} update={update} now={now} />
+      <AheadBlock b={b} update={update} now={now} />
+    </div>
+  </div>
 }
