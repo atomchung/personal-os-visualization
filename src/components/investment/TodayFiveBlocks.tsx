@@ -17,6 +17,8 @@ import { instant, newestTime, useTodayMarketData } from "@/lib/investmentTodayMa
  * Each block is its own full-width section: a large title, then its content
  * across the page width. Block 5 is the market and momentum view with its own
  * market switch and sort order.
+ * A row of blocks 2 and 4 has what it is about on the left and its texts stacked
+ * on the right, each beside its own label.
  * Text is shown as bullet points, one sentence each. Colour marks state and role
  * only: orange bullets for what a text means for the view or the holdings and
  * for the chip on what is due today, amber for what would overturn the view and
@@ -74,7 +76,7 @@ const HEADLINE = "text-section font-semibold leading-relaxed text-ink"
  * `warn` is what would overturn the view; everything else is `plain`. */
 type Tone = "plain" | "accent" | "warn"
 const MARKER: Record<Tone, string> = { plain: "marker:text-ink-4", accent: "marker:text-accent", warn: "marker:text-warn" }
-/** A column title or cell label. The column that carries the conclusion is set heavier. */
+/** A column title or text label. The one that carries the conclusion is set heavier. */
 const LABEL = "text-caption text-ink-3"
 const LABEL_STRONG = "text-caption font-semibold text-ink"
 
@@ -101,13 +103,26 @@ function ColumnHeads({ columns, labels, accent }: { columns: string; labels: str
   </div>
 }
 
-/** One cell of a row: its text as bullet points. Below `lg` the column titles
- * are hidden, so the cell carries its own label. */
-function Cell({ label, text, tone = "plain" }: { label: string; text: string | null | undefined; tone?: Tone }) {
+/** A row of blocks 2 and 4 from `lg` up: what the row is about, then its texts. */
+const STACKED_ROW = "lg:grid-cols-[minmax(0,1fr)_minmax(0,2.4fr)]"
+
+/** What a row is about: its headline with anything that belongs to it. */
+function RowSubject({ children }: { children: ReactNode }) {
+  return <div data-slot="row-subject" className="flex min-w-0 flex-col items-start gap-2">{children}</div>
+}
+
+/** The texts of one row, one under another. */
+function Details({ children }: { children: ReactNode }) {
+  return <dl data-slot="row-details" className="flex min-w-0 flex-col gap-3">{children}</dl>
+}
+
+/** One text of a row as bullet points. Its label sits beside it from `sm` up and
+ * above it on narrower screens, so the texts of a row share one left edge. */
+function Detail({ label, text, tone = "plain" }: { label: string; text: string | null | undefined; tone?: Tone }) {
   const value = text?.trim()
-  return <div className="flex min-w-0 flex-col gap-1">
-    <span className={`${tone === "accent" ? LABEL_STRONG : LABEL} lg:hidden`}>{label}</span>
-    {value ? <Points text={value} tone={tone} always className={tone === "accent" ? STRONG : BODY} /> : <p className="text-body text-ink-4">{DASH}</p>}
+  return <div data-slot="row-detail" className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-[4.5rem_minmax(0,1fr)] sm:items-baseline">
+    <dt className={tone === "accent" ? LABEL_STRONG : LABEL}>{label}</dt>
+    <dd className="min-w-0">{value ? <Points text={value} tone={tone} always className={tone === "accent" ? STRONG : BODY} /> : <p className="text-body text-ink-4">{DASH}</p>}</dd>
   </div>
 }
 
@@ -178,8 +193,6 @@ function JudgmentBlock({ b, today, update, now }: { b?: InvestmentBrief; today?:
 
 // 2 · 之前關注的事，結論 -----------------------------------------------------
 
-const CONCLUSION_COLUMNS = "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1.3fr)]"
-
 // Block 2 has no brief source by design: without an update it says there is no new conclusion.
 function ConclusionsBlock({ b, update, now }: { b?: InvestmentBrief; update?: TodayUpdateStatus; now: Date }) {
   const latest = update?.latest ?? null
@@ -187,20 +200,19 @@ function ConclusionsBlock({ b, update, now }: { b?: InvestmentBrief; update?: To
   const time = latest ? dayClock(latest.generated_at, now) : b ? dayClock(b.generated_at ?? b.source_cutoff, now) : null
   return <Block index={2} title="之前關注的事，結論" time={time}>
     <BlockCard>
-      {items.length ? <div className="flex min-w-0 flex-col">
-        <ColumnHeads columns={CONCLUSION_COLUMNS} labels={["之前關注的事", "當時預期", "結果", "結論"]} accent="結論" />
-        <ul className="flex min-w-0 flex-col">
-          {items.map((item, index) => <li key={`${item.watch_id ?? item.watched}:${index}`} className={`${ROW} ${CONCLUSION_COLUMNS}`}>
-            <div className="flex min-w-0 flex-col items-start gap-2">
-              <p className={HEADLINE}>{item.watched}</p>
-              {item.changes_view ? <Chip tone="accent">改變了今天的看法</Chip> : null}
-            </div>
-            <Cell label="當時預期" text={item.expected} />
-            <Cell label="結果" text={item.result} />
-            <Cell label="結論" tone="accent" text={item.conclusion} />
-          </li>)}
-        </ul>
-      </div> : <Empty>沒有新的結論</Empty>}
+      {items.length ? <ul className="flex min-w-0 flex-col">
+        {items.map((item, index) => <li key={`${item.watch_id ?? item.watched}:${index}`} className={`${ROW} ${STACKED_ROW}`}>
+          <RowSubject>
+            <p className={HEADLINE}>{item.watched}</p>
+            {item.changes_view ? <Chip tone="accent">改變了今天的看法</Chip> : null}
+          </RowSubject>
+          <Details>
+            <Detail label="當時預期" text={item.expected} />
+            <Detail label="結果" text={item.result} />
+            <Detail label="結論" tone="accent" text={item.conclusion} />
+          </Details>
+        </li>)}
+      </ul> : <Empty>沒有新的結論</Empty>}
     </BlockCard>
   </Block>
 }
@@ -290,10 +302,6 @@ function StoriesBlock({ b, today, update, now }: { b?: InvestmentBrief; today?: 
 
 // 4 · 未來要關注的事 ---------------------------------------------------------
 
-const EVENT_COLUMNS = "lg:grid-cols-[4rem_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]"
-const RESEARCH_COLUMNS = "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]"
-const BRIEF_EVENT_COLUMNS = "lg:grid-cols-[minmax(0,12rem)_minmax(0,1.2fr)_minmax(0,1.4fr)]"
-const BRIEF_RISK_COLUMNS = "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)]"
 const DATE_CELL = "text-section font-semibold tabular-nums text-ink"
 
 /** One group of block 4, with its own heading and the number of rows in it. */
@@ -304,12 +312,13 @@ function WatchSection({ label, count, children }: { label: string; count: number
   </div>
 }
 
-/** An event's date. One due today carries an orange chip; one whose date has
- * passed without a conclusion carries an amber one. The date itself stays in ink. */
+/** An event's date, on its own line above the question. One due today carries an
+ * orange chip; one whose date has passed without a conclusion carries an amber
+ * one. The date itself stays in ink. */
 function DueDate({ due, today }: { due: string | null; today: string }) {
   if (!due) return <p className="text-section tabular-nums text-ink-4">{DASH}</p>
   const day = /^\d{4}-\d{2}-\d{2}/.exec(due)?.[0]
-  return <div className="flex min-w-0 flex-row flex-wrap items-center gap-2 lg:flex-col lg:items-start lg:gap-1">
+  return <div className="flex min-w-0 flex-wrap items-center gap-2">
     <p className={DATE_CELL}>{monthDay(due)}</p>
     {!day ? null : day === today ? <Chip tone="accent">今天</Chip> : day < today ? <Chip tone="warn">已過</Chip> : null}
   </div>
@@ -323,20 +332,24 @@ function AheadFromUpdate({ latest, now }: { latest: TodayUpdate; now: Date }) {
   return <Block index={4} title="未來要關注的事" time={dayClock(latest.generated_at, now)}>
     <BlockCard>
       {events.length ? <WatchSection label="未來事件" count={events.length}>
-        <ColumnHeads columns={EVENT_COLUMNS} labels={["日期", "要看什麼", "預期", "為什麼看"]} accent="為什麼看" />
-        <ul className="flex min-w-0 flex-col">{events.map(item => <li key={item.id} className={`${ROW} ${EVENT_COLUMNS}`}>
-          <DueDate due={item.due} today={today} />
-          <p className={HEADLINE}>{item.question}</p>
-          <Cell label="預期" text={item.expected} />
-          <Cell label="為什麼看" tone="accent" text={item.why} />
+        <ul className="flex min-w-0 flex-col">{events.map(item => <li key={item.id} className={`${ROW} ${STACKED_ROW}`}>
+          <RowSubject>
+            <DueDate due={item.due} today={today} />
+            <p className={HEADLINE}>{item.question}</p>
+          </RowSubject>
+          <Details>
+            <Detail label="預期" text={item.expected} />
+            <Detail label="為什麼看" tone="accent" text={item.why} />
+          </Details>
         </li>)}</ul>
       </WatchSection> : null}
       {research.length ? <WatchSection label="研究選題" count={research.length}>
-        <ColumnHeads columns={RESEARCH_COLUMNS} labels={["要研究什麼", "預期", "為什麼看"]} accent="為什麼看" />
-        <ul className="flex min-w-0 flex-col">{research.map(item => <li key={item.id} className={`${ROW} ${RESEARCH_COLUMNS}`}>
-          <p className={HEADLINE}>{item.question}</p>
-          <Cell label="預期" text={item.expected} />
-          <Cell label="為什麼看" tone="accent" text={item.why} />
+        <ul className="flex min-w-0 flex-col">{research.map(item => <li key={item.id} className={`${ROW} ${STACKED_ROW}`}>
+          <RowSubject><p className={HEADLINE}>{item.question}</p></RowSubject>
+          <Details>
+            <Detail label="預期" text={item.expected} />
+            <Detail label="為什麼看" tone="accent" text={item.why} />
+          </Details>
         </li>)}</ul>
       </WatchSection> : null}
       {events.length || research.length ? null : <Empty>目前沒有要追蹤的事</Empty>}
@@ -351,18 +364,18 @@ function AheadBlock({ b, update, now }: { b?: InvestmentBrief; update?: TodayUpd
   return <Block index={4} title="未來要關注的事" time={dayClock(b?.generated_at ?? b?.source_cutoff, now)}>
     <BlockCard>
       {upcoming.length ? <WatchSection label="未來事件" count={upcoming.length}>
-        <ColumnHeads columns={BRIEF_EVENT_COLUMNS} labels={["時間", "事件", "要核對什麼"]} />
-        <ul className="flex min-w-0 flex-col">{upcoming.map((row, index) => <li key={`upcoming:${index}`} className={`${ROW} ${BRIEF_EVENT_COLUMNS}`}>
-          <p className={DATE_CELL}>{row.date_label.trim() || DASH}</p>
-          <p className={HEADLINE}><InlineText text={row.event.trim()} /></p>
-          <Cell label="要核對什麼" text={row.check} />
+        <ul className="flex min-w-0 flex-col">{upcoming.map((row, index) => <li key={`upcoming:${index}`} className={`${ROW} ${STACKED_ROW}`}>
+          <RowSubject>
+            <p className={DATE_CELL}>{row.date_label.trim() || DASH}</p>
+            <p className={HEADLINE}><InlineText text={row.event.trim()} /></p>
+          </RowSubject>
+          <Details><Detail label="要核對什麼" text={row.check} /></Details>
         </li>)}</ul>
       </WatchSection> : null}
       {risks.length ? <WatchSection label="研究選題" count={risks.length}>
-        <ColumnHeads columns={BRIEF_RISK_COLUMNS} labels={["要研究什麼", "現況"]} />
-        <ul className="flex min-w-0 flex-col">{risks.map((row, index) => <li key={`risk:${index}`} className={`${ROW} ${BRIEF_RISK_COLUMNS}`}>
-          <p className={HEADLINE}><InlineText text={row.risk} /></p>
-          <Cell label="現況" text={row.status} />
+        <ul className="flex min-w-0 flex-col">{risks.map((row, index) => <li key={`risk:${index}`} className={`${ROW} ${STACKED_ROW}`}>
+          <RowSubject><p className={HEADLINE}><InlineText text={row.risk} /></p></RowSubject>
+          <Details><Detail label="現況" text={row.status} /></Details>
         </li>)}</ul>
       </WatchSection> : null}
       {upcoming.length || risks.length ? null : <Empty>{DASH}</Empty>}

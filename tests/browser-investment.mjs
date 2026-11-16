@@ -643,6 +643,33 @@ try {
     assert.ok(bullets.lists.some(list => list.marker === bullets.tokens.plain), 'context text keeps the neutral marker')
     assert.ok(bullets.lists.some(list => list.items > 1), 'a text of several sentences is one bullet per sentence')
     assert.ok(bullets.lists.every(list => list.indent > 0), 'bullet text is indented clear of its marker')
+    // Rows of blocks 2 and 4: what the row is about, then its texts one under another on a shared left edge.
+    const stackedRows = await page.evaluate(() => Array.from(document.querySelectorAll('[data-slot="today-five-blocks"] [data-slot="row-subject"]')).map(subject => {
+      const box = element => { const rect = element.getBoundingClientRect(); return { x: Math.round(rect.x), y: Math.round(rect.y), right: Math.round(rect.right), bottom: Math.round(rect.bottom) } }
+      const details = subject.parentElement.querySelector('[data-slot="row-details"]')
+      return {
+        block: subject.closest('[data-slot="today-block"]')?.getAttribute('aria-label'),
+        subject: box(subject),
+        details: box(details),
+        texts: Array.from(details.querySelectorAll('[data-slot="row-detail"]')).map(detail => ({ label: box(detail.querySelector('dt')), text: box(detail.querySelector('dd')) })),
+      }
+    }))
+    for (const label of ['之前關注的事，結論', '未來要關注的事']) assert.ok(stackedRows.some(row => row.block === label), `${label} has stacked rows`)
+    for (const row of stackedRows) {
+      if (width >= 1024) {
+        assert.ok(row.details.x >= row.subject.right, `${row.block}: the texts are to the right of what the row is about`)
+        assert.equal(row.details.y, row.subject.y, `${row.block}: both start on the same line`)
+        assert.ok(row.details.right - row.details.x > (row.subject.right - row.subject.x) * 2, `${row.block}: the texts get more than twice the width`)
+      } else {
+        assert.ok(row.details.y >= row.subject.bottom, `${row.block}: the texts are below what the row is about`)
+      }
+      assert.equal(new Set(row.texts.map(item => item.text.x)).size, 1, `${row.block}: the texts share one left edge`)
+      for (const [index, item] of row.texts.entries()) {
+        if (index > 0) assert.ok(item.text.y >= row.texts[index - 1].text.bottom, `${row.block}: each text is below the one before it`)
+        if (width >= 640) assert.ok(item.label.right <= item.text.x, `${row.block}: the label is beside its text`)
+        else assert.ok(item.label.bottom <= item.text.y, `${row.block}: the label is above its text`)
+      }
+    }
     // Block 5 keeps the market and momentum controls: Taiwan / US switch, market filter, sort order.
     const marketBlock = page.locator('[data-slot="today-block"][aria-label="盤面整理"]')
     const blockMarkets = marketBlock.getByRole('tablist', { name: '市場', exact: true })
