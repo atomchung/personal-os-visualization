@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useQueries, useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
-import { Card, SectionHeading } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Chip } from "@/components/ui/chip"
 import { DEMO_MODE } from "@/lib/transport"
 import {
@@ -11,7 +11,7 @@ import {
 } from "@/lib/investment"
 import { formatNumber, quoteTime } from "@/lib/investmentFormat"
 
-import { TaiwanRsCell, TaiwanRsDetails, twNoReading, useTaiwanRs, type TaiwanRsProps } from "./TaiwanRs"
+import { TaiwanRsCell, TaiwanRsDetails, taiwanMarketRs, twNoReading, useTaiwanRs, type TaiwanRsProps } from "./TaiwanRs"
 
 const NUM = new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 })
 const MACD = { bullish_cross: "偏多交叉", bearish_cross: "偏空交叉", bullish: "偏多", bearish: "偏空", flat: "持平" }
@@ -40,15 +40,33 @@ type SortKey = "value" | "return" | "rs"
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "value", label: "依市值（預設）" },
   { key: "return", label: "依 20 日報酬" },
-  { key: "rs", label: "依美股相對強度" },
+  { key: "rs", label: "依相對強度（對各自大盤）" },
 ]
 
+type MarketFilter = "all" | "tw" | "us"
+const MARKET_FILTERS: { key: MarketFilter; label: string }[] = [
+  { key: "all", label: "全部" },
+  { key: "tw", label: "台股" },
+  { key: "us", label: "美股" },
+]
+
+function isTaiwan(symbol: string): boolean {
+  return /\.(TW|TWO)$/.test(symbol)
+}
+
+export function filterRows(rows: MomentumRow[], market: MarketFilter): MomentumRow[] {
+  return market === "all" ? rows : rows.filter(row => isTaiwan(row.symbol) === (market === "tw"))
+}
+
 /** "value" is the roster's own order (holdings by book market value, then
- * watchlist) -- already how the backend returns `rows`, so it needs no sort. */
-function sortRows(rows: MomentumRow[], key: SortKey, rsByTicker: Map<string, RelativeStrengthRow>): MomentumRow[] {
+ * watchlist) -- already how the backend returns `rows`, so it needs no sort.
+ * "rs" ranks each row by the reading against its own market's benchmark: the
+ * Taiwan market tier for a Taiwan symbol, SPY for a US one. Rows without a
+ * reading go last. */
+export function sortRows(rows: MomentumRow[], key: SortKey, rsByTicker: Map<string, RelativeStrengthRow>, taiwan?: TaiwanRsProps["data"]): MomentumRow[] {
   if (key === "value") return rows
   const weight = (row: MomentumRow): number | null =>
-    key === "return" ? row.return_20d_pct : (rsByTicker.get(row.symbol)?.rs_spy ?? null)
+    key === "return" ? row.return_20d_pct : isTaiwan(row.symbol) ? taiwanMarketRs(row.symbol, taiwan) : (rsByTicker.get(row.symbol)?.rs_spy ?? null)
   return [...rows].sort((a, b) => {
     const wa = weight(a), wb = weight(b)
     if (wa == null && wb == null) return 0
@@ -271,15 +289,17 @@ function RosterReading({ data }: { data: MomentumLeaders }) {
   </div>
 }
 
-export function StockMomentum() {
-  const [all, setAll] = useState(false)
+/** `defaultAll` opens with the whole roster listed instead of the first eight rows. */
+export function StockMomentum({ defaultAll = false }: { defaultAll?: boolean }) {
+  const [all, setAll] = useState(defaultAll)
   const twQuery = useTaiwanRs()
   const [sortKey, setSortKey] = useState<SortKey>("value")
+  const [market, setMarket] = useState<MarketFilter>("all")
   const rowsQuery = useQuery({ queryKey: ["investment-momentum-leaders"], queryFn: ({ signal }) => getMomentumLeaders(signal), staleTime: 300_000, retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false })
   const rsQuery = useQuery({ queryKey: ["investment-relative-strength"], queryFn: ({ signal }) => getRelativeStrength(signal), staleTime: 300_000, retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false })
   const rows = rowsQuery.data?.rows ?? []
   const rsByTicker = new Map<string, RelativeStrengthRow>((rsQuery.data?.rows ?? []).map(row => [row.ticker, row] as const))
-  const sorted = sortRows(rows, sortKey, rsByTicker)
+  const sorted = sortRows(filterRows(rows, market), sortKey, rsByTicker, twQuery.data)
   const visible = all ? sorted : sorted.slice(0, 8)
   const quotes = useQueries({ queries: visible.map(row => ({ queryKey: ["investment-quote", row.symbol], queryFn: ({ signal }: { signal: AbortSignal }) => getStockQuote(row.symbol, signal), staleTime: 15_000, retry: false, refetchOnWindowFocus: true, refetchOnReconnect: true, refetchInterval: (query: { state: { data?: StockQuote } }) => DEMO_MODE ? false : isRecentQuote(query.state.data?.quoted_at) ? HOLDING_POLL_MS : IDLE_POLL_MS, refetchIntervalInBackground: false })) })
   const rs = rsQuery.data
@@ -288,19 +308,25 @@ export function StockMomentum() {
   const showEmpty = !rowsQuery.isPending && !rowsQuery.isError && rowsQuery.data && rowsQuery.data.state !== "unavailable" && rows.length === 0
   return <section className="flex min-w-0 flex-col gap-4" aria-label="持倉行情與動能">
     <Card className="min-w-0 overflow-hidden shadow-sm">
-      <div className="flex flex-wrap items-baseline gap-2 border-b border-line-soft bg-bg-2 px-3 py-3 sm:px-4"><SectionHeading>行情與均線位置</SectionHeading><span className="text-caption text-ink-3">持倉＋已登記觀察清單</span></div>
+      <div className="flex flex-wrap items-baseline gap-2 border-b border-line-soft bg-bg-2 px-3 py-3 sm:px-4"><h3 className="text-num font-semibold tracking-tight text-ink">行情與均線位置</h3><span className="text-caption text-ink-3">持倉＋已登記觀察清單</span></div>
       {rowsQuery.isPending ? <p className="px-3 py-4 text-body text-ink-3">整理最近完整日線中…</p> : null}
       {rowsQuery.isError ? <p role="alert" className="px-3 py-4 text-body text-warn">清單動能讀取失敗。{rowsQuery.data ? "下方保留上次資料。" : ""}請按上方更新資料。</p> : null}
       {!rowsQuery.isError && rowsQuery.data?.state === "unavailable" ? <p role="status" className="px-3 py-4 text-body text-warn">清單動能暫時無法取得。</p> : null}
       {rowsQuery.data ? <RosterReading data={rowsQuery.data} /> : null}
       {rsUnavailableMsg ? <p role="status" className={`border-b border-line-soft px-3 py-2 text-caption ${rsQuery.isError ? "text-warn" : "text-ink-3"}`}>{rsUnavailableMsg}</p> : null}
-      {rows.length ? <div role="group" aria-label="排序方式" className="flex flex-wrap items-center gap-1 border-b border-line-soft px-3 py-2">
-        {SORT_OPTIONS.map(option => <Button key={option.key} size="sm" aria-pressed={sortKey === option.key} variant={sortKey === option.key ? "selected" : "ghost"} onClick={() => setSortKey(option.key)}>{option.label}</Button>)}
+      {rows.length ? <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line-soft px-3 py-2">
+        <div role="group" aria-label="市場篩選" className="flex flex-wrap items-center gap-1">
+          {MARKET_FILTERS.map(option => <Button key={option.key} size="sm" aria-pressed={market === option.key} variant={market === option.key ? "selected" : "ghost"} onClick={() => setMarket(option.key)}>{option.label}</Button>)}
+        </div>
+        <div role="group" aria-label="排序方式" className="flex flex-wrap items-center gap-1">
+          {SORT_OPTIONS.map(option => <Button key={option.key} size="sm" aria-pressed={sortKey === option.key} variant={sortKey === option.key ? "selected" : "ghost"} onClick={() => setSortKey(option.key)}>{option.label}</Button>)}
+        </div>
       </div> : null}
       {rowsQuery.data ? <RsLookup /> : null}
       {rows.length ? <div className={`hidden gap-x-3 border-b border-line px-3 py-2 text-caption text-ink-3 sm:grid ${GRID}`}><span>個股／價格</span><span>漲跌</span><span>20日報酬</span><span>距20日線</span><span>距50日線</span><span>RSI</span><span>相對強度<span className="block text-micro text-ink-3">依各列基準與日期</span></span></div> : null}
       <ul>{visible.map((row, index) => <Row key={row.symbol} tw={{ symbol: row.symbol, data: twQuery.data, pending: twQuery.isPending, failed: twQuery.isError }} rsDate={rs?.as_of ?? null} rsWindow={rs?.window_trading_days ?? null} row={row} quote={quotes[index]?.data} quoteError={quotes[index]?.isError ?? false} rs={rsByTicker.get(row.symbol)} busy={quotes[index]?.isFetching ?? false} majority={majority} />)}</ul>
       {showEmpty ? <p className="px-3 py-4 text-body text-ink-3">這份清單沒有可比較的標的。</p> : null}
+      {rows.length && !sorted.length ? <p className="px-3 py-4 text-body text-ink-3">清單裡沒有{market === "tw" ? "台股" : "美股"}標的。</p> : null}
       {sorted.length > 8 ? <div className="border-t border-line-soft px-3 py-3"><Button onClick={() => setAll(!all)}>{all ? "收起其他持倉" : `顯示其餘 ${sorted.length - 8} 檔`}</Button></div> : null}
       <details className="border-t border-line-soft px-3 py-2 text-caption text-ink-3">
         <summary className="cursor-pointer py-1">報價與指標口徑</summary>

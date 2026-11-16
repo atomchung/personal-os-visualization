@@ -38,6 +38,12 @@ function holding({ symbol, data }: TaiwanRsProps) {
   const expected = identity(symbol)
   return expected ? data?.holdings.find(row => row.provider_symbol === symbol && row.exchange === expected.exchange) : undefined
 }
+/** The market-tier reading for a roster symbol, or null when the source does not stand behind one. */
+export function taiwanMarketRs(symbol: string, data: TaiwanRsProps["data"]): number | null {
+  if (!data || data.state === "unavailable") return null
+  const row = holding({ symbol, data, pending: false, failed: false })
+  return row && row.state !== "unavailable" ? row.market_rs_pp ?? null : null
+}
 /** A producer-linked row without a confirmed exchange is visible, but its metric remains hidden. */
 function unverifiedHolding({ symbol, data }: TaiwanRsProps) {
   const expected = identity(symbol)

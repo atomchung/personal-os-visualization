@@ -324,7 +324,7 @@ export function MarketPulse() {
     <div className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
         <div>
-          <p className="text-body font-medium text-ink">市場現在怎麼走</p>
+          <h3 className="text-num font-semibold tracking-tight text-ink">市場現在怎麼走</h3>
           <p className="text-caption text-ink-3">台股盤中以 Yahoo Finance 加權指數為主；日線市場快照列出 TWSE／TPEx 行情日、廣度、成交額與族群熱度，兩種資料各自標示來源時間。美股指標會自動更新。</p>
         </div>
         <div role="tablist" aria-label="市場" className="flex min-w-0 gap-3 border-b border-line-soft">

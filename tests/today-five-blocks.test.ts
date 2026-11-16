@@ -7,7 +7,7 @@ import { createServer, type ViteDevServer } from "vite"
 import { setInvestmentProvider, type TodayUpdate, type TodayUpdateStatus } from "../src/lib/investment.ts"
 import { createSyntheticTodayUpdateRun, demoInvestmentProvider, resetSyntheticTodayUpdate } from "../src/demo/investmentProvider.ts"
 import { createDemoRequest } from "../src/demo/transport.ts"
-import { DATE, investment as demoInvestment, todayUpdate as sample } from "../src/demo/fixtures.ts"
+import { DATE, investment as demoInvestment, leaders as demoLeaders, relativeStrength as demoRelativeStrength, todayUpdate as sample, twRelativeStrength as demoTwRelativeStrength } from "../src/demo/fixtures.ts"
 
 let server: ViteDevServer
 let previousLocation: PropertyDescriptor | undefined
@@ -45,13 +45,14 @@ test("five blocks render blocks 1-4 and the market note from the synthetic updat
   assert.doesNotMatch(html, /更新沒有成功/)
   // block 2
   assert.match(html, /星島設備（虛構）發表新一代儲能產品/)
-  assert.equal((html.match(/當時預期/g) ?? []).length, 1)
+  // one column title for wide screens, one label in the row for narrow ones
+  assert.equal((html.match(/當時預期/g) ?? []).length, 2)
   assert.doesNotMatch(html, /改變了今天的看法/)
   assert.doesNotMatch(html, /沒有新的結論/)
   // block 3: link through safeUrl, caption, tickers + effect
   assert.match(html, /<a href="https:\/\/example\.com\/synthetic\/launch"[^>]*target="_blank"[^>]*>星島設備（虛構）公布新一代儲能產品規格<\/a>/)
   assert.match(html, /合成新聞 · 21:58/)
-  assert.match(html, /DEMO、DEMO-C/)
+  assert.match(html, />DEMO<\/span><span[^>]*>DEMO-C<\/span>/, "affected holdings are separate chips")
   assert.match(html, /需求面加分，交付面仍是空白/)
   assert.ok(html.indexOf("公布新一代儲能產品規格") < html.indexOf("範例指數收高"))
   // block 4
@@ -62,7 +63,13 @@ test("five blocks render blocks 1-4 and the market note from the synthetic updat
   assert.ok(html.indexOf("未來事件") < html.indexOf("研究選題"))
   // block 5 note
   assert.match(html, /合成盤面：範例指數上漲/)
-  assert.doesNotMatch(html, /<details/)
+  assert.doesNotMatch(html.slice(0, html.indexOf('aria-label="盤面整理"')), /<details/, "blocks 1-4 fold nothing away")
+})
+
+test("five blocks: a news item's effect is shown even when it names no holding", async () => {
+  const news = [{ ...sample.news[0], affects: [], effect: "合成：這則只改變對產業的理解。" }]
+  const html = await render(status({ latest: { ...sample, news } }))
+  assert.match(html, /合成：這則只改變對產業的理解。/)
 })
 
 test("five blocks: block 1 header shows the update time", async () => {
@@ -104,7 +111,9 @@ function assertBriefFallback(html: string) {
   assert.match(html, /範例價格上漲 1\.2%/)
   // block 4: the brief's risk and upcoming check
   assert.match(html, /展示案例尚無交付證據/)
-  assert.match(html, /09\/23 · 交付說明會（虛構）/)
+  assert.match(html, />09\/23<\/p>/)
+  assert.match(html, /交付說明會（虛構）/)
+  assert.ok(html.indexOf("未來事件") < html.indexOf("研究選題"), "dated events come before research topics")
   assert.doesNotMatch(html, /今天不調整星島設備（虛構）的研究判斷/)
   assert.doesNotMatch(html, /當時預期/)
 }
@@ -182,107 +191,82 @@ test("five blocks: dayClock is HH:MM on today's Taipei date and M/D HH:MM on any
 })
 
 /** Class names on the card that carries one block's label. */
-function blockClasses(html: string, title: string): string[] {
-  const tag = new RegExp(`<[^>]*aria-label="${title}"[^>]*>`).exec(html)?.[0] ?? ""
-  return (/class="([^"]*)"/.exec(tag)?.[1] ?? "").split(/\s+/)
-}
+const TITLES = ["今天怎麼做", "之前關注的事，結論", "今天發生了什麼", "未來要關注的事", "盤面整理"]
 
-test("five blocks: blocks 1-4 flow in two columns that fill the page width, block 5 spans it below", async () => {
+test("five blocks: each block is its own full-width section with a large title, in reading order", async () => {
   const html = await render(status(), briefProps())
-  const flow = /<div[^>]*data-slot="today-five-blocks-flow"[^>]*>/.exec(html)?.[0] ?? ""
-  assert.match(flow, /lg:columns-2/, "two columns from the lg breakpoint")
   assert.doesNotMatch(html, /data-slot="reading-column"/, "no 800px reading column around the blocks")
-  const titles = ["今天怎麼做", "之前關注的事，結論", "今天發生了什麼", "未來要關注的事", "盤面整理"]
-  // each of blocks 1-4 stays whole inside one column; block 5 is outside the flow
-  for (const title of titles.slice(0, 4)) assert.ok(blockClasses(html, title).includes("lg:break-inside-avoid"), title)
-  assert.ok(!blockClasses(html, "盤面整理").includes("lg:break-inside-avoid"))
-  assert.ok(html.indexOf('aria-label="盤面整理"') > html.indexOf("</div>", html.indexOf('aria-label="未來要關注的事"')))
-  // DOM order is reading order, so a narrow screen stacks blocks 1-5 as they are.
-  const position = (title: string) => html.indexOf(`aria-label="${title}"`)
-  assert.deepEqual([...titles].sort((left, right) => position(left) - position(right)), titles)
+  assert.doesNotMatch(html, /columns-2/, "no side-by-side columns of blocks")
+  const sections = [...html.matchAll(/<section data-slot="today-block" aria-label="([^"]*)"[^>]*>/g)].map(match => match[1])
+  assert.deepEqual(sections, TITLES)
+  // the block title is the largest text in the block; the number leads it
+  TITLES.forEach((title, index) => assert.match(html, new RegExp(`<h2 class="[^"]*text-metric font-bold[^"]*"><span[^>]*>${index + 1}</span>${title}</h2>`), title))
+  // the view itself is set larger than body text
+  assert.match(html, /<p class="text-num font-medium[^"]*">今天不調整星島設備（虛構）的研究判斷/)
 })
 
-const marketData = (over: Record<string, unknown> = {}) => ({
-  twValue: 1234.5, twChange: 10.25, twChangePct: 0.84,
-  usItems: [{ symbol: "DEMO-US", label: "範例美股指數", value: 980, change_percent: -0.3, quoted_at: `${DATE}T05:00:00+08:00` }],
-  holdings: [
-    { symbol: "DEMO", holding: true, price: 101.5, today: 1.2, return20d: 4.8, vs20ma: 2.1, vs50ma: -3.4, rsi: 55.5, relativeStrength: 6.3, vsSemis: -1.1, macdBearish: false },
-    { symbol: "DEMO-B.TW", holding: false, price: 88, today: -2.5, return20d: -7.25, vs20ma: -4, vs50ma: null, rsi: 31.2, relativeStrength: null, vsSemis: null, macdBearish: true },
-  ],
-  reading: { strong: 1, as_of: DATE },
-  coverage: { candidate_count: 2, holding_count: 1 },
-  pulse: {
-    as_of: DATE,
-    breadth: { combined: { up: 900, down: 300, flat: 50, limit_up: 12, limit_down: 3 }, advancer_ratio: 0.72 },
-    themes: { strongest: [{ theme: "範例族群甲", avg_change_pct: 3.2 }], weakest: [{ theme: "範例族群乙", avg_change_pct: -1.5 }] },
-    flow: {
-      as_of: DATE, turnover_ntd: 350_000_000_000, turnover_vs_prev_pct: -9.96, turnover_vs_avg20_pct: 2.5,
-      institutional: { status: "published", foreign_net_ntd: 12_300_000_000, trust_net_ntd: -2_000_000_000, dealer_net_ntd: 500_000_000, total_net_ntd: 10_800_000_000 },
-    },
-  },
-  exploreMarkets: [{
-    market: "tw", as_of: DATE, buckets: [
-      { key: "fast", items: [{ symbol: "DEMO-F", label: "範例公司甲", change_1d_pct: 9.9, change_7d_pct: 14.2, activity: { label: null, value: null }, rs_benchmark_1m_pp: null, vs_50ma_pct: null }] },
-      { key: "active", items: [{ symbol: "DEMO-A", label: "範例公司乙", change_1d_pct: 1, change_7d_pct: null, activity: { label: "turnover", value: 73_000_000_000 }, rs_benchmark_1m_pp: null, vs_50ma_pct: null }] },
-      { key: "sustained", items: [] },
-    ],
-  }],
-  timeAt: `${DATE}T13:30:00+08:00`,
-  ...over,
-})
-
-async function renderMarket(data: Record<string, unknown>, now: Date = DEMO_NOW): Promise<string> {
-  const { MarketBlockView } = await server.ssrLoadModule("/src/components/investment/TodayFiveBlocks.tsx")
-  return renderToStaticMarkup(createElement(MarketBlockView, { data, now }))
+/** Renders the five blocks with the market and momentum readings already in the query cache. */
+async function renderWithMarket(leaders: unknown = demoLeaders): Promise<string> {
+  const { TodayFiveBlocks } = await server.ssrLoadModule("/src/components/investment/TodayFiveBlocks.tsx")
+  const client = new QueryClient()
+  client.setQueryData(["investment-momentum-leaders"], leaders)
+  client.setQueryData(["investment-relative-strength"], demoRelativeStrength)
+  client.setQueryData(["investment-tw-relative-strength"], demoTwRelativeStrength)
+  try {
+    return renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(TodayFiveBlocks, { update: status(), now: DEMO_NOW })))
+  } finally { client.clear() }
 }
 
-test("five blocks: block 5 shows breadth, turnover, institutions, themes, money flow and the full holdings table", async () => {
-  const html = await renderMarket(marketData())
-  assert.equal(headerTime(html, "盤面整理"), "13:30")
-  assert.match(html, />市場廣度</)
-  assert.match(html, /漲方 72%/)
-  assert.match(html, /漲停 12 · 跌停 3/)
-  assert.match(html, />上市成交額</)
-  assert.match(html, />3,500 億</)
-  assert.match(html, /比前一日 <span[^>]*>-9\.96%<\/span>/)
-  assert.match(html, />三大法人</)
-  assert.match(html, />\+108\.00 億</)
-  assert.match(html, /外資 <span[^>]*>\+123\.00 億<\/span>/)
-  assert.match(html, /投信 <span[^>]*text-bad[^>]*>-20\.00 億<\/span>/)
-  assert.match(html, />族群熱度</)
-  assert.match(html, /範例族群甲<\/span><span[^>]*text-ok[^>]*>\+3\.20%/)
-  assert.match(html, /範例族群乙<\/span><span[^>]*text-bad[^>]*>-1\.50%/)
-  assert.match(html, />市場資金在哪 · 台股</)
-  assert.match(html, /範例公司甲<span[^>]*>DEMO-F<\/span>/)
-  assert.match(html, /1 日 <span[^>]*>\+9\.90%<\/span> · 7 日 <span[^>]*>\+14\.20%<\/span>/)
-  assert.match(html, /成交額 730 億/)
-  assert.match(html, />持倉與觀察 · 2 檔（持倉 1） · 強勢 1 檔</)
-  assert.match(html, /MACD 偏空：DEMO-B\.TW/)
-  for (const column of ["價格", "今天", "20 日", "距 20 日線", "距 50 日線", "RSI", "對大盤", "對半導體"]) assert.match(html, new RegExp(`>${column}<`), column)
-  assert.match(html, /DEMO-B\.TW<span[^>]*>觀察<\/span>/, "a watchlist row is marked")
-  assert.doesNotMatch(html, />DEMO<span[^>]*>觀察/, "a holding is not")
-  assert.match(html, />55\.5</, "RSI")
-  assert.doesNotMatch(html, /<details/, "nothing is folded away")
+test("five blocks: block 5 is the market card and the momentum table, with the market switch, the market filter and the sort order", async () => {
+  const html = await renderWithMarket()
+  const block = html.slice(html.indexOf('aria-label="盤面整理"'))
+  // the update's note leads the block
+  assert.ok(block.indexOf("合成盤面：範例指數上漲") < block.indexOf("市場現在怎麼走"))
+  // market card: Taiwan / US switch
+  assert.match(block, /<h3 class="text-num font-semibold[^"]*">市場現在怎麼走<\/h3>/)
+  assert.match(block, /role="tablist" aria-label="市場"/)
+  assert.match(block, /role="tab" aria-selected="true"[^>]*>台股</)
+  assert.match(block, /role="tab" aria-selected="false"[^>]*>美股</)
+  // momentum table: market filter and sort order
+  assert.ok(block.indexOf("市場現在怎麼走") < block.indexOf("行情與均線位置"))
+  assert.match(block, /<h3 class="text-num font-semibold[^"]*">行情與均線位置<\/h3>/)
+  const group = (label: string) => new RegExp(`role="group" aria-label="${label}"[^>]*>(.*?)</div>`).exec(block)?.[1] ?? ""
+  const options = (label: string) => [...group(label).matchAll(/<button[^>]*aria-pressed="(true|false)"[^>]*>([^<]*)<\/button>/g)].map(match => `${match[2]}:${match[1]}`)
+  assert.deepEqual(options("市場篩選"), ["全部:true", "台股:false", "美股:false"])
+  assert.deepEqual(options("排序方式"), ["依市值（預設）:true", "依 20 日報酬:false", "依相對強度（對各自大盤）:false"])
+  // the whole roster is listed; nothing waits behind a "show the rest" button
+  for (const row of demoLeaders.rows) assert.ok(block.includes(`>${row.symbol}<`), row.symbol)
+  assert.doesNotMatch(block, /顯示其餘/)
 })
 
-test("five blocks: block 5 names the day of daily readings that are not from today", async () => {
-  const html = await renderMarket(marketData(), NEXT_DAY)
-  const day = monthDay(DATE)
-  assert.equal(headerTime(html, "盤面整理"), `${day} 13:30`)
-  for (const label of ["市場廣度", "上市成交額", "三大法人", "族群熱度", "市場資金在哪 · 台股"]) assert.match(html, new RegExp(`>${label} · ${day}<`), label)
-  assert.match(html, new RegExp(`強勢 1 檔 · ${day}<`))
+test("five blocks: a roster longer than eight rows is listed in full, and can be shortened", async () => {
+  const template = demoLeaders.rows[0]
+  const rows = Array.from({ length: 10 }, (_, index) => ({ ...template, symbol: `DEMO-R${index}` }))
+  const html = await renderWithMarket({ ...demoLeaders, rows })
+  for (const row of rows) assert.ok(html.includes(`>${row.symbol}<`), row.symbol)
+  assert.match(html, /收起其他持倉/)
 })
 
-test("five blocks: block 5 leaves out what its sources did not give", async () => {
-  const bare = await renderMarket(marketData({ pulse: undefined, exploreMarkets: undefined, reading: undefined, coverage: undefined }))
-  for (const label of ["市場廣度", "上市成交額", "三大法人", "族群熱度", "市場資金在哪"]) assert.doesNotMatch(bare, new RegExp(label), label)
-  assert.match(bare, />持倉與觀察</)
-  const base = marketData()
-  const unpublished = await renderMarket({ ...base, pulse: { ...base.pulse, flow: { ...base.pulse.flow, institutional: { ...base.pulse.flow.institutional, status: "not_published" } } } })
-  assert.doesNotMatch(unpublished, /三大法人/)
-  assert.match(unpublished, />上市成交額</)
-  const empty = await renderMarket(marketData({ exploreMarkets: [{ market: "us", as_of: DATE, buckets: [{ key: "fast", items: [] }] }] }))
-  assert.doesNotMatch(empty, /市場資金在哪/, "a market with no names is not shown")
+test("momentum table: the market filter keeps one market, and strength sorts each row against its own market", async () => {
+  const { filterRows, sortRows } = await server.ssrLoadModule("/src/components/investment/StockMomentum.tsx")
+  const template = demoLeaders.rows[0]
+  const row = (symbol: string, return20d: number | null) => ({ ...template, symbol, return_20d_pct: return20d })
+  const rows = [row("DEMO-B", 1), row("DEMO-TW-A.TW", 3), row("SYNTH", 2), row("DEMO-TW-B.TWO", null), row("DEMO-C", 5)]
+  const symbols = (list: { symbol: string }[]) => list.map(item => item.symbol)
+  assert.deepEqual(symbols(filterRows(rows, "all")), symbols(rows))
+  assert.deepEqual(symbols(filterRows(rows, "tw")), ["DEMO-TW-A.TW", "DEMO-TW-B.TWO"])
+  assert.deepEqual(symbols(filterRows(rows, "us")), ["DEMO-B", "SYNTH", "DEMO-C"])
+
+  const us = new Map(demoRelativeStrength.rows.map(item => [item.ticker, item] as const))
+  // book order is the roster's own order
+  assert.deepEqual(symbols(sortRows(rows, "value", us, demoTwRelativeStrength)), symbols(rows))
+  // 20-day return, highest first; a row without one goes last
+  assert.deepEqual(symbols(sortRows(rows, "return", us, demoTwRelativeStrength)), ["DEMO-C", "DEMO-TW-A.TW", "SYNTH", "DEMO-B", "DEMO-TW-B.TWO"])
+  // strength: SYNTH +5.2 vs SPY, DEMO-TW-A +3.25 vs the Taiwan index, DEMO-B -2.4 vs SPY; no reading goes last
+  assert.deepEqual(symbols(sortRows(rows, "rs", us, demoTwRelativeStrength)), ["SYNTH", "DEMO-TW-A.TW", "DEMO-B", "DEMO-TW-B.TWO", "DEMO-C"])
+  // a Taiwan source that is unavailable gives no Taiwan reading at all
+  assert.deepEqual(symbols(sortRows(rows, "rs", us, { ...demoTwRelativeStrength, state: "unavailable" })), ["SYNTH", "DEMO-B", "DEMO-TW-A.TW", "DEMO-TW-B.TWO", "DEMO-C"])
+  assert.deepEqual(symbols(sortRows(rows, "rs", us, undefined)), ["SYNTH", "DEMO-B", "DEMO-TW-A.TW", "DEMO-TW-B.TWO", "DEMO-C"])
 })
 
 test("five blocks: an update older than the brief does not replace it", async () => {

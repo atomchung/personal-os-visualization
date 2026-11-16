@@ -603,36 +603,55 @@ try {
     await page.getByRole('tab', { name: LEGACY_TODAY, exact: true }).focus()
     await page.keyboard.press('ArrowLeft')
     assert.equal(await page.getByRole('tab', { name: 'Today', exact: true }).getAttribute('aria-selected'), 'true')
-    // Five-block layout from 1024px up: blocks 1-4 flow down two columns in reading order, block 5 spans both.
+    // Five-block layout: each block is its own section across the whole content width, stacked in reading order.
     await page.locator('[data-slot="today-five-blocks"]').waitFor()
-    const fiveBlocks = await page.evaluate(() => Array.from(document.querySelectorAll('[data-slot="today-five-blocks"] [aria-label]'))
-      .filter(element => element.querySelector('span.shrink-0'))
-      .map(element => {
-        const box = element.getBoundingClientRect()
-        return { label: element.getAttribute('aria-label'), x: Math.round(box.x), y: Math.round(box.y), right: Math.round(box.right) }
-      }))
+    const fiveBlocks = await page.evaluate(() => Array.from(document.querySelectorAll('[data-slot="today-five-blocks"] > [data-slot="today-block"]')).map(element => {
+      const box = element.getBoundingClientRect()
+      const title = element.querySelector('h2')
+      return { label: element.getAttribute('aria-label'), x: Math.round(box.x), y: Math.round(box.y), right: Math.round(box.right), titleSize: parseFloat(getComputedStyle(title).fontSize) }
+    }))
     const fiveOrder = ['今天怎麼做', '之前關注的事，結論', '今天發生了什麼', '未來要關注的事', '盤面整理']
-    assert.deepEqual(fiveBlocks.map(block => block.label).sort(), [...fiveOrder].sort())
-    const ordered = fiveOrder.map(label => fiveBlocks.find(block => block.label === label))
-    const flowBlocks = ordered.slice(0, 4)
-    const fifth = ordered[4]
-    if (width >= 1024) {
-      const leftX = flowBlocks[0].x
-      const rightColumn = flowBlocks.filter(block => block.x > leftX)
-      assert.ok(rightColumn.length >= 1, 'the second column is used')
-      assert.equal(new Set(rightColumn.map(block => block.x)).size, 1, 'there are exactly two columns')
-      // reading order: down the left column, then down the right one
-      const firstRight = flowBlocks.findIndex(block => block.x > leftX)
-      flowBlocks.forEach((block, index) => assert.equal(block.x > leftX, index >= firstRight, `${block.label} keeps reading order across columns`))
-      for (const column of [flowBlocks.slice(0, firstRight), flowBlocks.slice(firstRight)]) {
-        column.slice(1).forEach((block, index) => assert.ok(block.y > column[index].y, `${block.label} is below the block before it`))
-      }
-      assert.equal(fifth.x, leftX, 'block 5 starts at the left edge')
-      assert.equal(fifth.right, Math.max(...flowBlocks.map(block => block.right)), 'block 5 spans both columns')
-      assert.ok(fifth.y > Math.max(...flowBlocks.map(block => block.y)), 'block 5 is below blocks 1-4')
-    } else {
-      assert.deepEqual([...fiveBlocks].sort((left, right) => left.y - right.y).map(block => block.label), fiveOrder, 'one column in reading order')
+    assert.deepEqual(fiveBlocks.map(block => block.label), fiveOrder)
+    const tablist = await page.getByRole('tablist', { name: '投資內容', exact: true }).boundingBox()
+    for (const [index, block] of fiveBlocks.entries()) {
+      assert.equal(block.x, Math.round(tablist.x), `${block.label} starts at the content edge`)
+      assert.equal(block.right, Math.round(tablist.x + tablist.width), `${block.label} spans the content width`)
+      if (index > 0) assert.ok(block.y > fiveBlocks[index - 1].y, `${block.label} is below the block before it`)
     }
+    const bodySize = await page.evaluate(() => parseFloat(getComputedStyle(document.body).fontSize))
+    assert.ok(fiveBlocks.every(block => block.titleSize >= bodySize * 1.5), 'block titles are clearly larger than body text')
+    // Block 5 keeps the market and momentum controls: Taiwan / US switch, market filter, sort order.
+    const marketBlock = page.locator('[data-slot="today-block"][aria-label="盤面整理"]')
+    const blockMarkets = marketBlock.getByRole('tablist', { name: '市場', exact: true })
+    await blockMarkets.getByRole('tab', { name: '美股', exact: true }).click()
+    assert.equal(await blockMarkets.getByRole('tab', { name: '美股', exact: true }).getAttribute('aria-selected'), 'true')
+    await marketBlock.getByRole('tabpanel', { name: '美股現在盤面', exact: true }).waitFor()
+    await blockMarkets.getByRole('tab', { name: '台股', exact: true }).click()
+    const momentum = marketBlock.getByRole('region', { name: '持倉行情與動能', exact: true })
+    const rowSymbols = () => momentum.locator('ul > li > button[aria-expanded]').evaluateAll(nodes => nodes.map(node => node.querySelector('span span')?.firstChild?.textContent?.trim()))
+    const allRows = await rowSymbols()
+    assert.ok(allRows.length >= 3, 'the roster is listed')
+    const sort = momentum.getByRole('group', { name: '排序方式', exact: true })
+    await sort.getByRole('button', { name: '依相對強度（對各自大盤）', exact: true }).click()
+    assert.equal(await sort.getByRole('button', { name: '依相對強度（對各自大盤）', exact: true }).getAttribute('aria-pressed'), 'true')
+    assert.deepEqual([...await rowSymbols()].sort(), [...allRows].sort(), 'sorting keeps every row')
+    const filter = momentum.getByRole('group', { name: '市場篩選', exact: true })
+    await filter.getByRole('button', { name: '美股', exact: true }).click()
+    assert.equal(await filter.getByRole('button', { name: '美股', exact: true }).getAttribute('aria-pressed'), 'true')
+    const taiwanSymbol = symbol => /\.(TW|TWO)$/.test(symbol)
+    const usRows = await rowSymbols()
+    assert.deepEqual(usRows.sort(), allRows.filter(symbol => !taiwanSymbol(symbol)).sort(), 'the US filter keeps the US rows only')
+    await filter.getByRole('button', { name: '台股', exact: true }).click()
+    const twRows = await rowSymbols()
+    assert.deepEqual([...twRows].sort(), allRows.filter(taiwanSymbol).sort(), 'the Taiwan filter keeps the Taiwan rows only')
+    assert.ok(usRows.length && twRows.length, 'the synthetic roster has both markets')
+    // still sorted by strength: the one Taiwan row with a reading against its own index leads
+    assert.equal(twRows[0], 'DEMO-TW-A.TW')
+    await filter.getByRole('button', { name: '全部', exact: true }).click()
+    assert.equal((await rowSymbols()).length, allRows.length)
+    await layout(page, `${width}/five-blocks`)
+    await page.screenshot({ path: `${output}/${width}-five-blocks.png`, fullPage: true })
+    await page.getByRole('tab', { name: 'Today', exact: true }).focus()
     await page.keyboard.press('ArrowRight')
     assert.equal(await page.getByRole('tab', { name: LEGACY_TODAY, exact: true }).getAttribute('aria-selected'), 'true')
     await page.keyboard.press('ArrowRight')
