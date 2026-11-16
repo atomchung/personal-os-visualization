@@ -45,8 +45,8 @@ test("five blocks render blocks 1-4 and the market note from the synthetic updat
   assert.doesNotMatch(html, /更新沒有成功/)
   // block 2
   assert.match(html, /星島設備（虛構）發表新一代儲能產品/)
-  // one column title for wide screens, one label in the row for narrow ones
-  assert.equal((html.match(/當時預期/g) ?? []).length, 2)
+  // each text carries its own label, once
+  assert.equal((html.match(/當時預期/g) ?? []).length, 1)
   assert.doesNotMatch(html, /改變了今天的看法/)
   assert.doesNotMatch(html, /沒有新的結論/)
   // block 3: link through safeUrl, caption, tickers + effect
@@ -217,11 +217,25 @@ test("splitSentences: a sentence ends at 。！？ outside brackets or at a line
   assert.deepEqual(splitSentences("  "), [])
 })
 
-/** The bullet lists inside one block, each as its marker colour class and its items' text. */
-function pointLists(html: string, title: string): { marker: string; items: string[] }[] {
+/** The markup of one block, from its section tag to the next block. */
+function blockHtml(html: string, title: string): string {
   const start = html.indexOf(`aria-label="${title}"`)
   const end = html.indexOf('<section data-slot="today-block"', start)
-  const block = html.slice(start, end === -1 ? undefined : end)
+  return html.slice(start, end === -1 ? undefined : end)
+}
+
+/** The rows of one block that stack their texts: the labels in order, and
+ * whether the subject comes before the texts in the markup. */
+function stackedRows(html: string, title: string): { labels: string[]; subjectFirst: boolean }[] {
+  return blockHtml(html, title).split('data-slot="row-subject"').slice(1).map(row => ({
+    labels: [...row.matchAll(/<dt class="[^"]*">([^<]*)<\/dt>/g)].map(match => match[1]),
+    subjectFirst: row.includes('<dl data-slot="row-details"'),
+  }))
+}
+
+/** The bullet lists inside one block, each as its marker colour class and its items' text. */
+function pointLists(html: string, title: string): { marker: string; items: string[] }[] {
+  const block = blockHtml(html, title)
   return [...block.matchAll(/<ul data-slot="points" class="([^"]*)">([\s\S]*?)<\/ul>/g)].map(match => ({
     marker: /marker:text-[a-z0-9-]+/.exec(match[1])?.[0] ?? "",
     items: [...match[2].matchAll(/<li>([\s\S]*?)<\/li>/g)].map(item => item[1].replace(/<[^>]+>/g, "")),
@@ -255,18 +269,43 @@ test("five blocks: every cell of blocks 2-4 is a bullet list, and the conclusion
     { marker: "marker:text-ink-4", items: ["合成：規格公布。", "沒有出貨數量。"] },
     { marker: "marker:text-accent", items: ["合成：問題維持待驗證。"] },
   ], "a missing expectation is a dash, not an empty list")
-  // the column that carries the conclusion is marked in its title and in its narrow-screen label
-  for (const [title, label] of [["之前關注的事，結論", "結論"], ["今天發生了什麼", "對持倉的影響"], ["未來要關注的事", "為什麼看"]]) {
-    const start = html.indexOf(`aria-label="${title}"`)
-    const block = html.slice(start, html.indexOf('<section data-slot="today-block"', start))
-    assert.equal((block.match(new RegExp(`<span class="text-caption font-semibold text-ink[^"]*">${label}</span>`, "g")) ?? []).length >= 2, true, `${title}: ${label}`)
-  }
+  // block 3 marks the column that carries the conclusion in its title and in its narrow-screen label
+  const stories = blockHtml(html, "今天發生了什麼")
+  assert.equal((stories.match(/<span class="text-caption font-semibold text-ink[^"]*">對持倉的影響<\/span>/g) ?? []).length >= 2, true)
+  // blocks 2 and 4 mark it in the label beside the text
+  assert.match(blockHtml(html, "之前關注的事，結論"), /<dt class="text-caption font-semibold text-ink">結論<\/dt>/)
+  assert.equal((blockHtml(html, "未來要關注的事").match(/<dt class="text-caption font-semibold text-ink">為什麼看<\/dt>/g) ?? []).length, 2)
   const news = pointLists(html, "今天發生了什麼")
   assert.deepEqual(news.map(list => list.marker), ["marker:text-ink-4", "marker:text-accent", "marker:text-ink-4"], "summary, effect, then the second story's summary")
   const ahead = pointLists(html, "未來要關注的事")
   assert.deepEqual(ahead.map(list => list.marker), ["marker:text-ink-4", "marker:text-accent", "marker:text-accent"], "event expectation and reason, then the research reason")
   assert.match(html, /未來事件<span[^>]*>1 項<\/span>/)
   assert.match(html, /研究選題<span[^>]*>1 項<\/span>/)
+})
+
+test("five blocks: a row of blocks 2 and 4 is its subject, then its texts stacked with a label each", async () => {
+  const html = await render(status())
+  assert.deepEqual(stackedRows(html, "之前關注的事，結論"), [{ labels: ["當時預期", "結果", "結論"], subjectFirst: true }])
+  assert.deepEqual(stackedRows(html, "未來要關注的事"), [
+    { labels: ["預期", "為什麼看"], subjectFirst: true },
+    { labels: ["預期", "為什麼看"], subjectFirst: true },
+  ], "the event, then the research topic")
+  for (const title of ["之前關注的事，結論", "未來要關注的事"]) {
+    const block = blockHtml(html, title)
+    assert.doesNotMatch(block, /lg:hidden/, `${title} has no column-title row and no narrow-screen-only label`)
+    assert.equal((block.match(/data-slot="row-detail"/g) ?? []).length, (block.match(/<dt /g) ?? []).length, `${title}: one label per text`)
+    for (const columns of block.match(/lg:grid-cols-\[[^\]]*\]/g) ?? []) assert.equal(columns.split("_").length, 2, `${title} rows are two columns from lg up`)
+  }
+  // an event's date sits on the line above its question
+  const ahead = blockHtml(html, "未來要關注的事")
+  assert.ok(ahead.indexOf(">9/23<") < ahead.indexOf(sample.watch[0].question), "date before the question")
+  assert.match(ahead, new RegExp(`data-slot="row-subject"[^>]*><div[^>]*><p[^>]*>9/23</p></div><p[^>]*>${sample.watch[0].question.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`))
+})
+
+test("five blocks: the brief fallback of block 4 stacks the same way", async () => {
+  const html = await render(undefined, briefProps())
+  assert.deepEqual(stackedRows(html, "未來要關注的事").map(row => row.labels), [["要核對什麼"], ["現況"]])
+  assert.doesNotMatch(blockHtml(html, "未來要關注的事"), /lg:hidden/)
 })
 
 test("five blocks: an event due today carries an orange chip, one whose date has passed an amber one", async () => {
