@@ -10,9 +10,47 @@ function readableSourceText(text: string): string {
     .replace(/^##[ \t]+Source receipt[ \t]*\(repo-only\)[ \t]*\r?$(?:\r?\n(?!##[ \t])[^\r\n]*)*/gmi, "")
 }
 
+/** The inline markup `InlineText` reads; the capture keeps each match as its own part. */
+const INLINE_MARKUP = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^\s)]+\)|`[^`]+`|<br\s*\/?\s*>)/gi
+const OPENERS = "「『（(【〈《［["
+const CLOSERS = "」』）)】〉》］]"
+const ENDS = "。！？"
+
+/** The sentences of a text, each keeping its closing mark. A sentence ends at
+ * 。！？ outside any bracket pair, or at a line break; inline markup is never cut. */
+export function splitSentences(text: string): string[] {
+  const sentences: string[] = []
+  let current = ""
+  let depth = 0
+  const push = () => {
+    const sentence = current.trim()
+    current = ""
+    if (!sentence) return
+    // Marks left over after a sentence already ended (`？！`, `。」`) belong to it.
+    if (sentences.length && [...sentence].every(char => ENDS.includes(char) || CLOSERS.includes(char))) sentences[sentences.length - 1] += sentence
+    else sentences.push(sentence)
+  }
+  withoutMachineComments(text).split(INLINE_MARKUP).forEach((part, index) => {
+    if (index % 2 === 1) {
+      if (/^<br/i.test(part)) push()
+      else current += part
+      return
+    }
+    for (const char of part) {
+      if (char === "\n") { push(); depth = 0; continue }
+      current += char
+      if (OPENERS.includes(char)) depth += 1
+      else if (CLOSERS.includes(char)) depth = Math.max(0, depth - 1)
+      else if (depth === 0 && ENDS.includes(char)) push()
+    }
+  })
+  push()
+  return sentences
+}
+
 /** A bounded Markdown subset; no source HTML or active content is interpreted. */
 export function InlineText({text}: {text: string}): ReactNode {
-  return withoutMachineComments(text).split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^\s)]+\)|`[^`]+`|<br\s*\/?\s*>)/gi).map((part, i) => {
+  return withoutMachineComments(text).split(INLINE_MARKUP).map((part, i) => {
     if (/^<br/i.test(part)) return <br key={i} />
     if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{part.slice(2,-2)}</strong>
     if (part.startsWith("`") && part.endsWith("`")) return <code key={i} className="break-all text-label">{part.slice(1,-1)}</code>

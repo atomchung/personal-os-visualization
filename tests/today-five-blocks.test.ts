@@ -202,7 +202,91 @@ test("five blocks: each block is its own full-width section with a large title, 
   // the block title is the largest text in the block; the number leads it
   TITLES.forEach((title, index) => assert.match(html, new RegExp(`<h2 class="[^"]*text-metric font-bold[^"]*"><span[^>]*>${index + 1}</span>${title}</h2>`), title))
   // the view itself is set larger than body text
-  assert.match(html, /<p class="text-num font-medium[^"]*">今天不調整星島設備（虛構）的研究判斷/)
+  assert.match(html, /<p class="text-num font-semibold[^"]*">今天不調整星島設備（虛構）的研究判斷/)
+})
+
+test("splitSentences: a sentence ends at 。！？ outside brackets or at a line break, and inline markup stays whole", async () => {
+  const { splitSentences } = await server.ssrLoadModule("/src/components/investment/ReadingText.tsx")
+  assert.deepEqual(splitSentences("第一句。第二句？第三句！"), ["第一句。", "第二句？", "第三句！"])
+  assert.deepEqual(splitSentences("他說「先等。再看。」然後離開。下一句"), ["他說「先等。再看。」然後離開。", "下一句"])
+  assert.deepEqual(splitSentences("括號（內部。不切）外面。"), ["括號（內部。不切）外面。"])
+  assert.deepEqual(splitSentences("**粗體。不切**後面。[連結。文字](https://example.com/a)結尾。"), ["**粗體。不切**後面。", "[連結。文字](https://example.com/a)結尾。"])
+  assert.deepEqual(splitSentences("第一行\n第二行<br>第三行"), ["第一行", "第二行", "第三行"])
+  assert.deepEqual(splitSentences("真的嗎？！下一句。"), ["真的嗎？！", "下一句。"])
+  assert.deepEqual(splitSentences("上漲 1.2%，收在 3.5 元。"), ["上漲 1.2%，收在 3.5 元。"], "a half-width full stop is not a sentence end")
+  assert.deepEqual(splitSentences("  "), [])
+})
+
+/** The bullet lists inside one block, each as its marker colour class and its items' text. */
+function pointLists(html: string, title: string): { marker: string; items: string[] }[] {
+  const start = html.indexOf(`aria-label="${title}"`)
+  const end = html.indexOf('<section data-slot="today-block"', start)
+  const block = html.slice(start, end === -1 ? undefined : end)
+  return [...block.matchAll(/<ul data-slot="points" class="([^"]*)">([\s\S]*?)<\/ul>/g)].map(match => ({
+    marker: /marker:text-[a-z0-9-]+/.exec(match[1])?.[0] ?? "",
+    items: [...match[2].matchAll(/<li>([\s\S]*?)<\/li>/g)].map(item => item[1].replace(/<[^>]+>/g, "")),
+  }))
+}
+
+test("five blocks: the view's first sentence leads and the rest follow as bullet points", async () => {
+  const view = { ...sample.view, text: "合成：今天不調整判斷。理由一是交付還沒有證據。理由二是價格已反映消息。", change_note: "合成：理由換了。傾向不變。", overturn: "合成：交期落空。" }
+  const html = await render(status({ latest: { ...sample, view } }))
+  assert.match(html, /<p class="text-num font-semibold[^"]*">合成：今天不調整判斷。<\/p>/)
+  const lists = pointLists(html, "今天怎麼做")
+  assert.deepEqual(lists, [
+    { marker: "marker:text-accent", items: ["理由一是交付還沒有證據。", "理由二是價格已反映消息。"] },
+    { marker: "marker:text-accent", items: ["合成：理由換了。", "傾向不變。"] },
+    { marker: "marker:text-warn", items: ["合成：交期落空。"] },
+  ])
+  assert.match(html, /<span class="[^"]*text-accent[^"]*">和上一版的差別<\/span>/)
+  assert.match(html, /<span class="[^"]*text-warn[^"]*">什麼會改變這個看法<\/span>/)
+})
+
+test("five blocks: a one-sentence view is the lead alone, and a one-sentence market note stays a paragraph", async () => {
+  const html = await render(status({ latest: { ...sample, view: { ...sample.view, text: "合成：今天不調整判斷。", change_note: null, overturn: null }, market_note: "合成盤面：只有一句。" } }))
+  assert.deepEqual(pointLists(html, "今天怎麼做"), [])
+  assert.match(html, /<p class="[^"]*text-section[^"]*">合成盤面：只有一句。<\/p>/)
+})
+
+test("five blocks: every cell of blocks 2-4 is a bullet list, and the conclusion columns carry the orange marker", async () => {
+  const conclusions = [{ ...sample.conclusions[0], expected: null, result: "合成：規格公布。沒有出貨數量。", conclusion: "合成：問題維持待驗證。" }]
+  const html = await render(status({ latest: { ...sample, conclusions } }))
+  assert.deepEqual(pointLists(html, "之前關注的事，結論"), [
+    { marker: "marker:text-ink-4", items: ["合成：規格公布。", "沒有出貨數量。"] },
+    { marker: "marker:text-accent", items: ["合成：問題維持待驗證。"] },
+  ], "a missing expectation is a dash, not an empty list")
+  // the column that carries the conclusion is marked in its title and in its narrow-screen label
+  for (const [title, label] of [["之前關注的事，結論", "結論"], ["今天發生了什麼", "對持倉的影響"], ["未來要關注的事", "為什麼看"]]) {
+    const start = html.indexOf(`aria-label="${title}"`)
+    const block = html.slice(start, html.indexOf('<section data-slot="today-block"', start))
+    assert.equal((block.match(new RegExp(`<span class="text-caption font-semibold text-ink[^"]*">${label}</span>`, "g")) ?? []).length >= 2, true, `${title}: ${label}`)
+  }
+  const news = pointLists(html, "今天發生了什麼")
+  assert.deepEqual(news.map(list => list.marker), ["marker:text-ink-4", "marker:text-accent", "marker:text-ink-4"], "summary, effect, then the second story's summary")
+  const ahead = pointLists(html, "未來要關注的事")
+  assert.deepEqual(ahead.map(list => list.marker), ["marker:text-ink-4", "marker:text-accent", "marker:text-accent"], "event expectation and reason, then the research reason")
+  assert.match(html, /未來事件<span[^>]*>1 項<\/span>/)
+  assert.match(html, /研究選題<span[^>]*>1 項<\/span>/)
+})
+
+test("five blocks: an event due today carries an orange chip, one whose date has passed an amber one", async () => {
+  const event = sample.watch[0]
+  const tomorrow = new Date(Date.parse(`${DATE}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
+  const watch = [
+    { ...event, id: "demo-due-today", due: DATE },
+    { ...event, id: "demo-due-passed", due: previousDay },
+    { ...event, id: "demo-due-ahead", due: tomorrow },
+    { ...event, id: "demo-due-none", due: null },
+  ]
+  const html = await render(status({ latest: { ...sample, watch } }))
+  // the date keeps its ink; the state is the chip after it
+  const chip = (date: string) => new RegExp(`<p class="[^"]*text-ink">${monthDay(date)}</p>(?:<span class="[^"]*(text-accent|text-warn)[^"]*">([^<]*)</span>)?`).exec(html)?.slice(1, 3)
+  assert.deepEqual(chip(DATE), ["text-accent", "今天"])
+  assert.deepEqual(chip(previousDay), ["text-warn", "已過"])
+  assert.deepEqual(chip(tomorrow), [undefined, undefined])
+  assert.doesNotMatch(html, /<p class="[^"]*text-warn[^"]*">\d/, "a date is never set in the warning colour, which the app restyles as status copy")
+  assert.ok(html.indexOf(`>${monthDay(previousDay)}<`) < html.indexOf(`>${monthDay(DATE)}<`), "events stay in date order")
+  assert.match(html, /未來事件<span[^>]*>4 項<\/span>/)
 })
 
 /** Renders the five blocks with the market and momentum readings already in the query cache. */
