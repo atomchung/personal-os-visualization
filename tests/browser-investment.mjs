@@ -620,6 +620,29 @@ try {
     }
     const bodySize = await page.evaluate(() => parseFloat(getComputedStyle(document.body).fontSize))
     assert.ok(fiveBlocks.every(block => block.titleSize >= bodySize * 1.5), 'block titles are clearly larger than body text')
+    // Blocks 1-4 show their text as bullet points; the marker colour separates a conclusion from its context.
+    const bullets = await page.evaluate(() => {
+      const probe = document.createElement('span')
+      document.body.append(probe)
+      const colour = name => { probe.style.color = `var(--color-${name})`; return getComputedStyle(probe).color }
+      const tokens = { accent: colour('accent'), plain: colour('ink-4') }
+      probe.remove()
+      const lists = Array.from(document.querySelectorAll('[data-slot="today-five-blocks"] [data-slot="points"]')).map(list => ({
+        block: list.closest('[data-slot="today-block"]')?.getAttribute('aria-label'),
+        items: list.querySelectorAll('li').length,
+        marker: getComputedStyle(list.querySelector('li'), '::marker').color,
+        indent: Math.round(list.querySelector('li').getBoundingClientRect().x - list.getBoundingClientRect().x),
+      }))
+      return { tokens, lists }
+    })
+    for (const label of fiveOrder.slice(0, 4)) {
+      const lists = bullets.lists.filter(list => list.block === label)
+      assert.ok(lists.length, `${label} has bullet points`)
+      assert.ok(lists.some(list => list.marker === bullets.tokens.accent), `${label} marks its conclusion in the accent colour`)
+    }
+    assert.ok(bullets.lists.some(list => list.marker === bullets.tokens.plain), 'context text keeps the neutral marker')
+    assert.ok(bullets.lists.some(list => list.items > 1), 'a text of several sentences is one bullet per sentence')
+    assert.ok(bullets.lists.every(list => list.indent > 0), 'bullet text is indented clear of its marker')
     // Block 5 keeps the market and momentum controls: Taiwan / US switch, market filter, sort order.
     const marketBlock = page.locator('[data-slot="today-block"][aria-label="盤面整理"]')
     const blockMarkets = marketBlock.getByRole('tablist', { name: '市場', exact: true })
